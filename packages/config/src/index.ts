@@ -1,0 +1,65 @@
+import { z } from 'zod';
+
+const hexAddress = z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'must be a 0x address');
+
+const schema = z.object({
+  BENCH_CHAIN: z.enum(['bsc-mainnet', 'bsc-testnet']).default('bsc-testnet'),
+  BSC_TESTNET_RPC_URL: z.string().url(),
+  BSC_MAINNET_RPC_URL: z.string().url().optional(),
+
+  // Shadow engine needs historical state. A pruned node cannot serve it and
+  // fails in a confusing way mid-audition, so this is required, not optional.
+  BSC_ARCHIVE_RPC_URL: z.string().url(),
+
+  ERC8004_IDENTITY_REGISTRY: hexAddress,
+  ERC8004_VALIDATION_REGISTRY: hexAddress,
+  ERC8004_REPUTATION_REGISTRY: hexAddress.optional(),
+
+  ERC8183_AGENTIC_COMMERCE: hexAddress.optional(),
+  ERC8183_EVALUATOR_ROUTER: hexAddress.optional(),
+
+  X402_FACILITATOR_URL: z.string().url().optional(),
+  X402_DEFAULT_SCHEME: z
+    .enum(['eip3009', 'permit2-exact', 'permit2-upto'])
+    .default('permit2-upto'),
+  X402_SETTLEMENT_TOKEN: z.enum(['U', 'USDT', 'USD1', 'USDC']).default('USDT'),
+
+  BENCH_WALLET_PROVIDER: z.enum(['evm-local', 'twak', 'altana']).default('evm-local'),
+  BENCH_SIGNER_PRIVATE_KEY: z.string().optional(),
+  ALTANA_API_KEY: z.string().optional(),
+
+  DATABASE_URL: z.string().url(),
+  REDIS_URL: z.string().url(),
+
+  SHADOW_EGRESS_BUDGET_USD: z.coerce.number().positive().default(0.25),
+  SHADOW_EGRESS_ALLOWLIST: z
+    .string()
+    .default('')
+    .transform((s) => s.split(',').map((h) => h.trim()).filter(Boolean)),
+  SHADOW_MAX_CONCURRENT_FORKS: z.coerce.number().int().positive().default(4),
+
+  ALTLAYER_8004SCAN_API_KEY: z.string().optional(),
+});
+
+export type BenchConfig = z.infer<typeof schema>;
+
+let cached: BenchConfig | null = null;
+
+/** Parse and validate the environment. Fails loudly at boot, never at 3am. */
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): BenchConfig {
+  if (cached) return cached;
+  const parsed = schema.safeParse(env);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((i) => `  ${i.path.join('.')}: ${i.message}`)
+      .join('\n');
+    throw new Error(`Invalid Bench configuration:\n${issues}`);
+  }
+  cached = parsed.data;
+  return cached;
+}
+
+export const rpcUrlFor = (c: BenchConfig): string =>
+  c.BENCH_CHAIN === 'bsc-mainnet'
+    ? (c.BSC_MAINNET_RPC_URL ?? (() => { throw new Error('BSC_MAINNET_RPC_URL required for bsc-mainnet'); })())
+    : c.BSC_TESTNET_RPC_URL;

@@ -1,0 +1,36 @@
+{
+  "name": "bench",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Agents audition on your real position before you pay.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "fmt": "prettier --write .",
+    "fmt:check": "prettier --check .",
+    "db:up": "docker compose up -d postgres redis",
+    "db:down": "docker compose down",
+    "db:generate": "npm run generate -w @bench/db",
+    "db:push": "npm run push -w @bench/db",
+    "fork": "bash scripts/fork.sh"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "eslint": "9.17.0",
+    "prettier": "3.4.2",
+    "tsx": "4.19.2",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}

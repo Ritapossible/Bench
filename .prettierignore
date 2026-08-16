@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.next/
+contracts/out/
+contracts/cache/
+contracts/lib/
+*.md

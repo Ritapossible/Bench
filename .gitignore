@@ -1,0 +1,22 @@
+node_modules/
+dist/
+.next/
+out/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+
+# foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# shadow engine scratch
+.forks/
+.audition-cache/
+
+coverage/
+.DS_Store
+*.log

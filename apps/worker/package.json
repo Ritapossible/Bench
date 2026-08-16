@@ -1,0 +1,21 @@
+{
+  "name": "@bench/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@bench/adapters": "*",
+    "@bench/config": "*",
+    "@bench/core": "*",
+    "@bench/db": "*",
+    "bullmq": "5.34.5",
+    "ioredis": "5.4.2"
+  }
+}

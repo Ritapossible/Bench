@@ -1,0 +1,26 @@
+{
+  "name": "@bench/adapters",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@bench/config": "*",
+    "@bench/core": "*",
+    "viem": "2.21.55"
+  },
+  "comments": {
+    "@bnbagent/sdk": "Pinned EXACT (no caret) — 0.x line, upstream warns of breaking changes. Added in Phase 1 once its export surface is verified. Only packages/adapters/src/sdk.ts may import it."
+  }
+}
