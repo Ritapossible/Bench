@@ -8,22 +8,24 @@ Ordering principle: **ship the trust layer before the polish.** An ugly page ran
 
 ## Phase 0 — Foundations (Aug 16–17)
 
-- [ ] Repo, CI, Postgres + Redis via docker-compose, Next.js + workers monorepo skeleton.
-- [ ] **Adapter interfaces first**, before any SDK call: `WalletProvider`, `EscrowClient`, `PaymentClient`, `RegistryClient`. Pin `@bnbagent/sdk` to an exact version. A breaking SDK release must be a one-file fix.
-- [ ] Anvil fork of BSC running locally, reproducible from a pinned block.
-- [ ] **Send the organizer questions today** (memory.md §Open questions). The answers change what gets built; every day of delay is a day of possible rework.
-- [ ] Pull the **actual scoring rubric** from the contest page. The blog defers it. Do not guess at weights that can simply be read.
+- [x] Repo, CI, Postgres + Redis via docker-compose, Next.js + workers monorepo skeleton.
+- [x] **Adapter interfaces first**, before any SDK call: `WalletProvider`, `EscrowClient`, `PaymentClient`, `RegistryClient`. Pin `@bnbagent/sdk` to an exact version. A breaking SDK release must be a one-file fix.
+- [ ] Anvil fork of BSC running locally, reproducible from a pinned block. *(`scripts/fork.sh` written; not yet run against an archive node.)*
+- [ ] **Send the organizer questions today** (memory.md §Open questions). The answers change what gets built; every day of delay is a day of possible rework. **← still outstanding, and it gates Phase 4.**
+- [ ] Pull the **actual scoring rubric** from the contest page. The blog defers it. Do not guess at weights that can simply be read. **← still outstanding.**
 
 ## Phase 1 — Catalog with a pulse (Aug 18–22)
 
 Goal: a page that is already more useful than a raw registry read.
 
-- [ ] Indexer: ERC-8004 registry events → `agents`; resolve `tokenURI` → agent card → capabilities, endpoints, declared permissions.
+- [x] Indexer: ERC-8004 registry events → `agents`; resolve `tokenURI` → agent card → capabilities, endpoints, declared permissions. *(Reads via viem/ERC-721 mints; unresolvable cards kept with a recorded reason.)*
 - [ ] 8004scan cross-reference ingest (complement, credit them; do not rebuild the explorer).
-- [ ] Prober: scheduled endpoint pings → reachability, p95 latency, A2A/MCP conformance.
-- [ ] **"Verified live" filter working.** This alone makes the catalog ~25× denser in real agents.
-- [ ] Agent cards + profile pages. Plain styling is fine at this stage.
-- [ ] Onchain anchoring of the rolling probe hash.
+- [x] Prober: scheduled endpoint pings → reachability, p95 latency, A2A/MCP conformance. *(Read-only conformance: A2A well-known card, MCP `initialize`, OASF descriptor.)*
+- [x] **"Verified live" filter working.** This alone makes the catalog ~25× denser in real agents. *(One predicate in `@bench/core`; mirrored in SQL for the WHERE clause.)*
+- [ ] Agent cards + profile pages. Plain styling is fine at this stage. *(Frontend — deliberately deferred.)*
+- [ ] Onchain anchoring of the rolling probe hash. *(Hash chain, batching, and the anchor job are done; the registry write itself is still `notImplemented` pending a verified Validation Registry ABI.)*
+
+**Environment blocker:** `npm install` cannot complete on the dev machine (Windows file locks → `ENOTEMPTY`), which has corrupted `node_modules`. `@bench/core` and `@bench/services` are verified; `@bench/adapters`, `@bench/db`, and the worker are written but not yet typechecked or tested. See memory.md §Status log for the recovery steps.
 
 **Exit test:** filter to verified-live and get a list of agents that all actually respond.
 

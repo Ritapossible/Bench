@@ -2,7 +2,7 @@
 
 Persistent context for anyone (human or agent) picking this project up mid-flight. Keep it current; it is the file to read first.
 
-**Last updated:** 16 Aug 2026
+**Last updated:** 16 Aug 2026 (Phase 1 backend in progress)
 
 ---
 
@@ -84,4 +84,11 @@ $40,000+ — BNB Chain $30k USDT (+ adoption) · TermiX $10k USDT · PancakeSwap
 
 ## Status log
 
-- **16 Aug 2026** — Concept locked, named Bench. Architecture and plan written. Phase 0 not yet started. Organizer questions not yet sent. **Next action: send organizer questions and pull the real scoring rubric.**
+- **16 Aug 2026** — Concept locked, named Bench. Architecture and plan written. Phase 0 not yet started. Organizer questions not yet sent.
+- **16 Aug 2026 (later)** — Phase 0 complete and pushed to `github.com/Ritapossible/Bench`. Phase 1 backend written: indexer, prober, anchor, catalog repository (Postgres + in-memory), SSRF-guarded fetch, agent-card resolver, verified-live filter. Frontend deliberately untouched.
+
+  **Decision — Phase 1 rides on viem, not `@bnbagent/sdk`.** Reading the Identity Registry is standard ERC-721 access, so it does not need the SDK, whose export surface is still unverified against the pin. This keeps the catalog unblocked by a dependency we cannot check. The SDK earns its place in Phase 4, where Altana EIP-7702 session keys have no viem equivalent.
+
+  **Blocked on the local machine, not on the code:** `npm install` cannot complete — repeated `ENOTEMPTY`/`rm: Directory not empty` failures under Windows file locks, which have progressively corrupted `node_modules` (viem, zod, drizzle-orm, vite, and finally typescript itself). `@bench/core` and `@bench/services` typechecked clean and passed 36 assertions against compiled output *before* the tree degraded; `@bench/adapters`, `@bench/db`, and the worker are written but unverified. **Next action: recover `node_modules` (close editors/watchers, exclude the repo from Defender real-time scanning, `rm -rf node_modules packages/*/node_modules && npm install`), then `npm run typecheck && npm test`.**
+
+  Two things still owed from Phase 0, unchanged: **organizer questions not sent**, and the **real scoring rubric not pulled**. Both gate what gets built next, so they outrank more code.

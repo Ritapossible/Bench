@@ -15,6 +15,10 @@ const schema = z.object({
   ERC8004_VALIDATION_REGISTRY: hexAddress,
   ERC8004_REPUTATION_REGISTRY: hexAddress.optional(),
 
+  // Block the Identity Registry was deployed at. Indexing from 0 means hours
+  // of getLogs over empty ranges before the first agent appears.
+  ERC8004_REGISTRY_START_BLOCK: z.coerce.number().int().nonnegative().default(0),
+
   ERC8183_AGENTIC_COMMERCE: hexAddress.optional(),
   ERC8183_EVALUATOR_ROUTER: hexAddress.optional(),
 

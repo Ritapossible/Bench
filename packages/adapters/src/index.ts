@@ -1,8 +1,16 @@
-import type { BenchConfig } from '@bench/config';
-import { BenchError, type EscrowClient, type PaymentClient, type RegistryClient, type WalletProvider } from '@bench/core';
+import { rpcUrlFor, type BenchConfig } from '@bench/config';
+import {
+  BenchError,
+  type EscrowClient,
+  type PaymentClient,
+  type ProbeClient,
+  type RegistryClient,
+  type WalletProvider,
+} from '@bench/core';
 import { Erc8004RegistryClient } from './chain/erc8004-registry.js';
 import { Erc8183EscrowClient } from './chain/erc8183-escrow.js';
 import { X402PaymentClient } from './chain/x402-payment.js';
+import { HttpProbeClient } from './probe/http-probe.js';
 import { AnvilForkProvider } from './shadow/anvil-fork.js';
 import { InMemoryEgressGuard } from './shadow/egress-guard.js';
 import {
@@ -11,9 +19,28 @@ import {
   TwakWalletProvider,
 } from './wallet/providers.js';
 
-export { Erc8004RegistryClient } from './chain/erc8004-registry.js';
+export { Erc8004RegistryClient, type RegistryClientOptions } from './chain/erc8004-registry.js';
 export { Erc8183EscrowClient } from './chain/erc8183-escrow.js';
 export { X402PaymentClient } from './chain/x402-payment.js';
+export {
+  IDENTITY_REGISTRY_ABI,
+  REGISTERED_EVENT,
+  VALIDATION_REGISTRY_ABI,
+} from './chain/abi/erc8004.js';
+export {
+  CardResolver,
+  normalizeCard,
+  inferCategory,
+  toFetchableUrl,
+  type CardResolverOptions,
+} from './catalog/card-resolver.js';
+export { HttpProbeClient, extractSseData, type ProbeOptions } from './probe/http-probe.js';
+export {
+  safeFetch,
+  assertPublicUrl,
+  type SafeFetchOptions,
+  type SafeResponse,
+} from './net/safe-fetch.js';
 export { AnvilForkProvider } from './shadow/anvil-fork.js';
 export { InMemoryEgressGuard, type EgressGuardOptions } from './shadow/egress-guard.js';
 export {
@@ -21,7 +48,7 @@ export {
   EvmLocalWalletProvider,
   TwakWalletProvider,
 } from './wallet/providers.js';
-export { FakeRegistryClient } from './fakes.js';
+export { FakeRegistryClient, InMemoryCatalogRepository } from './fakes.js';
 export { SDK_PINNED_VERSION, assertSdkVersion } from './sdk.js';
 
 /**
@@ -31,6 +58,7 @@ export { SDK_PINNED_VERSION, assertSdkVersion } from './sdk.js';
  */
 export interface Adapters {
   readonly registry: RegistryClient;
+  readonly probe: ProbeClient;
   readonly payment: PaymentClient;
   readonly escrow: EscrowClient;
   readonly wallet: WalletProvider;
@@ -40,7 +68,18 @@ export interface Adapters {
 
 export function buildAdapters(cfg: BenchConfig): Adapters {
   return {
-    registry: new Erc8004RegistryClient(),
+    registry: new Erc8004RegistryClient({
+      chain: cfg.BENCH_CHAIN,
+      rpcUrl: rpcUrlFor(cfg),
+      identityRegistry: cfg.ERC8004_IDENTITY_REGISTRY,
+      ...(cfg.ERC8004_VALIDATION_REGISTRY === undefined
+        ? {}
+        : { validationRegistry: cfg.ERC8004_VALIDATION_REGISTRY }),
+    }),
+    // Loopback stays off: the prober fetches URLs declared by strangers, and
+    // registration is gas-free, so an endpoint of http://localhost:5432 is a
+    // free probe of our own infrastructure. See net/safe-fetch.ts.
+    probe: new HttpProbeClient({ timeoutMs: 5_000, allowLoopback: false }),
     payment: new X402PaymentClient(),
     escrow: new Erc8183EscrowClient(),
     wallet: buildWallet(cfg),

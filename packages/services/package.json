@@ -1,5 +1,5 @@
 {
-  "name": "@bench/db",
+  "name": "@bench/services",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,17 +13,12 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "generate": "drizzle-kit generate",
-    "push": "drizzle-kit push",
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@bench/core": "*",
-    "drizzle-orm": "0.38.3",
-    "pg": "8.13.1"
+    "@bench/core": "*"
   },
-  "devDependencies": {
-    "@types/pg": "8.11.10",
-    "drizzle-kit": "0.30.1"
+  "comments": {
+    "deps": "Depends on @bench/core ONLY. Services compose ports; if this ever needs @bench/adapters, a service has reached for a concrete implementation and the seam has leaked."
   }
 }

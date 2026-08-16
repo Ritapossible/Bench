@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "./src",
-    "outDir": "./dist"
+    "outDir": "./dist",
+    // Explicit, not inherited: without this TypeScript auto-includes every
+    // @types/* package in the workspace, so @types/react (a web-app dependency
+    // that core must never see) ends up in core's compilation.
+    "types": ["node"]
   },
   "include": ["src/**/*"]
 }

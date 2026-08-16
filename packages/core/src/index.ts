@@ -5,9 +5,13 @@
 export * from './types/primitives.js';
 export * from './types/agent.js';
 export * from './types/audition.js';
+export * from './types/catalog.js';
 export * from './types/score.js';
 export * from './types/hire.js';
 
+export * from './digest.js';
+
+export * from './ports/catalog.js';
 export * from './ports/registry.js';
 export * from './ports/wallet.js';
 export * from './ports/payment.js';

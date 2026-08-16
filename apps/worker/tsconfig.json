@@ -10,6 +10,7 @@
     { "path": "../../packages/core" },
     { "path": "../../packages/config" },
     { "path": "../../packages/db" },
-    { "path": "../../packages/adapters" }
+    { "path": "../../packages/adapters" },
+    { "path": "../../packages/services" }
   ]
 }

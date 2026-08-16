@@ -57,7 +57,9 @@ export class BenchError extends Error {
   constructor(
     readonly code: BenchErrorCode,
     message: string,
-    readonly cause?: unknown,
+    // `override` because Error already declares `cause`; `noImplicitOverride`
+    // makes shadowing it silently an error rather than a subtle surprise.
+    override readonly cause?: unknown,
   ) {
     super(message);
     this.name = 'BenchError';

@@ -10,6 +10,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -27,18 +28,27 @@ export const agents = pgTable(
     category: text('category').notNull().default('other'),
     // Null is the common case: most tokenURIs do not resolve.
     card: jsonb('card'),
+    // Why it did not resolve. Kept because the failure reasons are the
+    // evidence behind the catalog-density figure Bench publishes.
+    cardError: text('card_error'),
     registeredAt: timestamp('registered_at', { withTimezone: true }).notNull(),
     indexedAt: timestamp('indexed_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('agents_chain_token_idx').on(t.chain, t.tokenId)],
+  // Unique, not merely indexed: it is the upsert conflict target, which is
+  // what makes re-indexing a block range idempotent rather than duplicating.
+  (t) => [uniqueIndex('agents_chain_token_idx').on(t.chain, t.tokenId)],
 );
 
-export const agentEndpoints = pgTable('agent_endpoints', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
-  protocol: text('protocol').notNull(),
-  url: text('url').notNull(),
-});
+export const agentEndpoints = pgTable(
+  'agent_endpoints',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    protocol: text('protocol').notNull(),
+    url: text('url').notNull(),
+  },
+  (t) => [uniqueIndex('agent_endpoints_agent_url_idx').on(t.agentId, t.url)],
+);
 
 export const probeResults = pgTable(
   'probe_results',
@@ -53,7 +63,64 @@ export const probeResults = pgTable(
     error: text('error'),
     anchoredDigest: text('anchored_digest'),
   },
-  (t) => [index('probe_agent_at_idx').on(t.agentId, t.at)],
+  (t) => [
+    index('probe_agent_at_idx').on(t.agentId, t.at),
+    // The anchor job scans for probes with no digest yet, oldest first.
+    index('probe_unanchored_idx').on(t.anchoredDigest, t.at),
+  ],
+);
+
+/**
+ * Rolling liveness per agent, recomputed on every probe write.
+ *
+ * Denormalised deliberately. The "verified live" filter has to be a WHERE
+ * clause: folding probe history in application code would mean loading the
+ * whole catalog to render one filtered page, and this filter is the single
+ * most-used query in the product. Correctness comes from having exactly one
+ * writer — CatalogRepository.recordProbe — and from `isVerifiedLive` in
+ * @bench/core remaining the only definition of the predicate.
+ */
+export const agentLiveness = pgTable('agent_liveness', {
+  agentId: uuid('agent_id')
+    .primaryKey()
+    .references(() => agents.id, { onDelete: 'cascade' }),
+  lastProbedAt: timestamp('last_probed_at', { withTimezone: true }),
+  reachable: boolean('reachable').notNull().default(false),
+  conformant: boolean('conformant').notNull().default(false),
+  uptimeBps: integer('uptime_bps').notNull().default(0),
+  p95LatencyMs: integer('p95_latency_ms'),
+  probeCount: integer('probe_count').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Where the indexer resumes. One row per chain, so a bad decode is recovered
+ * by rewinding a single value rather than replaying the registry from genesis.
+ */
+export const indexerCheckpoints = pgTable('indexer_checkpoints', {
+  chain: text('chain').primaryKey(),
+  lastBlock: bigint('last_block', { mode: 'bigint' }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Onchain commitments to the probe record. Each digest folds in the previous
+ * one, so the rows form a hash chain: rewriting any historical probe batch
+ * invalidates every anchor after it, and those are onchain. This is what makes
+ * liveness auditable rather than a claim Bench makes about its own database.
+ */
+export const probeAnchors = pgTable(
+  'probe_anchors',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    digest: text('digest').notNull(),
+    previousDigest: text('previous_digest').notNull(),
+    txHash: text('tx_hash').notNull(),
+    coversUpTo: timestamp('covers_up_to', { withTimezone: true }).notNull(),
+    probeCount: integer('probe_count').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('probe_anchors_created_idx').on(t.createdAt)],
 );
 
 export const auditionWindows = pgTable('audition_windows', {

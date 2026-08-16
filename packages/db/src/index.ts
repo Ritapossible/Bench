@@ -3,6 +3,7 @@ import pg from 'pg';
 import * as schema from './schema.js';
 
 export * as schema from './schema.js';
+export { PgCatalogRepository } from './catalog-repository.js';
 export type Db = ReturnType<typeof createDb>;
 
 export function createDb(connectionString: string) {

@@ -49,6 +49,13 @@ export interface AgentRecord {
   readonly cardUri: string;
   /** Null when the tokenURI is unresolvable — common, and worth surfacing. */
   readonly card: AgentCard | null;
+  /**
+   * Why the card did not resolve, when it didn't. The failure reasons are the
+   * evidence behind the catalog-density figure Bench publishes, so they are
+   * stored rather than logged and discarded: "96% are dead" is only a credible
+   * claim if we can say how each one was dead.
+   */
+  readonly cardError?: string;
   readonly registeredAt: Date;
 }
 

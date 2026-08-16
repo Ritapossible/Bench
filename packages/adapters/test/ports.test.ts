@@ -22,9 +22,16 @@ import {
  * compile-time: if an adapter drifts from its port, `tsc` fails before vitest
  * ever runs. The runtime cases below cover the parts types cannot express.
  */
+/** Enough to construct the client; no request is made in these tests. */
+const registryOpts = {
+  chain: 'bsc-testnet',
+  rpcUrl: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
+  identityRegistry: `0x${'11'.repeat(20)}`,
+} as const;
+
 describe('port conformance', () => {
   it('binds every adapter to its port', () => {
-    const registry: RegistryClient = new Erc8004RegistryClient();
+    const registry: RegistryClient = new Erc8004RegistryClient(registryOpts);
     const payment: PaymentClient = new X402PaymentClient();
     const escrow: EscrowClient = new Erc8183EscrowClient();
     const wallet: WalletProvider = new EvmLocalWalletProvider();

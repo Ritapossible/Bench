@@ -25,6 +25,12 @@ export interface ValidationEntry {
  * checked. There is deliberately no `writeReputation` on this port.
  */
 export interface RegistryClient {
+  /**
+   * Chain head. On the port because the indexer needs it to decide how far it
+   * may safely read, and going around the port for it would mean the worker
+   * holding its own RPC client — a second place for the chain config to drift.
+   */
+  headBlock(): Promise<bigint>;
   listAgents(q?: ListAgentsQuery): Promise<readonly AgentRecord[]>;
   getAgent(id: AgentId): Promise<AgentRecord | null>;
   /** Resolve an Identity NFT tokenURI to its card. Throws INVALID_AGENT_CARD. */
