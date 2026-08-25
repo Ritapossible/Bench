@@ -26,6 +26,19 @@ The same measurement that produces the ranking also produces the constraint. Tha
 
 The indexer and prober that feed the catalog measure, continuously, what [arXiv 2606.26028](https://arxiv.org/abs/2606.26028) measured once through May 2026. Bench publishes that as a free public dashboard — the live share of BSC-registered agents that resolve, respond, and conform, recomputed daily against the study's baseline. **The paper measured the problem once; Bench measures it every day.**
 
+## Run it
+
+```bash
+npm install
+npm run build:web     # builds @bench/core, then the Next app
+npm run start -w @bench/web
+```
+
+**Deploying to Vercel:** `vercel.json` at the repo root already carries the install
+command, build command and output directory, so import the repository with **Root
+Directory left as `.`** and it builds without further configuration. The web app is
+the only deployable; the worker and shadow engine run separately.
+
 ## Status
 
 Phase 1 backend written — indexer, prober, verified-live filter, agent-card resolver. The shadow engine (Phase 2, the longest pole) has not started. Frontend is a scaffold. See [plan.md](./plan.md) for the phase state and cut lines, and [memory.md](./memory.md) for what is currently blocking.
