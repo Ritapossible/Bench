@@ -76,12 +76,67 @@ function isBlockedIPv4(ip: string, allowLoopback: boolean): boolean {
   return false;
 }
 
+/**
+ * Expand an IPv6 address to its eight hextets, or null if it will not parse.
+ *
+ * Needed because the textual form cannot be pattern-matched safely. WHATWG
+ * URL parsing rewrites `[::ffff:127.0.0.1]` to `[::ffff:7f00:1]` and
+ * `[0:0:0:0:0:ffff:169.254.169.254]` to `[::ffff:a9fe:a9fe]`, so a regex over
+ * the dotted-quad form never fires for anything that arrived as a URL — which
+ * is every host this module sees. Matching on structure instead of on spelling
+ * is the only way this stays correct across those rewrites.
+ */
+function expandIPv6(addr: string): number[] | null {
+  const [headRaw, tailRaw, ...rest] = addr.split('::');
+  if (rest.length > 0) return null; // '::' may appear at most once
+
+  const toHextets = (part: string): number[] | null => {
+    if (part === '') return [];
+    const out: number[] = [];
+    for (const piece of part.split(':')) {
+      if (piece.includes('.')) {
+        // Trailing dotted-quad form: a.b.c.d occupies the last two hextets.
+        const octets = piece.split('.').map(Number);
+        if (octets.length !== 4 || octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+        const [a, b, c, d] = octets as [number, number, number, number];
+        out.push((a << 8) | b, (c << 8) | d);
+        continue;
+      }
+      if (!/^[0-9a-f]{1,4}$/.test(piece)) return null;
+      out.push(Number.parseInt(piece, 16));
+    }
+    return out;
+  };
+
+  const head = toHextets(headRaw ?? '');
+  const tail = tailRaw === undefined ? [] : toHextets(tailRaw);
+  if (head === null || tail === null) return null;
+
+  if (tailRaw === undefined) return head.length === 8 ? head : null;
+
+  const gap = 8 - head.length - tail.length;
+  if (gap < 0) return null;
+  return [...head, ...new Array<number>(gap).fill(0), ...tail];
+}
+
 function isBlockedIPv6(ip: string, allowLoopback: boolean): boolean {
   const addr = ip.toLowerCase().split('%')[0] ?? '';
 
-  // IPv4-mapped (::ffff:a.b.c.d) is an IPv4 destination wearing a v6 hat.
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(addr);
-  if (mapped?.[1] !== undefined) return isBlockedIPv4(mapped[1], allowLoopback);
+  const h = expandIPv6(addr);
+  if (h === null) return true; // unparseable is blocked, not allowed
+
+  // An IPv4 destination wearing a v6 hat. Both the mapped form (::ffff:a.b.c.d)
+  // and the deprecated compatible form (::a.b.c.d) reach the same host, so both
+  // are decided by the IPv4 rules rather than the IPv6 ones.
+  const leadingZero = h.slice(0, 5).every((x) => x === 0);
+  const isMapped = leadingZero && h[5] === 0xffff;
+  const isCompatible = leadingZero && h[5] === 0 && (h[6] !== 0 || h[7] !== 0) && !(h[6] === 0 && h[7] === 1);
+  if (isMapped || isCompatible) {
+    const hi = h[6]!;
+    const lo = h[7]!;
+    const dotted = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+    return isBlockedIPv4(dotted, allowLoopback);
+  }
 
   if (addr === '::1') return !allowLoopback;
   if (addr === '::') return true;

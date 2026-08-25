@@ -1,6 +1,15 @@
 import { z } from 'zod';
 
-const hexAddress = z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'must be a 0x address');
+/**
+ * The regex already proves the shape, so the transform makes the *type* say
+ * what the validation has established. Without it every consumer receives
+ * `string` and has to re-assert `0x${string}` at the call site — which is
+ * both noisy and a place to get it wrong.
+ */
+const hexAddress = z
+  .string()
+  .regex(/^0x[a-fA-F0-9]{40}$/, 'must be a 0x address')
+  .transform((s) => s as `0x${string}`);
 
 const schema = z.object({
   BENCH_CHAIN: z.enum(['bsc-mainnet', 'bsc-testnet']).default('bsc-testnet'),

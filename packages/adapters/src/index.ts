@@ -41,7 +41,22 @@ export {
   type SafeFetchOptions,
   type SafeResponse,
 } from './net/safe-fetch.js';
-export { AnvilForkProvider } from './shadow/anvil-fork.js';
+export {
+  AnvilForkProvider,
+  controllerFor,
+  type AnvilForkProviderOptions,
+  type PositionSeeder,
+  type SeedContext,
+} from './shadow/anvil-fork.js';
+export { startAnvil, freePort, type AnvilHandle, type AnvilOptions } from './shadow/anvil-process.js';
+export { startInterceptor, type InterceptorHandle, type InterceptorOptions } from './shadow/interceptor.js';
+export { decodeAction, jsonSafe, KNOWN_SELECTORS, type DecodedAction } from './shadow/tx-decode.js';
+export {
+  SpotBalanceSeeder,
+  DEFAULT_SEEDERS,
+  PCS_LP_SEEDER,
+  VENUS_LOAN_SEEDER,
+} from './shadow/seeders.js';
 export { InMemoryEgressGuard, type EgressGuardOptions } from './shadow/egress-guard.js';
 export {
   AltanaWalletProvider,

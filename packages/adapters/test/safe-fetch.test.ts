@@ -126,3 +126,31 @@ describe('safeFetch limits', () => {
     ).rejects.toBeInstanceOf(BenchError);
   });
 });
+
+describe('IPv4-mapped IPv6 normalisation', () => {
+  /**
+   * Regression guard. `new URL()` rewrites these hosts into hex before the
+   * filter ever sees them, so a filter matching on the dotted-quad spelling
+   * passes them straight through — including to cloud metadata.
+   */
+  it('blocks every spelling of a mapped internal address', async () => {
+    for (const host of [
+      '[::ffff:127.0.0.1]',
+      '[::ffff:7f00:1]',
+      '[0:0:0:0:0:ffff:169.254.169.254]',
+      '[::ffff:a9fe:a9fe]',
+      '[::ffff:10.0.0.1]',
+      '[::ffff:192.168.1.1]',
+    ]) {
+      await expect(assertPublicUrl(`http://${host}/`), host).rejects.toBeInstanceOf(BenchError);
+    }
+  });
+
+  it('still permits a genuinely public mapped address', async () => {
+    await expect(assertPublicUrl('http://[::ffff:8.8.8.8]/')).resolves.toBeInstanceOf(URL);
+  });
+
+  it('blocks an unparseable IPv6 literal rather than letting it through', async () => {
+    await expect(assertPublicUrl('http://[::ffff:zzzz:1]/')).rejects.toBeInstanceOf(BenchError);
+  });
+});

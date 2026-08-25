@@ -2,7 +2,7 @@
 
 Persistent context for anyone (human or agent) picking this project up mid-flight. Keep it current; it is the file to read first.
 
-**Last updated:** 16 Aug 2026 (Phase 1 backend in progress)
+**Last updated:** 25 Aug 2026 (frontend shipped; Phase 2 shadow engine landed)
 
 ---
 
@@ -92,3 +92,19 @@ $40,000+ — BNB Chain $30k USDT (+ adoption) · TermiX $10k USDT · PancakeSwap
   **Blocked on the local machine, not on the code:** `npm install` cannot complete — repeated `ENOTEMPTY`/`rm: Directory not empty` failures under Windows file locks, which have progressively corrupted `node_modules` (viem, zod, drizzle-orm, vite, and finally typescript itself). `@bench/core` and `@bench/services` typechecked clean and passed 36 assertions against compiled output *before* the tree degraded; `@bench/adapters`, `@bench/db`, and the worker are written but unverified. **Next action: recover `node_modules` (close editors/watchers, exclude the repo from Defender real-time scanning, `rm -rf node_modules packages/*/node_modules && npm install`), then `npm run typecheck && npm test`.**
 
   Two things still owed from Phase 0, unchanged: **organizer questions not sent**, and the **real scoring rubric not pulled**. Both gate what gets built next, so they outrank more code.
+
+- **25 Aug 2026 — frontend shipped, Phase 2 shadow engine landed, Vercel deploy wired.**
+
+  **The npm blocker was local, and it was hiding three real bugs.** On a clean Linux tree `npm install` completes in ~46s. Once `@bench/adapters` could finally be typechecked and tested, three defects surfaced that had never been run:
+
+  1. `ERC8004_IDENTITY_REGISTRY` was typed as a plain string in `@bench/config` while the adapter needs the hex-literal type. **This failed `tsc -b` outright**, so no package downstream of config could emit. Fixed at the schema with a transform, since the regex already proves the shape.
+  2. **SSRF bypass in `safe-fetch`, and it was a live hole.** The IPv4-mapped IPv6 filter matched on the dotted-quad spelling, but `new URL()` rewrites `[::ffff:127.0.0.1]` to `[::ffff:7f00:1]` and `[0:0:0:0:0:ffff:169.254.169.254]` to `[::ffff:a9fe:a9fe]` — so **cloud metadata was reachable through a registered agent's declared endpoint**. Now decided by expanding to hextets and matching on structure rather than spelling; six spellings covered by regression tests.
+  3. `next@15.1.3` carries CVE-2025-66478 → bumped to 15.5.23.
+
+  **Shadow engine.** `anvil-process` (lifecycle, free port, readiness, guaranteed reaping), `interceptor` (JSON-RPC proxy; `eth_sendRawTransaction` decoded, executed against fork state, recorded; everything else proxied), `tx-decode` (ERC-20 + PCS + Venus, total), `seeders` (`spot-balance` complete; the two wedge kinds decline with exactly what they need), `anvil-fork` (composition), `AuditionRunner` (N agents + do-nothing baseline). 110 tests pass; anvil-dependent ones skip when the binary is absent.
+
+  **`BSC_ARCHIVE_RPC_URL` is now the single highest-value unblock.** Nothing has forked real BSC state yet. It turns on the `pcs-lp` and `venus-loan` seeders and the window library, which is the rest of Phase 2.
+
+  **Egress guard is NOT enforced.** Written, tested, accepted by the runner — but the fork sandboxes transactions, not sockets. Do not audition an agent that pays for data until its outbound HTTP is proxied.
+
+  **Frontend.** Five routes live, monochrome design system, colour reserved for state. All data behind the `BenchData` interface in `apps/web/src/lib/data` — fixtures today, one file to swap. Wallet deliberately unwired: nothing before hiring needs a signature. `vercel.json` + `npm run build:web` deploy with Root Directory left at `.`.

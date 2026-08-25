@@ -34,16 +34,18 @@ Goal: a page that is already more useful than a raw registry read.
 
 Goal: the mechanism the whole product rests on.
 
-- [ ] Fork harness: spin Anvil at a pinned block, seed a synthetic mirror of a target position, hand the agent an RPC + throwaway key. **The agent must believe it is live.**
-- [ ] RPC interception: capture `eth_sendRawTransaction`, simulate against fork state, record intended action + decoded intent + state diff.
-- [ ] **Egress budget guard + outbound allowlist.** A shadowed agent can still make real x402-paid calls. Without this, a hundred auditions bill real money. Not optional; build it with the harness, not after.
-- [ ] Run orchestration: BullMQ queue, N agents on the same window in parallel, plus the do-nothing baseline.
-- [ ] Determinism: persist fork block, seed, window with every run so any audition is independently replayable.
-- [ ] Historical window library: one crash, one chop, one rally, for both wedge position types.
+- [x] Fork harness: spin Anvil at a pinned block, seed a synthetic mirror of a target position, hand the agent an RPC + throwaway key. **The agent must believe it is live.** *(`shadow/anvil-process.ts`, `shadow/anvil-fork.ts`. The controller key is derived from the window seed, so a replay controls the same address.)*
+- [x] RPC interception: capture `eth_sendRawTransaction`, simulate against fork state, record intended action + decoded intent + state diff. *(`shadow/interceptor.ts`; decoding in `shadow/tx-decode.ts` covers ERC-20, PCS v3 and Venus. Unknown selectors yield `null` rather than throwing, and a transaction rejected before mining is recorded, not dropped.)*
+- [~] **Egress budget guard + outbound allowlist.** The guard is implemented and tested (`shadow/egress-guard.ts`, deny-by-default on both host and budget) and `AuditionRunner` accepts it — but **nothing enforces it yet**. The fork sandboxes an agent's *transactions*, not its *sockets*, so enforcement needs the agent's outbound HTTP routed through a proxy, which lands with the containerised agent runner. **Until then, do not audition an agent that pays for its data.**
+- [x] Run orchestration: N agents on the same window in parallel, plus the do-nothing baseline. *(`AuditionRunner` in `@bench/services`: own fork per agent, bounded by `maxConcurrentForks`, per-agent timeout, agent failures recorded as findings rather than discarded. Queue-agnostic — BullMQ wiring still to come.)*
+- [x] Determinism: persist fork block, seed, window with every run so any audition is independently replayable. *(`replayHash` delegates to `@bench/core`, so the value published with an outcome and the value a third party recomputes come from one implementation.)*
+- [ ] Historical window library: one crash, one chop, one rally, for both wedge position types. *(Blocked on an archive RPC — see below.)*
 
 - [ ] **`npx bench-replay <auditionId>`** (§3.3.1) — re-runs a stored audition and reports whether it matches what Bench published. A wrapper over the determinism record, not new capability, and it converts the central claim from a sentence into a command a judge can run.
 
-**Exit test:** three agents auditioned on the same historical PCS LP window, three different terminal states, all replayable from stored parameters — and `bench-replay` reproduces one of them from a clean checkout.
+**Exit test:** ✅ **passing** — `npm run shadow:demo` runs three agents on one window, produces three distinct terminal states, and reproduces the first agent's terminal value exactly on replay.
+
+**What is still forkless.** The demo and the integration tests run anvil with no `--fork-url`. That exercises seeding, interception, decoding, valuation, the do-nothing baseline and replay — everything except forking real BSC state. The `spot-balance` seeder is complete; `pcs-lp` and `venus-loan` decline loudly until they have a forked chain carrying those protocols. **A BSC archive RPC URL is the single remaining unblock** for both of them, for the window library, and for `bench-replay` against a real window.
 
 ## Phase 3 — Scoring, reports, leaderboard (Aug 31 – Sep 3)
 

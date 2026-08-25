@@ -24,7 +24,8 @@
     "db:generate": "npm run generate -w @bench/db",
     "db:push": "npm run push -w @bench/db",
     "fork": "bash scripts/fork.sh",
-    "build:web": "tsc -b packages/core && npm run build -w @bench/web"
+    "build:web": "tsc -b packages/core && npm run build -w @bench/web",
+    "shadow:demo": "tsc -b packages/core packages/config packages/adapters packages/services && tsx scripts/audition-demo.ts"
   },
   "devDependencies": {
     "@types/node": "22.10.2",
