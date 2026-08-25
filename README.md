@@ -34,14 +34,15 @@ npm run build:web     # builds @bench/core, then the Next app
 npm run start -w @bench/web
 ```
 
-**Deploying to Vercel:** import the repository and deploy — **either Root Directory
-works**. Vercel auto-detects `apps/web`, in which case its own `build` script compiles
-`@bench/core` before `next build`; if you set Root Directory to `.` instead, the repo-root
-`vercel.json` supplies the same thing via `build:web`. Nothing needs configuring in the
-dashboard either way.
+**Deploying to Vercel:** import the repository and accept the defaults. Vercel detects
+`apps/web` as the Root Directory and the Next.js preset, then runs that workspace's own
+`build` script — which compiles `@bench/core` before `next build`. Nothing needs configuring
+in the dashboard, and there is deliberately **no `vercel.json`**: Vercel reads that file from
+the repo root but runs commands from the Root Directory, so any command in it written for the
+repo root fails in `apps/web`.
 
-`@bench/core` compiles to a gitignored `dist/`, so a bare `next build` cannot resolve it —
-that is what both paths exist to handle. The web app is the only deployable; the worker and
+The thing both of those handle is that `@bench/core` compiles to a gitignored `dist/`, so a
+bare `next build` cannot resolve it. The web app is the only deployable; the worker and
 shadow engine run separately.
 
 ## Status
