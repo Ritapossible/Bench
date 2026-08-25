@@ -42,7 +42,7 @@ Answers change what gets built. Asking also signals a serious counterparty.
 1. What does "officially adopted as a standalone product" mean contractually — IP assignment, licence, maintenance obligation, ongoing funding?
 2. What licence is required for submissions?
 3. ~~Is the full scoring rubric published?~~ **ANSWERED 25 Aug — pulled from the contest page. See §The rubric below. It changed the scope.**
-4. Mainnet or testnet for judging, given ERC-8183 mainnet is pending?
+4. ~~Mainnet or testnet for judging, given ERC-8183 mainnet is pending?~~ **ANSWERED 25 Aug — testnet is allowed.** Main track: *"Agents surfaced on your marketplace must be live on BSC"* with no network qualifier, alongside *"your submission must be functional and publicly accessible during judging."* Altana is explicit: *"Testnet counts, mainnet is stronger."* So the testnet plan stands, which is fortunate — ERC-8183 mainnet is pending regardless. **Testnet removes the funding and risk problem; it does not remove the liveness problem.** A judge opening the deployment between 9 and 23 Sep must find real indexed BSC agents, not fixtures.
 
 ## The rubric — pulled 25 Aug 2026, verbatim where quoted
 
@@ -83,7 +83,7 @@ Hard requirements:
 
 | Weight | Criterion |
 |---|---|
-| 30% | **Value of Services** — *"real working agents at a price and speed that beat the alternative"* |
+| 30% | **Value of Services** — *"real working agents at a price and speed that beat the alternative. TermiX will hire from your marketplace and evaluate the results."* |
 | 30% | **Proven Agent Advantage** — measured results, backed by a required Agent Advantage Report |
 | 20% | **High-Stakes Categories & Track Record** — trading and security agents prioritised |
 | 20% | **Marketplace Quality** — *"find, compare, hire, without instructions"* |
@@ -93,6 +93,20 @@ comparing agent vs non-agent on **time, cost and output quality**, with **at lea
 trading, stock or security**. Bench's audition reports are this, generated rather than
 hand-built — but the three-task-with-one-trading shape is a specific submission artifact
 that has to be produced deliberately.
+
+### ⚠️ The most operationally demanding sentence on the whole page
+
+> *"TermiX will hire from your marketplace and evaluate the results."*
+
+A judge is going to click **Hire** and expect an agent to do a job. That is not a demo
+video, it is a stranger driving the hire path unattended, on infrastructure that has to be
+up. Combined with *"land, find an agent by category, understand what it does, **activate
+it**"* in the main-track Functionality criterion, the conclusion is the same from two
+directions: **the hire pipeline is load-bearing, and a working checkout is worth more than
+another scoring refinement.**
+
+It also means the seed agents must actually perform. An agent that ranks well and then does
+nothing when hired is worse than not listing it.
 
 ### Altana (50,000 XP, winner takes all) — concrete and not yet met
 

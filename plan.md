@@ -134,5 +134,7 @@ One coherent product, four qualifying entries — most teams will enter one trac
 | ERC-8183 mainnet not ready | Build on testnet; confirm judging target with organizers |
 | Thin audition data at judging | Start backfill Sep 7; label sample size honestly rather than inflating |
 | ~~Judging rubric unknown~~ | **Resolved 25 Aug.** Cost: `rebalancing` category added late, catalog rebalanced, hire pipeline promoted out of the cut list |
+| ~~Mainnet or testnet unclear~~ | **Resolved 25 Aug — testnet is allowed**, Altana says "testnet counts, mainnet is stronger". Build target unchanged |
+| A judge hires an agent and nothing happens | *"TermiX will hire from your marketplace and evaluate the results."* The hire path must work unattended for a stranger, and the seed agents must actually perform |
 | Fixtures still served at judging | "Agents must be live on BSC" and "publicly accessible during judging" — point the indexer at the real registry before 9 Sep |
 | Adoption terms unfavourable | Ask before building (memory.md §Open questions) |

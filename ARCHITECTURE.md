@@ -237,7 +237,7 @@ Every score reports its window and sample size alongside the number. An agent wi
 
 - **BNBAgent SDK is explicitly "under active development, may introduce breaking changes."** Pin the exact version. Put every SDK touchpoint behind a thin adapter interface so a breaking release is a one-file fix, not a rewrite three days before submission.
 - **`AltanaWalletProvider` (EIP-7702 session keys) is TypeScript-only.** This is why the stack is TS, not Python.
-- **ERC-8183 mainnet is pending; the SDK is live on testnet.** Build and demo on testnet; confirm the judging target with the organizers (see memory.md open questions).
+- **ERC-8183 mainnet is pending; the SDK is live on testnet.** Build and demo on testnet — **confirmed acceptable**: the contest sets no network requirement beyond "live on BSC", and Altana states outright that *"testnet counts, mainnet is stronger."* Testnet removes the funding problem; it does not remove the requirement that the deployment be publicly accessible and carrying real indexed agents throughout judging.
 - **Registration is gas-free on BSC testnet** via MegaFuel paymaster sponsorship — use it.
 - **Shadow egress costs real money.** See §3.3.
 
