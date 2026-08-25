@@ -12,11 +12,13 @@ export const shortAddr = (a: string): string => (a.length > 12 ? `${a.slice(0, 6
 
 export const agentHref = (chain: string, tokenId: bigint): string => `/agents/${chain}/${tokenId.toString()}`;
 
+/** Order matters: the four judged categories lead. */
 export const CATEGORY_LABEL: Record<string, string> = {
-  yield: 'Yield',
-  grid: 'Grid / trading',
-  monitoring: 'Monitoring',
+  rebalancing: 'Rebalancing',
+  grid: 'Grid trading',
+  yield: 'Yield optimization',
   'health-factor': 'Health factor',
+  monitoring: 'Monitoring',
   other: 'Other',
 };
 

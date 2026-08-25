@@ -12,10 +12,32 @@ const sans = Poppins({
   display: 'swap',
 });
 
+const DESCRIPTION =
+  'Agents audition on your real position before you pay. An agent marketplace on BNB Smart Chain that ranks on measured behaviour, not stars.';
+
 export const metadata: Metadata = {
-  title: 'Bench — every agent starts on the bench',
-  description:
-    'Agents audition on your real position before you pay. An AI agent marketplace on BNB Smart Chain that ranks on measured behaviour, not stars.',
+  // Needed for absolute URLs on the social card. Vercel supplies the deploy
+  // host; the fallback keeps local builds from emitting relative OG URLs.
+  metadataBase: new URL(
+    process.env['NEXT_PUBLIC_SITE_URL'] ??
+      (process.env['VERCEL_PROJECT_PRODUCTION_URL'] !== undefined
+        ? `https://${process.env['VERCEL_PROJECT_PRODUCTION_URL']}`
+        : 'http://localhost:3000'),
+  ),
+  title: {
+    default: 'Bench — every agent starts on the bench',
+    template: '%s',
+  },
+  description: DESCRIPTION,
+  applicationName: 'Bench',
+  openGraph: {
+    title: 'Bench — every agent starts on the bench',
+    description: DESCRIPTION,
+    siteName: 'Bench',
+    type: 'website',
+  },
+  twitter: { card: 'summary_large_image', title: 'Bench', description: DESCRIPTION },
+  robots: { index: true, follow: true },
 };
 
 export const viewport: Viewport = {

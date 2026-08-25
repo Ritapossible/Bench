@@ -12,7 +12,7 @@ An AI agent marketplace on BNB Smart Chain where agents **audition on your real 
 
 ## Why it exists
 
-Built for the BNB Chain **"Build the Era"** hackathon. Grand prize is adoption as the official BNB Agent Studio marketplace.
+Built for **The Smart Money Era: Build the Era** — https://www.bnbchain.org/en/hackathons/smart-money-era. Main track pays $30,000 plus adoption as the official BNB Agent Studio marketplace.
 
 - Build: 5 Aug – **9 Sep 2026** (submission deadline)
 - Judging: 9 – 23 Sep 2026
@@ -41,8 +41,73 @@ Answers change what gets built. Asking also signals a serious counterparty.
 
 1. What does "officially adopted as a standalone product" mean contractually — IP assignment, licence, maintenance obligation, ongoing funding?
 2. What licence is required for submissions?
-3. Is the full scoring rubric published? The blog defers it to the contest page. **Get it and build to it directly.**
+3. ~~Is the full scoring rubric published?~~ **ANSWERED 25 Aug — pulled from the contest page. See §The rubric below. It changed the scope.**
 4. Mainnet or testnet for judging, given ERC-8183 mainnet is pending?
+
+## The rubric — pulled 25 Aug 2026, verbatim where quoted
+
+**This should have been read on day one.** It contradicted a locked decision; see the
+correction in ARCHITECTURE.md §8.
+
+### Main track — Build the BNB Agent Studio Marketplace ($30,000 + adoption)
+
+Three criteria. Weights are not published.
+
+| Criterion | Published wording |
+|---|---|
+| **Functionality** | *"The full journey works end to end: land, find an agent by category, understand what it does, activate it, with minimal friction."* |
+| **Data Quality** | *"Real-time, accurate data that goes beyond basic counts."* |
+| **Agent Diversity** | Must surface all four categories equally: **rebalancing, grid trading, yield optimization, health factor monitoring**. |
+
+Hard requirements:
+
+- surface agents across the four categories **with equal depth**
+- **functional and publicly accessible during judging**
+- **agents must be live on BSC**
+- one entry per team; open globally
+
+**What this changes, and it is not small:**
+
+1. **Agent Diversity is a third of the stated criteria**, and §8 previously said breadth was
+   a roadmap slide. Corrected: the four categories are peers in the type system, the
+   catalog and the scoring table. `rebalancing` did not exist as a category and now does.
+2. **"activate it" sits inside criterion one.** The hire pipeline is not a Phase 4 nicety —
+   it is part of the journey Functionality scores. It cannot be cut to the roadmap.
+3. **"agents must be live on BSC" plus "publicly accessible during judging"** means fixtures
+   do not survive judging. The indexer has to be pointed at the real registry, and the
+   deployment has to stay up 9–23 Sep.
+4. **"data that goes beyond basic counts"** is an argument for the registry-health
+   dashboard and for audition deltas — both already built — over an agent-count leaderboard.
+
+### TermiX Challenge ($6,000 / $3,000 / $1,000) — the only published weights
+
+| Weight | Criterion |
+|---|---|
+| 30% | **Value of Services** — *"real working agents at a price and speed that beat the alternative"* |
+| 30% | **Proven Agent Advantage** — measured results, backed by a required Agent Advantage Report |
+| 20% | **High-Stakes Categories & Track Record** — trading and security agents prioritised |
+| 20% | **Marketplace Quality** — *"find, compare, hire, without instructions"* |
+
+**Required deliverable:** an Agent Advantage Report covering **at least three real tasks**
+comparing agent vs non-agent on **time, cost and output quality**, with **at least one from
+trading, stock or security**. Bench's audition reports are this, generated rather than
+hand-built — but the three-task-with-one-trading shape is a specific submission artifact
+that has to be produced deliberately.
+
+### Altana (50,000 XP, winner takes all) — concrete and not yet met
+
+- live onchain transactions visible in the Altana explorer (testnet or mainnet)
+- agents on **their own Altana wallets** with **real session limits**
+- sessions **registered in Keystore**
+- **user-facing revocation controls**
+
+The revocation control is designed (§3.6) and the session key is on the plan; the Keystore
+registration and per-agent Altana wallets are not, and are a Phase 4 requirement rather than
+a nice-to-have if this track is being entered.
+
+### PancakeSwap (1,000 CAKE)
+
+Agent must *"deliver a real benefit to PancakeSwap traders or liquidity providers."*
 
 ## Key facts (verified, with sources)
 
@@ -64,7 +129,13 @@ Ecosystem:
 
 ## Prize pool
 
-$40,000+ — BNB Chain $30k USDT (+ adoption) · TermiX $10k USDT · PancakeSwap 1,000 CAKE · AltLayer 8004scan Pro + AltLLM credits · Altana 50,000 XP. **No fixed main track**, so positioning and narrative carry unusual weight. One coherent build qualifies for all five; most teams will enter one.
+Main track **$30,000 + adoption**. Partner tracks: TermiX **$6k / $3k / $1k**, PancakeSwap
+**1,000 CAKE**, Altana **50,000 XP** (winner takes all), AltLayer 8004scan Pro + AltLLM
+credits. One coherent build qualifies across them; most teams will enter one.
+
+Multi-track submission is **not addressed** on the contest page, and the main track says
+"one entry per team". Worth confirming with the organisers before relying on the
+five-track plan in plan.md.
 
 ## Traps already identified — do not relearn these
 

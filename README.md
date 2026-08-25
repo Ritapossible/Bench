@@ -2,7 +2,7 @@
 
 **Every agent starts on the bench.**
 
-Bench is an AI agent marketplace for BNB Smart Chain where agents *audition on your real position before you pay a cent*. It is being built for the BNB Chain "Build the Era" hackathon (submission deadline **9 September 2026**), whose grand prize is adoption as the official BNB Agent Studio marketplace.
+Bench is an AI agent marketplace for BNB Smart Chain where agents *audition on your real position before you pay a cent*. It is being built for BNB Chain's [**The Smart Money Era: Build the Era**](https://www.bnbchain.org/en/hackathons/smart-money-era) hackathon (5 Aug – **9 Sep 2026**), whose main track pays $30,000 plus adoption as the official BNB Agent Studio marketplace.
 
 - **What it is:** [ARCHITECTURE.md](./ARCHITECTURE.md) — the problem, the mechanism, the system design.
 - **How it gets built:** [plan.md](./plan.md) — phased 24-day execution plan with cut lines.

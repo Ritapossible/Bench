@@ -9,6 +9,7 @@ const LINKS = [
   ['Catalog', '/agents'],
   ['Your report', '/report'],
   ['Registry health', '/registry'],
+  ['Docs', '/docs'],
 ] as const;
 
 export function Nav() {
@@ -93,7 +94,7 @@ export function Nav() {
                   {label}
                 </Link>
               ))}
-              <a href="https://github.com/Ritapossible/Bench">Docs ↗</a>
+              <a href="https://github.com/Ritapossible/Bench">GitHub ↗</a>
             </nav>
 
             <div className="spacer" />

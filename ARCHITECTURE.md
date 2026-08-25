@@ -208,10 +208,13 @@ This also makes the artifact shareable — a link, a screenshot, a report on a w
 
 The reason shadow mode beats realized-outcome ranking is that it scores the whole catalog, not just the half with a P&L.
 
+**The first four are the categories the main track scores.** The contest requires the marketplace to surface rebalancing, grid trading, yield optimization and health-factor monitoring *with equal depth*, and Agent Diversity is one of only three stated criteria — so these are peers in the data model and in the catalog UI, not a wedge plus an afterthought.
+
 | Category | Primitive | Baseline |
 |---|---|---|
-| **Yield** | risk-adjusted return on mirrored capital | do-nothing; peer median |
+| **Rebalancing** | time in range; fees earned net of rebalance cost | do-nothing; peer median |
 | **Grid / trading** | realized PnL, max drawdown, fill quality vs mid | do-nothing; peer median |
+| **Yield** | risk-adjusted return on mirrored capital | do-nothing; peer median |
 | **Monitoring** | precision / recall on events, false-alarm rate | naive threshold alerter |
 | **Health factor** | lead time before liquidation price is touched | no-alert; naive HF threshold |
 
@@ -240,9 +243,25 @@ Every score reports its window and sample size alongside the number. An agent wi
 
 ## 8. Scope discipline
 
-The wedge for the hackathon build is **PancakeSwap LP positions and Venus health factor**. Both have real users with real capital, clean measurable counterfactuals, and a live partner track. Two seed agents ship there: an **LP range rebalancer** and a **safe swap router** (slippage / MEV / honeypot guarded).
+> **Corrected 25 Aug 2026, against the published rubric.** This section previously read
+> *"breadth is the roadmap slide; depth is what gets shown."* That is wrong for this
+> contest. **Agent Diversity is one of three main-track criteria**, and the requirement is
+> that the marketplace surface all four judged categories *with equal depth*. Concentrating
+> on two and treating the rest as roadmap forfeits a third of the main-track score.
 
-Other categories are indexed, probed, and auditioned, but are not the demo. Breadth is the roadmap slide; depth is what gets shown.
+The four judged categories — **rebalancing, grid trading, yield optimization, health-factor
+monitoring** — are surfaced as peers, with comparable agent counts, comparable audition
+depth, and their own scoring primitives (§5).
+
+**Depth still has to come from somewhere**, and the honest answer is that the *position
+kinds* are where it concentrates: PancakeSwap LP and Venus health factor have real users,
+real capital and clean measurable counterfactuals. Rebalancing and yield agents audition
+against the LP position; health-factor agents against the Venus loan; grid agents against a
+spot ladder. That gives four categories genuine coverage off two seeded position kinds,
+rather than four shallow ones or two deep ones.
+
+Two seed agents ship on the wedge: an **LP range rebalancer** and a **safe swap router**
+(slippage / MEV / honeypot guarded).
 
 **Sequencing under schedule pressure.** §2.1 is the strongest claim in this document and it rests entirely on §3.3 existing. Build the audition path first and get one run replayable end to end; the gate is a short addition on top of a working fork harness and a long detour without one. By contrast **§3.2.1 and §3.8 depend only on the indexer and prober, which already work** — they should ship regardless of how §3.3 lands, and shipping them early puts something live and verifiable on the internet while the engine is still being built.
 
@@ -255,7 +274,7 @@ Both of these require the audition dataset that v1 generates as a by-product, wh
 
 ## Sources
 
-- [BNB Chain — Build the Era hackathon](https://www.bnbchain.org/en/blog/build-the-era-build-the-official-bnb-agent-studio-marketplace)
+- [The Smart Money Era: Build the Era — official contest page](https://www.bnbchain.org/en/hackathons/smart-money-era) (rubric, tracks, requirements)
 - [Can Trustless Agents Be Trusted? — arXiv 2606.26028](https://arxiv.org/abs/2606.26028)
 - [BNBAgent SDK](https://github.com/bnb-chain/bnbagent-sdk) · [ERC-8183 announcement](https://www.bnbchain.org/en/blog/bnbagent-sdk-the-first-live-erc-8183-implementation-for-onchain-ai-agents)
 - [erc-8004-contracts](https://github.com/erc-8004/erc-8004-contracts) · [8004scan docs](https://docs.altlayer.io/altlayer-documentation/8004-scan/overview)

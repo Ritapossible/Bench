@@ -2,10 +2,27 @@ import type { Address, ChainName, TokenAmount } from './primitives.js';
 
 /**
  * Categories Bench scores. Each has its own scoring primitive — see
- * ARCHITECTURE.md section 5. `other` agents are listed and probed but ranked
- * only on liveness, never given a fabricated performance number.
+ * ARCHITECTURE.md section 5.
+ *
+ * The first four are **the four the main track judges on**: the contest
+ * requires the marketplace to surface rebalancing, grid trading, yield
+ * optimization and health-factor monitoring *with equal depth*, and Agent
+ * Diversity is one of only three stated criteria. They are listed first here
+ * because that order is the order the catalog presents them in.
+ *
+ * `monitoring` and `other` are extras: listed and probed, ranked on liveness,
+ * never given a fabricated performance number.
  */
-export type AgentCategory = 'yield' | 'grid' | 'monitoring' | 'health-factor' | 'other';
+export type AgentCategory =
+  | 'rebalancing'
+  | 'grid'
+  | 'yield'
+  | 'health-factor'
+  | 'monitoring'
+  | 'other';
+
+/** The four the main track scores on Agent Diversity. Order is presentation order. */
+export const JUDGED_CATEGORIES = ['rebalancing', 'grid', 'yield', 'health-factor'] as const satisfies readonly AgentCategory[];
 
 export type EndpointProtocol = 'a2a' | 'mcp' | 'oasf';
 

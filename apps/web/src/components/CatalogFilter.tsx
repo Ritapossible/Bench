@@ -26,7 +26,13 @@ export interface AgentRow {
   readonly thin: boolean;
 }
 
-const CATEGORIES = ['all', 'yield', 'health-factor', 'grid', 'monitoring', 'other'] as const;
+/**
+ * The four judged categories lead, in the contest's own order. Agent Diversity
+ * is one of three main-track criteria and requires all four surfaced with
+ * equal depth, so the filter presents them as peers rather than burying three
+ * of them behind a dropdown.
+ */
+const CATEGORIES = ['all', 'rebalancing', 'grid', 'yield', 'health-factor', 'monitoring', 'other'] as const;
 
 export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) {
   const [liveOnly, setLiveOnly] = useState(true);

@@ -12,7 +12,7 @@ Ordering principle: **ship the trust layer before the polish.** An ugly page ran
 - [x] **Adapter interfaces first**, before any SDK call: `WalletProvider`, `EscrowClient`, `PaymentClient`, `RegistryClient`. Pin `@bnbagent/sdk` to an exact version. A breaking SDK release must be a one-file fix.
 - [ ] Anvil fork of BSC running locally, reproducible from a pinned block. *(`scripts/fork.sh` written; not yet run against an archive node.)*
 - [ ] **Send the organizer questions today** (memory.md §Open questions). The answers change what gets built; every day of delay is a day of possible rework. **← still outstanding, and it gates Phase 4.**
-- [ ] Pull the **actual scoring rubric** from the contest page. The blog defers it. Do not guess at weights that can simply be read. **← still outstanding.**
+- [x] Pull the **actual scoring rubric** from the contest page. *(Done 25 Aug — https://www.bnbchain.org/en/hackathons/smart-money-era. It contradicted a locked scope decision; full rubric and consequences in memory.md §The rubric, correction in ARCHITECTURE.md §8. Three findings that change the build: Agent Diversity across four categories is a third of the main-track criteria; "activate it" puts the hire pipeline inside criterion one, so it cannot be cut; and "agents must be live on BSC, publicly accessible during judging" means fixtures do not survive judging.)*
 
 ## Phase 1 — Catalog with a pulse (Aug 18–22)
 
@@ -106,7 +106,7 @@ If behind schedule, cut in this order. Each cut leaves a coherent product.
 
 1. **Broker agent → roadmap slide.** Costly, and the audition mechanism carries the pitch without it.
 2. **Live-position auditions → historical windows only.** Weakens conversion, keeps the mechanism.
-3. **ERC-8183 escrow → x402 payment only.** Keeps hiring real, drops recourse.
+3. **ERC-8183 escrow → x402 payment only.** Keeps hiring real, drops recourse. **Do not cut hiring itself** — "activate it" is inside the Functionality criterion.
 4. **Second seed agent.** One good one beats two rushed ones.
 
 **Degrade rather than cut:** the execution gate's full behavioural envelope → hard invariants only. The hard-invariant version still produces beat 2 of the demo, and is a few hundred lines on top of a working fork harness.
@@ -133,5 +133,6 @@ One coherent product, four qualifying entries — most teams will enter one trac
 | Shadow egress bills real money | Hard per-run budget + outbound allowlist (Phase 2) |
 | ERC-8183 mainnet not ready | Build on testnet; confirm judging target with organizers |
 | Thin audition data at judging | Start backfill Sep 7; label sample size honestly rather than inflating |
-| Judging rubric unknown | Pull the real rubric in Phase 0 and build to it |
+| ~~Judging rubric unknown~~ | **Resolved 25 Aug.** Cost: `rebalancing` category added late, catalog rebalanced, hire pipeline promoted out of the cut list |
+| Fixtures still served at judging | "Agents must be live on BSC" and "publicly accessible during judging" — point the indexer at the real registry before 9 Sep |
 | Adoption terms unfavourable | Ask before building (memory.md §Open questions) |

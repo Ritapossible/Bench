@@ -303,6 +303,36 @@ table.t tr:last-child td { border-bottom: 0; }
   .burger { display: none; }
 }
 
+/* ---------- docs ---------- */
+
+.docs {
+  width: 100%; max-width: var(--maxw); margin-inline: auto;
+  padding: clamp(2.5rem, 6vw, 4.5rem) var(--pad);
+  display: grid; gap: clamp(2rem, 5vw, 4rem);
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+.docs-nav { display: none; }
+.docs-nav a {
+  text-decoration: none; font-size: 0.9rem; color: var(--muted);
+  padding: 0.4rem 0; border-left: 2px solid transparent; padding-left: 0.85rem;
+}
+.docs-nav a:hover { color: var(--ink); border-left-color: var(--ink); }
+.docs-body { max-width: 46rem; }
+.docs-body section { scroll-margin-top: 6rem; }
+.docs-list { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.pre {
+  background: var(--ink); color: var(--ink-inverse);
+  border-radius: var(--r-sm); padding: 1rem 1.25rem; margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem;
+  overflow-x: auto;
+}
+
+@media (min-width: 960px) {
+  .docs { grid-template-columns: 15rem minmax(0, 1fr); }
+  .docs-nav { display: block; position: sticky; top: 6rem; }
+}
+
 /* ---------- misc ---------- */
 
 .strip { display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; scrollbar-width: none; }

@@ -17,6 +17,7 @@ export function Footer() {
             <Link href="/agents" className="small" style={{ textDecoration: 'none' }}>Catalog</Link>
             <Link href="/registry" className="small" style={{ textDecoration: 'none' }}>Registry health</Link>
             <Link href="/report" className="small" style={{ textDecoration: 'none' }}>Your report</Link>
+            <Link href="/docs" className="small" style={{ textDecoration: 'none' }}>Docs</Link>
           </div>
           <a href="https://github.com/Ritapossible/Bench" className="small" style={{ textDecoration: 'none' }}>
             GitHub ↗
