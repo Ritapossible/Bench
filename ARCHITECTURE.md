@@ -1,6 +1,7 @@
 # Bench — Project Overview & Architecture
 
-> Status: design doc, pre-implementation. Written 16 Aug 2026.
+> Status: design doc, pre-implementation. Written 16 Aug 2026. Revised 25 Aug 2026 —
+> new §2.1, §3.2.1, §3.3.1, §3.8; amendments to §3.5, §3.6, §6, §8, §9.
 
 ---
 
@@ -36,7 +37,31 @@ That single mechanism resolves all four problems at once:
 - **Category coverage.** Agents without P&L still have measurable behaviour (§5).
 - **Conversion.** "This agent would have saved you $340 on your Venus position last month" is a reason to click Hire. A star rating is not.
 
+Stated as what Bench makes *impossible*, which is the sharper form of the same claim:
+
+> **Bench cannot list an agent that has never worked.**
+> **You cannot hire on a claim or a review — only on what the agent already did to your position.**
+> **A hired agent cannot exceed your cap, and cannot do anything it did not do in audition.**
+
+The first two are properties of the catalog. The third is not, and it is the reason the shadow engine is worth more than a ranking input — see §2.1.
+
 The leaderboard shows **two columns — simulated and realized — always labelled**, with realized converging on simulated as real hires settle. Bench never presents audition results as though they were realized returns.
+
+### 2.1 The audition does not stop at hire ★
+
+Ranking is half of what the shadow engine is good for.
+
+A spend cap is a blunt instrument. It stops an agent spending $10,000 and does nothing about an agent doing something ruinous with $900. But the audition has *already established what this agent does to a position of this shape*. So keep it running, and put it in the signing path.
+
+**Every transaction from a hired agent is auditioned before it is signed.** The intended transaction is simulated against a fork of current state; the resulting state diff is compared against the envelope that agent established in audition; if it falls outside, the session key does not sign and the transaction never reaches the chain.
+
+Three properties follow:
+
+- **Authority becomes behavioural, not merely numeric.** The cap answers *how much*. The gate answers *what kind of thing* — a strictly stronger bound, and one derived from measured evidence rather than guessed at by the user in a checkout form.
+- **It reuses the engine rather than adding one.** The fork harness and RPC interception of §3.3 are the same machinery, pointed at live traffic instead of a replayed window.
+- **Refusals are legible.** A blocked transaction is a record, surfaced on the hire card with the rule that fired and the state diff that would have resulted. The user sees what didn't happen.
+
+**Minimum viable form,** if envelope derivation runs late: simulate every transaction and block on a small set of hard invariants — position value falling further than a declared bound, funds moving to an address absent from the audition, a contract call the agent never made while auditioning. The full behavioural envelope is a refinement of that, not a prerequisite for it.
 
 ## 3. System architecture
 
@@ -71,7 +96,8 @@ The leaderboard shows **two columns — simulated and realized — always labell
    ┌───────────────────────────────────────────▼────────────────────────┐
    │  BENCH APP (Next.js)                                               │
    │  discovery · audition reports · side-by-side compare               │
-   │  checkout · active-hire dashboard with revoke                      │
+   │  paste-an-address report (no wallet) · public registry health      │
+   │  checkout · active-hire dashboard with revoke + blocked-tx log     │
    └───────────────┬──────────────────────────────────┬─────────────────┘
                    │                                  │
        ┌───────────▼────────────┐        ┌────────────▼─────────────────┐
@@ -81,6 +107,7 @@ The leaderboard shows **two columns — simulated and realized — always labell
        │  Altana EIP-7702       │        │  intent → agent team →       │
        │  session key + cap     │        │  one escrow, one session key │
        │  + revoke              │        └──────────────────────────────┘
+       │  shadow gate per tx ★  │
        └────────────────────────┘
 ```
 
@@ -93,6 +120,12 @@ Consumes ERC-8004 registry events on BSC, resolves each Identity NFT's `tokenURI
 Pings every declared endpoint on a schedule, recording reachability, p95 latency, and protocol conformance (does it actually speak A2A/MCP, or just claim to). Powers the **"verified live"** filter — the cheapest possible fix for the 96%-dead-agent problem, and on its own it makes the catalog roughly 25× denser in real agents than a raw registry read.
 
 A rolling hash of probe results is anchored onchain periodically so the liveness record is auditable rather than a claim Bench makes about itself.
+
+#### 3.2.1 Registry health dashboard (public)
+
+The indexer and prober together measure, continuously, what arXiv 2606.26028 measured once through May 2026. Publish that as a free public dashboard: the live share of BSC-registered agents with a resolvable card, a reachable endpoint, and a conforming protocol — recomputed daily and plotted against the study's baseline.
+
+It costs nothing beyond what §3.1 and §3.2 already produce. It is useful to the ecosystem whether or not a single agent is ever hired through Bench. And it is the cheapest available proof that this pipeline runs against the real registry rather than against a fixture: **the paper measured the problem once; Bench measures it every day.**
 
 ### 3.3 Shadow Engine ★
 
@@ -109,6 +142,18 @@ The core, and the longest pole in the build.
 
 Determinism: fork block, seed, and window are recorded with every run so any audition can be replayed and independently verified. This is what makes the record credible rather than a number Bench asserts.
 
+#### 3.3.1 Replay is a command, not a claim
+
+"Anyone can rerun an audition and check our arithmetic" is worth nothing as a sentence in a document. Ship it as one command:
+
+```
+npx bench-replay <auditionId>
+```
+
+It reads the stored fork block, seed and window, re-runs the audition, prints the terminal state, and reports whether it matches what Bench published. The determinism record in `shadow_runs` already carries everything it needs; this is a wrapper, not new capability.
+
+A reviewer who runs one command and gets Bench's number back has verified the central claim of the product without reading a line of its source.
+
 ### 3.4 Scorer
 
 Per-category scoring (§5), producing both an absolute score and a delta versus the do-nothing baseline and the peer median. Explicitly reports sample size and window; a score computed over a thin window is labelled as such rather than presented as fact.
@@ -117,6 +162,8 @@ Per-category scoring (§5), producing both an absolute score and a delta versus 
 
 Signs outcome records and writes them to the ERC-8004 **Validation Registry** — deliberately *not* the Reputation Registry. Validation carries verifiable semantics and hooks for independent validators; reputation carries unweighted attestations that the research shows are trivially gamed. Bench's output belongs in the registry that can be checked.
 
+Writing there also makes the output **readable by explorers**: 8004scan can surface Bench scores with no integration work on Bench's side beyond the registry write itself. Ask AltLayer to display them. Bench already indexes and credits 8004scan (§3.1); scores flowing back the other way makes that relationship reciprocal rather than extractive, and puts Bench's rankings in front of the ecosystem's existing audience instead of only its own.
+
 ### 3.6 Hire pipeline
 
 On Hire:
@@ -124,12 +171,21 @@ On Hire:
 - **Payment** via Binance x402. Use `permit2-upto` for metered agents so usage streams against a ceiling rather than requiring a fixed prepay. Supported BSC stablecoins: U, USDT, USD1, USDC.
 - **Escrow** via ERC-8183 (`AgenticCommerce` kernel + `EvaluatorRouter` + `OptimisticPolicy`). Optimistic settlement: silence past the dispute window is approval; the client can dispute within it.
 - **Authority** via an Altana EIP-7702 **session key** scoped to a spend cap and a contract allowlist, with a revoke control on the hire card. `AltanaWalletProvider` ships in the BNBAgent SDK (TypeScript only — see §7).
+- **Execution gate** (§2.1): every transaction the hired agent produces is simulated and checked against its audition envelope before the session key will sign it. Cap, allowlist and gate are three independent bounds and a transaction must clear all three. Blocked transactions are logged to the hire card with the rule that fired.
 
 ### 3.7 Broker agent
 
 Bench registers *itself* under ERC-8004 as a broker agent. A user states an intent in natural language — *"$5k in a PCS LP that keeps going out of range, and I'm close to liquidation on Venus"* — and Bench decomposes it, selects a **team** from the audition rankings, and returns one escrow and one capped session key covering all of them.
 
 Browsing a directory is the app-store model. The forward answer is that you don't browse, you delegate. A marketplace for agents that is itself an agent — earning via x402, rankable by its own metric — is both the better UX and the honest answer to "where does this go."
+
+### 3.8 Audition reports without a wallet
+
+The conversion moment — *"this agent would have saved you $340 on your Venus position last month"* — is the most valuable screen in the product. Gating it behind a wallet connection puts the highest-friction step directly in front of the highest-value one.
+
+It does not need a signature. The position is public state and the audition is a simulation, so **any BSC address pasted into the box produces the report.** A wallet is required to *hire*, not to be shown what hiring would have been worth.
+
+This also makes the artifact shareable — a link, a screenshot, a report on a well-known address — rather than something each viewer must first authenticate to see. The best marketing asset the product has is the one it currently hides behind a connect button.
 
 ## 4. Data model (sketch)
 
@@ -144,6 +200,8 @@ Browsing a directory is the app-store model. The forward answer is that you don'
 | `scores` | agent_id, category, window, score, sample_size, simulated \| realized |
 | `hires` | user, agent_id, escrow_id, session_key_id, status |
 | `session_keys` | address, spend_cap, allowlist, spent, revoked_at |
+| `envelopes` | agent_id, category, derived_from_run_ids, bounds (value delta, address set, call set) |
+| `gate_decisions` | hire_id, intended tx, simulated diff, allowed \| blocked, rule_fired, at |
 | `attestations` | outcome_record_id, tx_hash, validation_registry_entry |
 
 ## 5. Scoring by category
@@ -162,9 +220,11 @@ Every score reports its window and sample size alongside the number. An agent wi
 ## 6. Trust model
 
 1. **Feedback is payment-gated.** A review counts only if bound to a settled escrow job of nonzero value, weighted by payment size and by the payer's own settled history. This makes Sybil review farming cost real money and scale sub-linearly with the payoff — the direct answer to the 59% figure.
-2. **Auditions are replayable.** Fork block, seed, and window are published with every record; anyone can rerun an audition and check Bench's arithmetic.
+2. **Auditions are replayable, by command.** Fork block, seed and window are published with every record, and `npx bench-replay <auditionId>` (§3.3.1) re-runs one and checks Bench's arithmetic for you.
 3. **Liveness is anchored, not asserted.**
 4. **Simulated and realized never merge.** Two columns, always labelled.
+5. **Authority is bounded three ways.** Spend cap, contract allowlist, and the execution gate (§2.1). The first two are declared by the user at checkout; the third is *derived from what the agent actually did in audition*, which is the only one of the three the user could not have specified themselves.
+6. **Registry health is published, not just used.** §3.2.1 exposes the measurement Bench's own ranking depends on, so the input to the product is auditable alongside its output.
 
 ## 7. Stack and known hazards
 
@@ -184,12 +244,14 @@ The wedge for the hackathon build is **PancakeSwap LP positions and Venus health
 
 Other categories are indexed, probed, and auditioned, but are not the demo. Breadth is the roadmap slide; depth is what gets shown.
 
+**Sequencing under schedule pressure.** §2.1 is the strongest claim in this document and it rests entirely on §3.3 existing. Build the audition path first and get one run replayable end to end; the gate is a short addition on top of a working fork harness and a long detour without one. By contrast **§3.2.1 and §3.8 depend only on the indexer and prober, which already work** — they should ship regardless of how §3.3 lands, and shipping them early puts something live and verifiable on the internet while the engine is still being built.
+
 ## 9. Roadmap beyond the hackathon
 
 Both of these require the audition dataset that v1 generates as a by-product, which is exactly the point — **v1 runs the auditions, and the audition data is the moat.**
 
 - **Allocator.** Hire a *basket* rather than a single agent: capital split across top-ranked agents by mandate, rebalanced toward performers, underperformers dropped. Agent index funds; performance-fee vaults.
-- **Underwriting.** Agents post bonds; Bench sells hire-with-guarantee priced off track record; validated failure slashes the bond.
+- **Underwriting.** Agents post bonds; Bench sells hire-with-guarantee priced off track record; validated failure slashes the bond. The execution gate (§2.1) is what makes this priceable: an agent that has never been blocked has a measurably different risk profile from one that has, and `gate_decisions` is the loss history an underwriter would otherwise have to wait years to accumulate.
 
 ## Sources
 
