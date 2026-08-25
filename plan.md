@@ -24,6 +24,7 @@ Goal: a page that is already more useful than a raw registry read.
 - [x] **"Verified live" filter working.** This alone makes the catalog ~25× denser in real agents. *(One predicate in `@bench/core`; mirrored in SQL for the WHERE clause.)*
 - [ ] Agent cards + profile pages. Plain styling is fine at this stage. *(Frontend — deliberately deferred.)*
 - [ ] Onchain anchoring of the rolling probe hash. *(Hash chain, batching, and the anchor job are done; the registry write itself is still `notImplemented` pending a verified Validation Registry ABI.)*
+- [ ] **Public registry health dashboard** (ARCHITECTURE.md §3.2.1). Rides entirely on the indexer and prober, which already work — live share of BSC agents that resolve, respond and conform, against the arXiv baseline. **Ship this independently of Phase 2; it puts something real and verifiable on the internet while the engine is still being built.**
 
 **Environment blocker:** `npm install` cannot complete on the dev machine (Windows file locks → `ENOTEMPTY`), which has corrupted `node_modules`. `@bench/core` and `@bench/services` are verified; `@bench/adapters`, `@bench/db`, and the worker are written but not yet typechecked or tested. See memory.md §Status log for the recovery steps.
 
@@ -40,7 +41,9 @@ Goal: the mechanism the whole product rests on.
 - [ ] Determinism: persist fork block, seed, window with every run so any audition is independently replayable.
 - [ ] Historical window library: one crash, one chop, one rally, for both wedge position types.
 
-**Exit test:** three agents auditioned on the same historical PCS LP window, three different terminal states, all replayable from stored parameters.
+- [ ] **`npx bench-replay <auditionId>`** (§3.3.1) — re-runs a stored audition and reports whether it matches what Bench published. A wrapper over the determinism record, not new capability, and it converts the central claim from a sentence into a command a judge can run.
+
+**Exit test:** three agents auditioned on the same historical PCS LP window, three different terminal states, all replayable from stored parameters — and `bench-replay` reproduces one of them from a clean checkout.
 
 ## Phase 3 — Scoring, reports, leaderboard (Aug 31 – Sep 3)
 
@@ -49,6 +52,7 @@ Goal: the mechanism the whole product rests on.
 - [ ] **Audition report** — the user-facing artifact, and TermiX's "Agent Advantage Report" delivered automatically rather than hand-built for three demo cases.
 - [ ] Leaderboard with **two columns, simulated and realized, always labelled**, sample size and window shown next to every score.
 - [ ] Side-by-side compare view (N agents, one window).
+- [ ] **Paste-an-address audition report** (§3.8) — no wallet connection. Removes the highest-friction step from in front of the highest-value screen, and makes the report shareable.
 - [ ] Attestor: sign outcome records → ERC-8004 **Validation Registry** (not Reputation).
 
 **Exit test:** open any agent profile and see a report that says what it would have done, against what baseline, over what window, with what sample size.
@@ -58,7 +62,8 @@ Goal: the mechanism the whole product rests on.
 - [ ] x402 checkout, `permit2-upto` for metered agents.
 - [ ] ERC-8183 escrow: fund → job → optimistic settle → dispute path.
 - [ ] Altana EIP-7702 session key: spend cap + contract allowlist, minted at checkout.
-- [ ] **Revoke control on the hire card**, plus the active-hire dashboard showing cap remaining.
+- [ ] **Execution gate** (§2.1) ★ — simulate every transaction the hired agent produces and refuse to sign anything outside its audition envelope. **Minimum form: hard invariants only** (value falling past a bound, funds to an address absent from audition, a call never made while auditioning). This is the demo's beat 2; build it as soon as Phase 2 works, not at the end of Phase 4.
+- [ ] **Revoke control on the hire card**, plus the active-hire dashboard showing cap remaining and a log of blocked transactions with the rule that fired.
 - [ ] Payment-gated feedback: a review counts only when bound to a settled nonzero-value job, weighted by payment size and payer history.
 - [ ] Two seed agents on the wedge: **PancakeSwap LP range rebalancer**, **safe swap router** (slippage / MEV / honeypot guarded).
 
@@ -83,9 +88,15 @@ Goal: the mechanism the whole product rests on.
 
 ## The demo
 
-Do not show a happy path. Show **three agents auditioning on the same live position side by side, one of them quietly losing money in simulation, and the user hiring the one that didn't** — then revoke it mid-job and watch the spend cap hold.
+Do not show a happy path. Three beats, and **the middle one is the film**.
 
-That is the thirty seconds a judge repeats to someone else, and it is precisely the thing the ERC-8004 research says nobody can currently do.
+1. **Three agents audition on the same position, side by side.** One of them is quietly losing money in simulation. The user hires the one that didn't. *(The ranking claim.)*
+2. **The hired agent then does something it never did in audition** — reaches for an address that appeared in no audition run — and **the transaction dies before it reaches the chain**, with the rule that fired and the state diff it would have caused shown on the hire card. *(ARCHITECTURE.md §2.1.)*
+3. **Revoke mid-job.** The session key goes dead with the cap still holding. *(Recourse.)*
+
+Build the video around beat 2. Beats 1 and 3 are things a careful team could plausibly *claim*; beat 2 shows an agent **stopped by evidence it generated about itself**, which is precisely the thing the ERC-8004 research says nobody can currently do. It is also the only beat no other submission can copy without having built the shadow engine first.
+
+**Show the refusal, not the success.** Every submission's demo works — a demo where everything succeeds proves nothing and is instantly forgettable. A demo where the product *catches* something is the only kind that demonstrates the product is real.
 
 ## Cut lines
 
@@ -96,7 +107,9 @@ If behind schedule, cut in this order. Each cut leaves a coherent product.
 3. **ERC-8183 escrow → x402 payment only.** Keeps hiring real, drops recourse.
 4. **Second seed agent.** One good one beats two rushed ones.
 
-**Never cut:** the shadow engine, the verified-live filter, the two-column honest leaderboard, the revocable capped session key. Those four *are* the submission.
+**Degrade rather than cut:** the execution gate's full behavioural envelope → hard invariants only. The hard-invariant version still produces beat 2 of the demo, and is a few hundred lines on top of a working fork harness.
+
+**Never cut:** the shadow engine, the verified-live filter, the two-column honest leaderboard, the revocable capped session key, and the execution gate in at least its minimum form. Those five *are* the submission — and the gate is the one no competing team can reproduce without having built the engine first.
 
 ## Prize alignment
 
@@ -106,7 +119,7 @@ One coherent product, four qualifying entries — most teams will enter one trac
 |---|---|---|
 | **BNB Chain main** ($30k + adoption) | The marketplace itself: discovery, comparison, hiring, ERC-8004 identity + track records, x402 settlement | — |
 | **TermiX** ($10k) | Audition reports *are* with/without-agent Advantage Reports, generated at scale | Formatting only |
-| **Altana** (50k XP) | Checkout mints a capped, allowlisted, user-revocable EIP-7702 session key | Already in Phase 4 |
+| **Altana** (50k XP) | Checkout mints a capped, allowlisted, user-revocable EIP-7702 session key — **and the gate makes that key refuse behaviour the agent never demonstrated**, which is a use of session keys nobody else will show | Already in Phase 4 |
 | **PancakeSwap** (1,000 CAKE) | LP range rebalancer + safe swap router as seed supply | Already in Phase 4 |
 | **AltLayer** (8004scan Pro, AltLLM credits) | Bench indexes and credits 8004scan rather than competing with it | Ingest, Phase 1 |
 
