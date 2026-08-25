@@ -20,3 +20,6 @@ contracts/broadcast/
 coverage/
 .DS_Store
 *.log
+
+# Next generates this on build; it should not be tracked.
+next-env.d.ts
