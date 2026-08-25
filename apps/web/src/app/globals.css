@@ -106,6 +106,12 @@ p { margin: 0; }
   letter-spacing: -0.01em;
 }
 
+/* A 42-character address has no break opportunity, so on a narrow screen it
+   pushes the page sideways from inside a container that is itself correctly
+   sized — which is why the offending element never shows up as too wide. Any
+   hash, address or tx id gets this. */
+.break { overflow-wrap: anywhere; word-break: break-word; }
+
 .ink { color: var(--ink); }
 .on-dark { color: var(--ink-inverse); }
 .on-dark .body, .on-dark .small, .on-dark .lead, .on-dark .tiny { color: var(--muted-inverse); }
@@ -234,6 +240,10 @@ table.t tr:last-child td { border-bottom: 0; }
 
 .field {
   width: 100%;
+  /* An <input> carries an intrinsic minimum width from its `size` attribute,
+     and `min-width: auto` on a flex item honours it — so a flex-basis wider
+     than a narrow viewport refuses to shrink and pushes the page sideways. */
+  min-width: 0;
   border: 1.5px solid var(--line);
   background: var(--surface);
   border-radius: var(--r-pill);
@@ -309,7 +319,12 @@ table.t tr:last-child td { border-bottom: 0; }
   width: 100%; max-width: var(--maxw); margin-inline: auto;
   padding: clamp(2.5rem, 6vw, 4.5rem) var(--pad);
   display: grid; gap: clamp(2rem, 5vw, 4rem);
-  grid-template-columns: 1fr;
+  /* minmax(0, 1fr), never a bare 1fr: a bare `1fr` track carries an `auto`
+     minimum, so the track gets sized to its content's min-content — and the
+     nested .grid-3 inside, whose `minmax(min(100%, 15rem), 1fr)` cannot
+     resolve its percentage against an indefinite container, contributes three
+     15rem columns. That is 736px of track inside a 412px viewport. */
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
 }
 .docs-nav { display: none; }
@@ -318,7 +333,7 @@ table.t tr:last-child td { border-bottom: 0; }
   padding: 0.4rem 0; border-left: 2px solid transparent; padding-left: 0.85rem;
 }
 .docs-nav a:hover { color: var(--ink); border-left-color: var(--ink); }
-.docs-body { max-width: 46rem; }
+.docs-body { max-width: 46rem; min-width: 0; }
 .docs-body section { scroll-margin-top: 6rem; }
 .docs-list { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.6rem; }
 .pre {
@@ -337,6 +352,23 @@ table.t tr:last-child td { border-bottom: 0; }
 
 .strip { display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; scrollbar-width: none; }
 .strip::-webkit-scrollbar { display: none; }
+
+/* Catalog controls. On a phone the category chips scroll as one row rather
+   than wrapping into a ragged stack that pushes the toggle off on its own. */
+.filters { display: flex; flex-direction: column; gap: 1rem; }
+.filter-chips {
+  display: flex; gap: 0.5rem; overflow-x: auto;
+  margin-inline: calc(var(--pad) * -1); padding-inline: var(--pad);
+  padding-bottom: 0.25rem; scrollbar-width: none;
+}
+.filter-chips::-webkit-scrollbar { display: none; }
+.filter-chips .btn { flex: none; }
+.filter-toggle { display: inline-flex; align-items: center; gap: 0.55rem; cursor: pointer; }
+
+@media (min-width: 860px) {
+  .filters { flex-direction: row; align-items: center; justify-content: space-between; }
+  .filter-chips { margin-inline: 0; padding-inline: 0; flex-wrap: wrap; overflow-x: visible; }
+}
 .chip { flex: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0.9rem 1.5rem; font-weight: 600; color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
 
 .rule { height: 1px; background: var(--line); border: 0; margin: 0; }

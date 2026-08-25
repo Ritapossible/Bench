@@ -31,7 +31,7 @@ export default async function AgentPage({
           </div>
           <h1 className="h2">{card?.name ?? 'Unresolved agent card'}</h1>
           <p className="lead" style={{ maxWidth: '46rem' }}>{card?.description ?? record.cardError}</p>
-          <p className="tiny mono">
+          <p className="tiny mono break">
             {record.id.chain} · token #{record.id.tokenId.toString()} · owner {record.owner.slice(0, 10)}… · registered{' '}
             {record.registeredAt.toISOString().slice(0, 10)}
           </p>

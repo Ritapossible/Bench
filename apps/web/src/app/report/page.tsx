@@ -38,9 +38,15 @@ export default async function ReportPage({
             defaultValue={address ?? ''}
             placeholder="0x…"
             aria-label="BSC address"
-            style={{ flex: '1 1 22rem' }}
+            inputMode="text"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            style={{ flex: '1 1 16rem' }}
           />
-          <button className="btn btn-primary" type="submit">Read the report</button>
+          <button className="btn btn-primary" type="submit" style={{ flex: '1 1 auto' }}>
+            Read the report
+          </button>
         </form>
 
         {invalid ? (
@@ -48,7 +54,7 @@ export default async function ReportPage({
             <p className="quote" style={{ borderColor: 'var(--blocked)' }}>That does not look like a BSC address.</p>
             <p className="body">
               Expected 40 hex characters after <span className="mono">0x</span>. Try the example:{' '}
-              <Link href={`/report?address=${EXAMPLE}`} className="mono">{EXAMPLE}</Link>
+              <Link href={`/report?address=${EXAMPLE}`} className="mono break">{EXAMPLE}</Link>
             </p>
           </div>
         ) : null}
@@ -61,7 +67,9 @@ export default async function ReportPage({
               address returns a sample PancakeSwap LP position.
             </p>
             <div>
-              <Link href={`/report?address=${EXAMPLE}`} className="btn btn-outline btn-sm mono">{EXAMPLE}</Link>
+              <Link href={`/report?address=${EXAMPLE}`} className="btn btn-outline btn-sm mono break" style={{ maxWidth: '100%' }}>
+                {EXAMPLE}
+              </Link>
             </div>
           </div>
         ) : null}
@@ -71,21 +79,21 @@ export default async function ReportPage({
             <div className="slab on-dark stack stack-12">
               <span className="eyebrow">Position found</span>
               <h2 className="h3">{report.positionLabel}</h2>
-              <div className="row" style={{ gap: '2.5rem' }}>
+              <div className="row" style={{ gap: '1.5rem 2.5rem' }}>
                 <div className="stack stack-4">
                   <span className="tiny">Value</span>
-                  <span className="mono" style={{ fontSize: '1.5rem', fontWeight: 700 }}>{usd(report.positionValueUsd)}</span>
+                  <span className="mono" style={{ fontSize: 'clamp(1.15rem, 5vw, 1.5rem)', fontWeight: 700 }}>{usd(report.positionValueUsd)}</span>
                 </div>
                 <div className="stack stack-4">
                   <span className="tiny">Window</span>
-                  <span className="mono" style={{ fontSize: '1.5rem', fontWeight: 700 }}>{report.windowLabel}</span>
+                  <span className="mono" style={{ fontSize: 'clamp(1.15rem, 5vw, 1.5rem)', fontWeight: 700 }}>{report.windowLabel}</span>
                 </div>
                 <div className="stack stack-4">
                   <span className="tiny">Agents auditioned</span>
-                  <span className="mono" style={{ fontSize: '1.5rem', fontWeight: 700 }}>{report.lines.length}</span>
+                  <span className="mono" style={{ fontSize: 'clamp(1.15rem, 5vw, 1.5rem)', fontWeight: 700 }}>{report.lines.length}</span>
                 </div>
               </div>
-              <p className="small mono">{report.address}</p>
+              <p className="small mono break">{report.address}</p>
             </div>
 
             <div className="tablewrap">

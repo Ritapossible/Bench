@@ -48,12 +48,13 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
 
   return (
     <div className="stack stack-24">
-      <div className="row-between">
-        <div className="row" style={{ gap: '0.5rem' }}>
+      <div className="filters">
+        <div className="filter-chips" role="group" aria-label="Filter by category">
           {CATEGORIES.map((c) => (
             <button
               key={c}
               onClick={() => setCategory(c)}
+              aria-pressed={category === c}
               className={category === c ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'}
             >
               {c === 'all' ? 'All' : CATEGORY_LABEL[c]}
@@ -61,9 +62,9 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
           ))}
         </div>
 
-        <label className="row" style={{ gap: '0.5rem', cursor: 'pointer' }}>
+        <label className="filter-toggle">
           <input type="checkbox" checked={liveOnly} onChange={(e) => setLiveOnly(e.target.checked)} />
-          <span className="small ink">Verified live only</span>
+          <span className="small ink" style={{ whiteSpace: 'nowrap' }}>Verified live only</span>
         </label>
       </div>
 
@@ -77,8 +78,8 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
       <div className="stack stack-12">
         {shown.map((r) => (
           <Link key={r.tokenId} href={r.href} className="card card-link">
-            <div className="row-between" style={{ alignItems: 'flex-start' }}>
-              <div className="stack stack-8" style={{ flex: '1 1 20rem' }}>
+            <div className="row-between" style={{ alignItems: 'flex-start', gap: '1rem' }}>
+              <div className="stack stack-8" style={{ flex: '1 1 16rem', minWidth: 0 }}>
                 <div className="row" style={{ gap: '0.6rem' }}>
                   <h3 className="h4">{r.name}</h3>
                   {r.verifiedLive ? (
@@ -95,7 +96,7 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
                 </p>
               </div>
 
-              <div className="stack stack-4" style={{ textAlign: 'right', minWidth: '10rem' }}>
+              <div className="stack stack-4" style={{ textAlign: 'right', flex: '0 0 auto' }}>
                 {r.deltaUsd === null ? (
                   <>
                     <span className="small">No auditions yet</span>

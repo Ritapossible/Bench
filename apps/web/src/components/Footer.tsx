@@ -12,8 +12,8 @@ export function Footer() {
 
         <hr className="rule" />
 
-        <div className="row-between">
-          <div className="row" style={{ gap: '1.5rem' }}>
+        <div className="row-between" style={{ gap: '1rem' }}>
+          <div className="row" style={{ gap: '1.25rem' }}>
             <Link href="/agents" className="small" style={{ textDecoration: 'none' }}>Catalog</Link>
             <Link href="/registry" className="small" style={{ textDecoration: 'none' }}>Registry health</Link>
             <Link href="/report" className="small" style={{ textDecoration: 'none' }}>Your report</Link>
@@ -25,8 +25,10 @@ export function Footer() {
         </div>
 
         <p className="tiny">
-          Built for the BNB Chain “Build the Era” hackathon. Testnet only — no real value has touched this
-          deployment. Audition results are simulated and labelled as such throughout.
+          Built for BNB Chain’s{' '}
+          <a href="https://www.bnbchain.org/en/hackathons/smart-money-era">The Smart Money Era</a> hackathon.
+          Testnet only — no real value has touched this deployment. Audition results are simulated and labelled
+          as such throughout.
         </p>
       </div>
     </footer>
