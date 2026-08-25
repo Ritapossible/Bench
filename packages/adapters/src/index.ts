@@ -50,6 +50,11 @@ export {
 } from './shadow/anvil-fork.js';
 export { startAnvil, freePort, type AnvilHandle, type AnvilOptions } from './shadow/anvil-process.js';
 export { startInterceptor, type InterceptorHandle, type InterceptorOptions } from './shadow/interceptor.js';
+export {
+  startGatedSession,
+  type GatedSessionHandle,
+  type GatedSessionOptions,
+} from './shadow/gated-session.js';
 export { decodeAction, jsonSafe, KNOWN_SELECTORS, type DecodedAction } from './shadow/tx-decode.js';
 export {
   SpotBalanceSeeder,

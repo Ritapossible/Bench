@@ -1,5 +1,12 @@
 import { createServer, type Server } from 'node:http';
-import { BenchError, type Address, type Hex, type InterceptedAction } from '@bench/core';
+import {
+  BenchError,
+  type Address,
+  type CandidateAction,
+  type GateDecision,
+  type Hex,
+  type InterceptedAction,
+} from '@bench/core';
 import { parseTransaction, recoverTransactionAddress } from 'viem';
 import { decodeAction } from './tx-decode.js';
 
@@ -28,6 +35,17 @@ export interface InterceptorOptions {
   readonly clock?: () => Date;
   /** Receipt poll budget. Anvil auto-mines, so this is a safety net, not a wait. */
   readonly receiptAttempts?: number;
+  /**
+   * The execution gate — ARCHITECTURE.md 2.1.
+   *
+   * Absent during an audition, where the job is to *record* what the agent
+   * does. Present during a hire, where a transaction outside the envelope the
+   * agent established is refused here and never forwarded upstream. Same
+   * machinery, pointed at live traffic.
+   */
+  readonly gate?: (candidate: CandidateAction) => GateDecision;
+  /** Called for every gate decision, allowed or blocked, for the hire card. */
+  readonly onDecision?: (candidate: CandidateAction, decision: GateDecision) => void;
 }
 
 export interface InterceptorHandle {
@@ -35,6 +53,8 @@ export interface InterceptorHandle {
   readonly url: string;
   readonly port: number;
   readonly actionCount: () => number;
+  /** Transactions the gate refused. Never forwarded, never on any chain. */
+  readonly blockedCount: () => number;
   close(): Promise<void>;
 }
 
@@ -56,6 +76,10 @@ export async function startInterceptor(opts: InterceptorOptions): Promise<Interc
   const clock = opts.clock ?? (() => new Date());
   const receiptAttempts = opts.receiptAttempts ?? 40;
   let seq = 0;
+  let blocked = 0;
+  // Cumulative spend and action count over the life of this session, which is
+  // what bounds a *hire* rather than a single transaction.
+  let cumulativeValueWei = 0n;
 
   const upstream = async (payload: unknown): Promise<unknown> => {
     const res = await fetch(opts.upstreamUrl, {
@@ -120,6 +144,44 @@ export async function startInterceptor(opts: InterceptorOptions): Promise<Interc
     const at = clock();
     const mySeq = seq;
     seq += 1;
+
+    // The gate runs before anything is forwarded. A refused transaction does
+    // not reach the upstream node, so there is no state to unwind and nothing
+    // for a reorg to resurrect — it simply never happened.
+    if (opts.gate !== undefined) {
+      const candidate: CandidateAction = {
+        to,
+        value,
+        data,
+        cumulativeValueWei,
+        priorActionCount: mySeq,
+      };
+      const decision = opts.gate(candidate);
+      opts.onDecision?.(candidate, decision);
+
+      if (!decision.allowed && !decision.advisory) {
+        blocked += 1;
+        opts.onAction({
+          seq: mySeq,
+          at,
+          to,
+          value,
+          data,
+          decoded: decodeAction(data),
+          simulated: { success: false, gasUsed: 0n, revertReason: decision.explanation },
+        });
+        // A plain JSON-RPC error, because that is what the agent would get
+        // from a node that would not accept the transaction. It learns that
+        // it failed, not why — the reasoning is Bench's, shown to the owner.
+        return {
+          jsonrpc: '2.0',
+          id: req.id,
+          error: { code: -32003, message: 'transaction rejected' },
+        };
+      }
+    }
+
+    cumulativeValueWei += value;
 
     const forwarded = await call('eth_sendRawTransaction', [serialized]);
 
@@ -216,6 +278,7 @@ export async function startInterceptor(opts: InterceptorOptions): Promise<Interc
     url: `http://127.0.0.1:${port}`,
     port,
     actionCount: () => seq,
+    blockedCount: () => blocked,
     close: () =>
       new Promise<void>((resolve) => {
         server.closeAllConnections?.();

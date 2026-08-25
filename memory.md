@@ -2,7 +2,7 @@
 
 Persistent context for anyone (human or agent) picking this project up mid-flight. Keep it current; it is the file to read first.
 
-**Last updated:** 25 Aug 2026 (frontend shipped; Phase 2 shadow engine landed)
+**Last updated:** 25 Aug 2026 (frontend shipped; shadow engine and execution gate landed)
 
 ---
 
@@ -106,5 +106,9 @@ $40,000+ — BNB Chain $30k USDT (+ adoption) · TermiX $10k USDT · PancakeSwap
   **`BSC_ARCHIVE_RPC_URL` is now the single highest-value unblock.** Nothing has forked real BSC state yet. It turns on the `pcs-lp` and `venus-loan` seeders and the window library, which is the rest of Phase 2.
 
   **Egress guard is NOT enforced.** Written, tested, accepted by the runner — but the fork sandboxes transactions, not sockets. Do not audition an agent that pays for data until its outbound HTTP is proxied.
+
+  **Execution gate (§2.1) landed early, ahead of Phase 4.** The plan said to build it as soon as Phase 2 worked, and Phase 2 works. `deriveEnvelope` / `checkAgainstEnvelope` are pure and live in `@bench/core` alongside `isVerifiedLive`, so there is one definition of "in policy". `startGatedSession` puts them in the transport path — the *same interceptor* as an audition, which is the whole argument: the bound is derived from behaviour that machinery observed, not guessed at in a checkout form. Six rules with tolerance over observed maxima; envelopes under three auditions are advisory rather than enforced. `npm run gate:demo` runs the demo's beat 2 and proves the refusal from chain state.
+
+  **Design note worth keeping:** the agent gets a plain `transaction rejected` JSON-RPC error. It learns that it failed, not why — the reasoning is Bench's and is shown to the owner. Handing an agent the rule it tripped is handing it the map around the fence.
 
   **Frontend.** Five routes live, monochrome design system, colour reserved for state. All data behind the `BenchData` interface in `apps/web/src/lib/data` — fixtures today, one file to swap. Wallet deliberately unwired: nothing before hiring needs a signature. `vercel.json` + `npm run build:web` deploy with Root Directory left at `.`.

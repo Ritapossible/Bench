@@ -64,7 +64,7 @@ Goal: the mechanism the whole product rests on.
 - [ ] x402 checkout, `permit2-upto` for metered agents.
 - [ ] ERC-8183 escrow: fund → job → optimistic settle → dispute path.
 - [ ] Altana EIP-7702 session key: spend cap + contract allowlist, minted at checkout.
-- [ ] **Execution gate** (§2.1) ★ — simulate every transaction the hired agent produces and refuse to sign anything outside its audition envelope. **Minimum form: hard invariants only** (value falling past a bound, funds to an address absent from audition, a call never made while auditioning). This is the demo's beat 2; build it as soon as Phase 2 works, not at the end of Phase 4.
+- [x] **Execution gate** (§2.1) ★ — **landed early, as this plan said it should be.** `deriveEnvelope` and `checkAgainstEnvelope` are pure domain logic in `@bench/core` (one definition, so the app, the worker and the signer cannot drift); `startGatedSession` in `@bench/adapters` puts them in the transport path. Six rules — unseen recipient, unseen selector, single value, cumulative value, action count, simulated position drop — each with tolerance over what was observed, because a bound pinned to the exact maximum is a straitjacket rather than a safety bound. An envelope under three auditions is marked **advisory**: recorded, not enforced. **`npm run gate:demo`** runs beat 2 end to end and then proves it by reading the chain: refused transaction absent, attacker balance zero, controller nonce 1 not 2.
 - [ ] **Revoke control on the hire card**, plus the active-hire dashboard showing cap remaining and a log of blocked transactions with the rule that fired.
 - [ ] Payment-gated feedback: a review counts only when bound to a settled nonzero-value job, weighted by payment size and payer history.
 - [ ] Two seed agents on the wedge: **PancakeSwap LP range rebalancer**, **safe swap router** (slippage / MEV / honeypot guarded).
@@ -93,7 +93,7 @@ Goal: the mechanism the whole product rests on.
 Do not show a happy path. Three beats, and **the middle one is the film**.
 
 1. **Three agents audition on the same position, side by side.** One of them is quietly losing money in simulation. The user hires the one that didn't. *(The ranking claim.)*
-2. **The hired agent then does something it never did in audition** — reaches for an address that appeared in no audition run — and **the transaction dies before it reaches the chain**, with the rule that fired and the state diff it would have caused shown on the hire card. *(ARCHITECTURE.md §2.1.)*
+2. **The hired agent then does something it never did in audition** — reaches for an address that appeared in no audition run — and **the transaction dies before it reaches the chain**, with the rules that fired shown on the hire card. *(ARCHITECTURE.md §2.1. Working now: `npm run gate:demo`, which also proves the refusal by reading the chain afterwards — attacker balance zero, controller nonce 1 not 2.)*
 3. **Revoke mid-job.** The session key goes dead with the cap still holding. *(Recourse.)*
 
 Build the video around beat 2. Beats 1 and 3 are things a careful team could plausibly *claim*; beat 2 shows an agent **stopped by evidence it generated about itself**, which is precisely the thing the ERC-8004 research says nobody can currently do. It is also the only beat no other submission can copy without having built the shadow engine first.
