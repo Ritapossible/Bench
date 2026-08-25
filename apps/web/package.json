@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsc -b ../../packages/core && next build",
     "start": "next start",
     "clean": "rm -rf .next"
   },
