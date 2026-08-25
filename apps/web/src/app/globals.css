@@ -247,17 +247,56 @@ table.t tr:last-child td { border-bottom: 0; }
 
 /* ---------- nav ---------- */
 
+/* NOTE: backdrop-filter makes this element the containing block for any
+   position:fixed descendant. The drawer is therefore rendered as a SIBLING of
+   the header, never inside it — see Nav.tsx. */
 .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
 .nav-inner { display: flex; align-items: center; gap: 1rem; height: 4.5rem; }
-.nav-links { display: none; gap: 1.75rem; }
+.nav-brand { text-decoration: none; flex: none; }
+.nav-links { display: none; gap: 1.75rem; margin-left: 2.5rem; }
 .nav-links a { text-decoration: none; font-size: 0.92rem; font-weight: 500; color: var(--muted); }
 .nav-links a:hover, .nav-links a[data-active='true'] { color: var(--ink); }
-.burger { display: inline-flex; background: none; border: 0; padding: 0.5rem; cursor: pointer; color: var(--ink); }
+.nav-cta { display: none; }
+.burger { display: inline-flex; align-items: center; background: none; border: 0; padding: 0.4rem; cursor: pointer; color: var(--ink); }
 
 .drawer { position: fixed; inset: 0; z-index: 60; }
-.drawer-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.35); border: 0; width: 100%; cursor: pointer; }
-.drawer-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(20rem, 82vw); background: var(--surface); padding: 1.25rem var(--pad) 2rem; display: flex; flex-direction: column; gap: 0.25rem; }
-.drawer-panel a { text-decoration: none; padding: 1rem 0; font-size: 1.05rem; font-weight: 500; border-bottom: 1px solid var(--line); }
+.drawer-scrim {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.45); border: 0; cursor: pointer;
+  animation: fade 0.16s ease;
+}
+.drawer-panel {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: min(21rem, 86vw);
+  /* Opaque, and stated as a hex rather than a token alias so a future theme
+     change cannot accidentally make an overlay see-through. */
+  background: #ffffff;
+  border-left: 1px solid var(--line);
+  box-shadow: -18px 0 48px rgba(0, 0, 0, 0.14);
+  padding: 1.1rem 1.5rem 1.75rem;
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+  animation: slide-in 0.18s ease;
+}
+.drawer-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 0.9rem; }
+.drawer-links { display: flex; flex-direction: column; }
+.drawer-links a {
+  text-decoration: none; padding: 0.95rem 0; font-size: 1.05rem; font-weight: 500;
+  color: var(--muted); border-bottom: 1px solid var(--line);
+}
+.drawer-links a:first-child { border-top: 1px solid var(--line); }
+.drawer-links a[data-active='true'] { color: var(--ink); font-weight: 600; }
+
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slide-in { from { transform: translateX(100%); } to { transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-scrim, .drawer-panel { animation: none; }
+}
+
+@media (min-width: 720px) {
+  .nav-cta { display: inline-flex; }
+}
 
 @media (min-width: 900px) {
   .nav-links { display: flex; }

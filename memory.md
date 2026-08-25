@@ -32,6 +32,7 @@ The six-week gap between judging and announcement is the tell: this is a procure
 | **Wedge: PancakeSwap LP + Venus health factor** | Real users, real capital, clean measurable counterfactuals, live partner track. |
 | **Index 8004scan, don't compete with it** | It already exists as an explorer, and AltLayer is a prize sponsor. Bench's delta over an explorer is *hiring, money at risk, and recourse*. |
 | **Two-column leaderboard: simulated \| realized** | Always labelled, never merged. Honesty here is a differentiator, not a limitation. |
+| **No Connect Wallet in the header** | Nothing before hiring needs a signature (§3.8), so a permanent wallet CTA is a prominent button that goes nowhere — and it argues against the product's own strongest claim, which is *"no wallet needed, paste any address."* The header CTA is **Read your report**. Wallet connection belongs in the Phase 4 hire flow, at the point it is actually required. |
 | **Don't require agents to support `dry_run`** | Nobody implements it. Intercept at the RPC layer against a forked node instead — the agent believes it is live. |
 
 ## Open questions — ask the organizers, unanswered as of 16 Aug
