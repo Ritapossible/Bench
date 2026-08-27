@@ -51,7 +51,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # The build no longer needs a reachable database - the catalog pages
+      # render per request rather than at build time, which is what this job's
+      # first red run taught us. The tests and the seed do need one, so the
+      # schema goes up between them.
       - run: npm run build
+      - run: npm run db:migrate
       - run: npm test
       # The documented setup path is part of the product: if `db:seed` stops
       # working, a deployment has no catalog. It also self-checks that the
@@ -61,7 +66,6 @@ jobs:
       # marketplace unaided. Unit tests prove the orchestrator is correct; only
       # this proves a stranger can complete the journey in a browser.
       - run: npx playwright install --with-deps chromium
-      - run: npm run build -w @bench/web
       - run: npm run start -w @bench/web &
       - run: npx wait-on http://127.0.0.1:3000 -t 60000
       - run: npm run test:e2e

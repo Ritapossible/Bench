@@ -4,16 +4,22 @@ import { CatalogFilter, type AgentRow } from '@/components/CatalogFilter';
 import { agentHref } from '@/lib/format';
 
 /**
- * Revalidate on a cadence rather than prerendering once.
+ * Rendered per request, not prerendered at build time.
  *
- * These pages read the catalog, and the catalog is written by the indexer and
- * prober on their own schedule. Built statically they would freeze whatever was
- * in the database the moment the deploy ran - which during judging means a page
- * that confidently shows a stale agent count. Sixty seconds is well under the
- * probe interval, so the page is never meaningfully behind, and it still costs
- * one query per minute rather than one per visitor.
+ * These pages read the catalog, so prerendering them makes `next build` depend
+ * on a reachable, migrated database - and the build and the database are
+ * independently available in every deployment that matters. CI caught it
+ * first: the same `npm run build` passed without DATABASE_URL and failed with
+ * it, against a database whose migrations had not run yet. On Vercel the same
+ * shape means a brief database blip fails a deploy that had nothing to do with
+ * the database.
+ *
+ * The cost is a handful of queries per request instead of one per minute, which
+ * at this traffic is not a cost. The gain is that the catalog is never stale -
+ * which matters more than it sounds when the thing being judged is whether the
+ * agents are live *now*.
  */
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Catalog - Bench' };
 

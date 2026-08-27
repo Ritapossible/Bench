@@ -96,6 +96,11 @@ in the dashboard beyond `DATABASE_URL`, and there is deliberately **no `vercel.j
 Vercel reads that file from the repo root but runs commands from the Root Directory, so any
 command in it written for the repo root fails in `apps/web`.
 
+The build does not need a reachable database. The catalog pages render per request rather
+than being prerendered, so a deploy cannot be failed by a database that is briefly
+unreachable or has not been migrated yet - and the catalog is never stale, which matters
+when the question being asked is whether the agents are live *now*.
+
 The thing both of those handle is that `@bench/core` compiles to a gitignored `dist/`, so a
 bare `next build` cannot resolve it. The web app is the only Vercel deployable; the worker
 and shadow engine run separately, because both are long-lived processes rather than
