@@ -452,6 +452,10 @@ export const fixtureData: BenchData = {
     return Array.from({ length: 21 }, (_, i) => statsAt(20 - i));
   },
 
+  async catalogProvenance() {
+    return 'fixtures' as const;
+  },
+
   async crossReference(): Promise<AgreementSummary> {
     // Honest default: no 8004scan key is configured yet, so nothing has been
     // corroborated. This lights up on its own once the key is in the

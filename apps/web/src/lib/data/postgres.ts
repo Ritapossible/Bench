@@ -71,6 +71,15 @@ export function createPgData(connectionString: string): BenchData {
       return history.length > 0 ? history : [await catalog.stats(CHAIN)];
     },
 
+    async catalogProvenance() {
+      // Read from indexer state rather than an environment flag: a flag is a
+      // claim someone has to remember to update, and this is exactly the claim
+      // that must not be wrong. No checkpoint means the indexer has never run
+      // against this database, so whatever is in it was put there by the seed.
+      const checkpoint = await catalog.checkpoint(CHAIN);
+      return checkpoint === null ? ('seeded' as const) : ('indexed' as const);
+    },
+
     async crossReference(): Promise<AgreementSummary> {
       const page = await catalog.query({ chain: CHAIN, limit: PAGE_LIMIT });
       const result = await crossRef.lookup(page.entries.map((e) => e.record.id));

@@ -23,6 +23,16 @@ export interface BenchData {
   /** Same measurement over time, for the public registry health dashboard. */
   catalogHistory(): Promise<readonly CatalogStats[]>;
   /**
+   * Where the catalog came from.
+   *
+   * The registry health page contrasts its numbers with the ~4% the ERC-8004
+   * study measured, which only means anything if those numbers came from
+   * indexing the registry. A curated seed reads as a spectacular finding
+   * instead of a demo, so the page has to be able to tell the difference and
+   * say so.
+   */
+  catalogProvenance(): Promise<CatalogProvenance>;
+  /**
    * Independent corroboration of what the indexer found. Returns an
    * `unconfigured` status until an 8004scan key is granted - the panel says so
    * rather than disappearing, because "we have not checked" and "there is
@@ -40,6 +50,13 @@ export interface BenchData {
   /** An audition report against one position, for §3.8's pasted address. */
   reportForAddress(address: string): Promise<AddressReportResult>;
 }
+
+/**
+ * - `indexed` - the indexer has a checkpoint, so these agents came off chain.
+ * - `seeded`  - a database with no checkpoint: written by `npm run db:seed`.
+ * - `fixtures` - no database at all.
+ */
+export type CatalogProvenance = 'indexed' | 'seeded' | 'fixtures';
 
 /** A catalog row: the registry record, its liveness, and its best score. */
 export interface AgentSummary {

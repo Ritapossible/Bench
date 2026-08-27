@@ -27,7 +27,12 @@ export const metadata = {
 };
 
 export default async function RegistryPage() {
-  const [history, agreement] = await Promise.all([data.catalogHistory(), data.crossReference()]);
+  const [history, agreement, provenance] = await Promise.all([
+    data.catalogHistory(),
+    data.crossReference(),
+    data.catalogProvenance(),
+  ]);
+  const indexed = provenance === 'indexed';
   const latest = history[history.length - 1]!;
   const live = liveShareBps(latest);
 
@@ -50,10 +55,35 @@ export default async function RegistryPage() {
           <p className="lead">
             <a href="https://arxiv.org/abs/2606.26028">arXiv 2606.26028</a> found that ~4% of
             ERC-8004 agents registered on BSC had a live service endpoint, using data through May
-            2026. Below is the same measurement, recomputed from Bench’s own indexer and prober
-            against what is registered right now.
+            2026.{' '}
+            {indexed
+              ? 'Below is the same measurement, recomputed from Bench’s own indexer and prober against what is registered right now.'
+              : 'The same measurement runs below, from Bench’s own prober - but against a demo catalog rather than the live registry, so the figures describe this deployment and not the state of BSC.'}
           </p>
         </div>
+
+        {/*
+          Said plainly, next to the numbers it qualifies, rather than in a
+          footnote. This page exists to contrast its figures with the paper's
+          ~4%, and that contrast is only a finding if the figures came off
+          chain. A curated catalog reports a live share in the high seventies,
+          which read against the paper looks like a spectacular discovery and
+          is in fact a demo. Overclaiming here would be the same failure this
+          page was built to document.
+        */}
+        {indexed ? null : (
+          <div className="card stack stack-8">
+            <p className="quote" style={{ borderColor: 'var(--blocked)' }}>
+              These numbers describe a {provenance === 'fixtures' ? 'fixture' : 'seeded'} catalog,
+              not the BSC registry.
+            </p>
+            <p className="body">
+              The indexer has not run against a registry on this deployment, so the live share below
+              is a property of the demo catalog and is not comparable to the paper&rsquo;s 4%. It
+              starts measuring the real registry the moment the indexer is pointed at one.
+            </p>
+          </div>
+        )}
 
         <div className="statgrid">
           <div className="statcell">
@@ -77,7 +107,7 @@ export default async function RegistryPage() {
         {/* chart */}
         <div className="card stack stack-16">
           <div className="row-between">
-            <h2 className="h3">Last {history.length} days</h2>
+            <h2 className="h3">{history.length === 1 ? 'Today' : `Last ${history.length} days`}</h2>
             <div className="row" style={{ gap: '1rem' }}>
               <span className="row tiny" style={{ gap: '0.4rem' }}>
                 <svg width="18" height="8" aria-hidden="true">
@@ -115,7 +145,7 @@ export default async function RegistryPage() {
             <svg
               viewBox={`0 -8 ${W} ${H + 16}`}
               role="img"
-              aria-label="Registry health over the last 21 days"
+              aria-label={`Registry health over the last ${history.length} ${history.length === 1 ? 'day' : 'days'}`}
               style={{ width: '100%', height: 'auto', display: 'block', minWidth: '32rem' }}
             >
               {[0.25, 0.5, 0.75, 1].map((f) => (
