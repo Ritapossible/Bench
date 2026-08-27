@@ -17,9 +17,12 @@ import {
   type CandidateAction,
   type ConsentStep,
   type EnvelopePolicy,
+  type ClaimResult,
   type EscrowClient,
   type HireMandate,
+  type HireRecord,
   type HireState,
+  type HireStore,
   type Hex,
   type MandateBounds,
   type MandateState,
@@ -47,6 +50,8 @@ import {
  *      hire wedged between states.
  */
 
+export type { ClaimResult, HireRecord, HireStore } from '@bench/core';
+
 export interface HireRequest {
   /** Same key ⇒ same hire. The client generates it; the server trusts it only for dedupe. */
   readonly idempotencyKey: string;
@@ -69,30 +74,6 @@ export interface HireRequest {
    */
   readonly envelope: BehaviouralEnvelope;
   readonly envelopePolicy?: EnvelopePolicy;
-}
-
-export interface HireRecord {
-  readonly id: string;
-  readonly idempotencyKey: string;
-  readonly state: HireState;
-  readonly owner: Address;
-  readonly agent: AgentId;
-  readonly mandate: HireMandate;
-  readonly mandateState: MandateState;
-  readonly envelope: BehaviouralEnvelope;
-  readonly envelopePolicy: EnvelopePolicy | undefined;
-  readonly escrowJobId: string | null;
-  readonly paymentTxHash: Hex | null;
-  readonly trace: readonly TraceEntry[];
-  readonly createdAt: Date;
-  readonly failureReason?: string;
-}
-
-export interface HireStore {
-  byIdempotencyKey(key: string): Promise<HireRecord | null>;
-  get(id: string): Promise<HireRecord | null>;
-  put(record: HireRecord): Promise<void>;
-  listByOwner(owner: Address): Promise<readonly HireRecord[]>;
 }
 
 export interface HireOrchestratorDeps {
@@ -129,9 +110,6 @@ export class HireOrchestrator {
    * client's decision to make with a new key, not something to do silently.
    */
   async hire(req: HireRequest): Promise<HireRecord> {
-    const existing = await this.deps.store.byIdempotencyKey(req.idempotencyKey);
-    if (existing !== null) return existing;
-
     if (!consentComplete(req.consent)) {
       throw new BenchError(
         'NOT_SUPPORTED_BY_PROVIDER',
@@ -169,10 +147,15 @@ export class HireOrchestrator {
       createdAt: at,
     };
 
-    // Persist before anything external happens, so a crash mid-flight leaves a
-    // record to reconcile rather than a charge with no hire attached.
+    // Claim before anything external happens. This single call does double
+    // duty: it persists the draft, so a crash mid-flight leaves a record to
+    // reconcile rather than a charge with no hire attached, and it decides who
+    // owns the idempotency key. Losing the claim returns the winner's hire and
+    // spends nothing.
     record = this.#trace(record, 'consent', 'ok', [], `consent complete; mandate ${mandateDigest(mandate)}`);
-    await this.deps.store.put(record);
+    const claim = await this.deps.store.claim(record);
+    if (!claim.claimed) return claim.record;
+    record = claim.record;
 
     try {
       const quote = await this.deps.payment.quote({
@@ -343,6 +326,24 @@ export class HireOrchestrator {
 export class InMemoryHireStore implements HireStore {
   readonly #byId = new Map<string, HireRecord>();
   readonly #byKey = new Map<string, string>();
+
+  /**
+   * Atomic by virtue of the event loop: nothing awaits between the check and
+   * the write, so no interleaving is possible **within one process**. That
+   * caveat is the whole reason `PgHireStore` exists — this store cannot
+   * arbitrate between two web instances, and is a reference implementation
+   * and test double rather than something to run a marketplace on.
+   */
+  async claim(record: HireRecord): Promise<ClaimResult> {
+    const heldBy = this.#byKey.get(record.idempotencyKey);
+    if (heldBy !== undefined) {
+      const winner = this.#byId.get(heldBy);
+      if (winner !== undefined) return { claimed: false, record: winner };
+    }
+    this.#byId.set(record.id, record);
+    this.#byKey.set(record.idempotencyKey, record.id);
+    return { claimed: true, record };
+  }
 
   async byIdempotencyKey(key: string): Promise<HireRecord | null> {
     const id = this.#byKey.get(key);

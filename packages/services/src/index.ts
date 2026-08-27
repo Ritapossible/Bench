@@ -17,6 +17,7 @@ export {
   InMemoryHireStore,
   type ActionDecision,
   type HireOrchestratorDeps,
+  type ClaimResult,
   type HireRecord,
   type HireRequest,
   type HireStore,

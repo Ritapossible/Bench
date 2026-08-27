@@ -15,7 +15,8 @@
     "build": "tsc -b",
     "generate": "drizzle-kit generate",
     "push": "drizzle-kit push",
-    "clean": "rm -rf dist *.tsbuildinfo"
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "migrate": "node dist/migrate.js"
   },
   "dependencies": {
     "@bench/core": "*",
@@ -24,6 +25,6 @@
   },
   "devDependencies": {
     "@types/pg": "8.11.10",
-    "drizzle-kit": "0.30.1"
+    "drizzle-kit": "^0.30.1"
   }
 }

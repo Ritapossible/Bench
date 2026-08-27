@@ -216,16 +216,46 @@ export const escrowJobs = pgTable('escrow_jobs', {
   deliveryProof: text('delivery_proof'),
 });
 
-export const hires = pgTable('hires', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userAddress: text('user_address').notNull(),
-  agentIds: jsonb('agent_ids').notNull(),
-  escrowJobId: text('escrow_job_id').references(() => escrowJobs.id),
-  sessionKeyId: uuid('session_key_id').references(() => sessionKeys.id),
-  status: text('status').notNull().default('pending'),
-  brokerIntent: text('broker_intent'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+/**
+ * A hire, and everything needed to reconstruct one.
+ *
+ * `id` is text rather than a generated uuid because the domain mints it - the
+ * orchestrator has to name a hire before any of this exists, so that a crash
+ * between charging and persisting still leaves something to reconcile.
+ *
+ * `idempotencyKey` is UNIQUE, and that is the point. Deduplicating in
+ * application memory is a race: two concurrent requests both miss the cache and
+ * both charge. The uniqueness has to be enforced where the concurrency actually
+ * resolves, which is here.
+ */
+export const hires = pgTable(
+  'hires',
+  {
+    id: text('id').primaryKey(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    userAddress: text('user_address').notNull(),
+    /** One element for a direct hire; several when the broker assembles a team. */
+    agentIds: jsonb('agent_ids').notNull(),
+    escrowJobId: text('escrow_job_id'),
+    sessionKeyId: uuid('session_key_id').references(() => sessionKeys.id),
+    status: text('status').notNull().default('draft'),
+    mandate: jsonb('mandate').notNull(),
+    mandateState: jsonb('mandate_state').notNull(),
+    envelope: jsonb('envelope').notNull(),
+    envelopePolicy: jsonb('envelope_policy'),
+    /** Hash-chained; verified on read rather than trusted. */
+    trace: jsonb('trace').notNull(),
+    paymentTxHash: text('payment_tx_hash'),
+    failureReason: text('failure_reason'),
+    brokerIntent: text('broker_intent'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('hires_idempotency_key_uq').on(t.idempotencyKey),
+    index('hires_user_idx').on(t.userAddress),
+  ],
+);
 
 /**
  * Payment-gated. A row may only exist with a settled escrow job behind it —
@@ -234,7 +264,7 @@ export const hires = pgTable('hires', {
  */
 export const feedback = pgTable('feedback', {
   id: uuid('id').defaultRandom().primaryKey(),
-  hireId: uuid('hire_id').notNull().references(() => hires.id, { onDelete: 'cascade' }),
+  hireId: text('hire_id').notNull().references(() => hires.id, { onDelete: 'cascade' }),
   escrowJobId: text('escrow_job_id').notNull().references(() => escrowJobs.id),
   rating: integer('rating').notNull(),
   comment: text('comment'),

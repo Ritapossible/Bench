@@ -73,6 +73,8 @@ export type BenchErrorCode =
   | 'SESSION_KEY_REVOKED'
   | 'EGRESS_BUDGET_EXCEEDED'
   | 'FORK_UNAVAILABLE'
+  /** A persisted decision trace no longer verifies against its own hash chain. */
+  | 'TRACE_TAMPERED'
   | 'NOT_SUPPORTED_BY_PROVIDER';
 
 export class BenchError extends Error {

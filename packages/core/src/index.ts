@@ -22,3 +22,4 @@ export * from './ports/escrow.js';
 export * from './ports/shadow.js';
 export * from './ports/probe.js';
 export * from './ports/crossref.js';
+export * from './ports/hire-store.js';
