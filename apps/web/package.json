@@ -4,17 +4,18 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "tsc -b ../../packages/core && next build",
+    "build": "tsc -b ../../packages/core ../../packages/config ../../packages/adapters ../../packages/services ../../packages/db && next build",
     "start": "next start",
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@bench/adapters": "*",
     "@bench/core": "*",
+    "@bench/db": "*",
+    "@bench/services": "*",
     "next": "^15.5.23",
     "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "@bench/db": "*",
-    "@bench/adapters": "*"
+    "react-dom": "19.0.0"
   },
   "devDependencies": {
     "@types/node": "22.10.2",

@@ -17,6 +17,13 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run typecheck
+      # Vercel runs only the web workspace's own build script against a clone
+      # with no build output, so `npm run build` here - which builds every
+      # package first, creating the dists - cannot catch a missing one. This
+      # reproduces Vercel's shape, which is how a broken deploy got through:
+      # apps/web gained imports on @bench/adapters, @bench/db and
+      # @bench/services while its build script still compiled only @bench/core.
+      - run: npm run build:vercel
       - run: npm test
       - run: npm run fmt:check
 

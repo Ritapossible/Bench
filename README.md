@@ -96,6 +96,12 @@ in the dashboard beyond `DATABASE_URL`, and there is deliberately **no `vercel.j
 Vercel reads that file from the repo root but runs commands from the Root Directory, so any
 command in it written for the repo root fails in `apps/web`.
 
+Vercel runs `apps/web`'s own `build` script, which compiles the workspace packages the app
+imports before `next build` - they emit to a gitignored `dist/`, so a fresh clone has
+nothing to resolve until they are built. `npm run build:vercel` reproduces that exactly
+(clean output, web workspace only) and runs in CI, because a plain `npm run build` builds
+every package first and therefore cannot catch a missing one.
+
 The build does not need a reachable database. The catalog pages render per request rather
 than being prerendered, so a deploy cannot be failed by a database that is briefly
 unreachable or has not been migrated yet - and the catalog is never stale, which matters
