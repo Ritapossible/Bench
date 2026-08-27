@@ -213,6 +213,12 @@ export default function DocsPage() {
         <section id="gate" className="stack stack-12">
           <h2 className="h3">The execution gate</h2>
           <p className="body">
+            Two independent bounds apply to every transaction a hired agent produces, and neither subsumes the
+            other. The <strong className="ink">mandate</strong> answers <em>did the owner authorise this?</em> — a
+            signed statement of how much, to whom, and for how long. The <strong className="ink">envelope</strong>{' '}
+            answers <em>has this agent ever done this?</em> A transaction must clear both.
+          </p>
+          <p className="body">
             A spend cap answers <em>how much</em>. It does nothing about an agent doing something ruinous with an
             amount well inside the cap. So the audition does not stop at the hire:{' '}
             <strong className="ink">every transaction a hired agent produces is checked against the envelope it
@@ -304,7 +310,8 @@ export default function DocsPage() {
                 <tr><td>Catalog, audition reports, registry dashboard</td><td><span className="badge badge-live"><span className="dot" />Built</span></td></tr>
                 <tr><td>PancakeSwap LP and Venus position seeding</td><td><span className="badge badge-thin">Needs an archive node</span></td></tr>
                 <tr><td>Per-category scorers and the live leaderboard</td><td><span className="badge badge-dead">In progress</span></td></tr>
-                <tr><td>Hiring — x402, escrow, session keys</td><td><span className="badge badge-dead">Not yet</span></td></tr>
+                <tr><td>Hire lifecycle — mandate, consent, decision trace</td><td><span className="badge badge-live"><span className="dot" />Built</span></td></tr>
+                <tr><td>Hiring on chain — x402 settlement, ERC-8183 escrow, session keys</td><td><span className="badge badge-dead">Not yet</span></td></tr>
               </tbody>
             </table>
           </div>

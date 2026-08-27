@@ -13,6 +13,15 @@ export { Indexer, type IndexerOptions, type IndexerTickResult } from './indexer.
 export { Prober, type ProberOptions, type ProberTickResult } from './prober.js';
 export { ProbeAnchor, type AnchorOptions, type AnchorTickResult } from './anchor.js';
 export {
+  HireOrchestrator,
+  InMemoryHireStore,
+  type ActionDecision,
+  type HireOrchestratorDeps,
+  type HireRecord,
+  type HireRequest,
+  type HireStore,
+} from './hire.js';
+export {
   AuditionRunner,
   type AuditionReport,
   type AuditionRequest,

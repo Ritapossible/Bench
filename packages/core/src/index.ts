@@ -9,6 +9,8 @@ export * from './types/catalog.js';
 export * from './types/score.js';
 export * from './types/hire.js';
 export * from './types/envelope.js';
+export * from './types/mandate.js';
+export * from './types/hire-flow.js';
 
 export * from './digest.js';
 

@@ -159,6 +159,33 @@ five-track plan in plan.md.
 - **Shadow runs can spend real money** via outbound x402 data calls. Hard egress budget per run, plus an outbound allowlist.
 - **Don't build another explorer.** 8004scan is that, and its sponsor is judging.
 
+## Hire pipeline — built 25 Aug, from the vault's P12
+
+The idea vault's strongest pattern (seven projects, three ecosystems) says agent
+authority is *the* problem of this era, and ranks enforcement mechanisms by strength.
+Bench sits on the **signed-mandate-plus-public-trace** rung — the one PolyDesk won with,
+and the one the vault flags as under-explored because it needs no special hardware.
+
+Built accordingly, and deliberately not as a demo path:
+
+- **Mandate** (`core/types/mandate.ts`) — canonically encoded, length-delimited so no
+  field containing a separator can encode as a different mandate under the same
+  signature. Bounds: total cap, per-tx cap, allowlist, expiry, action limit.
+- **Enforcement layering** (ARCHITECTURE §3.6.1) — each rule at the layer that can hold
+  it. A cap enforced only in the client is a cap the client can be talked out of.
+- **Decision trace** — hash-chained, so editing any entry invalidates the tail.
+  `verifyTrace` returns the index of the first tampered entry.
+- **Consent checklist** — ordered, refuses to skip ahead. A single "I agree" means
+  nothing; the summary step stops anyone confirming bounds they never saw together.
+- **Envelope snapshotted at hire time**, not re-derived. Otherwise an agent could widen
+  its own bound by auditioning differently after being hired.
+- **Idempotent by request key**, including for failed hires — retrying a charge is the
+  client's decision with a new key, never something to do silently.
+
+**Still stubs:** `X402PaymentClient` and `Erc8183EscrowClient`. The lifecycle around them
+is driven and tested; the chain calls are not written. That plus per-agent Altana wallets
+and Keystore registration is what remains of Phase 4.
+
 ## Glossary
 
 - **Audition** — a shadow run of one agent over one window against one position template.

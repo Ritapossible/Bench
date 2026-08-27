@@ -61,8 +61,9 @@ Goal: the mechanism the whole product rests on.
 
 ## Phase 4 — Hire pipeline + seed agents (Sep 4–6)
 
-- [ ] x402 checkout, `permit2-upto` for metered agents.
-- [ ] ERC-8183 escrow: fund → job → optimistic settle → dispute path.
+- [~] x402 checkout, `permit2-upto` for metered agents. *(Orchestrated and tested against fakes; the `X402PaymentClient` adapter itself is still a stub.)*
+- [~] ERC-8183 escrow: fund → job → optimistic settle → dispute path. *(Same: lifecycle driven and tested, `Erc8183EscrowClient` still a stub.)*
+- [x] **Hire domain layer** — `HireOrchestrator` in `@bench/services` plus the mandate, state machine, decision trace and consent checklist in `@bench/core`. Idempotent by request key; consent enforced before any money moves; every step traced into a hash chain; a mid-flight failure lands in `failed` with the reason rather than escaping. Both bounds evaluated on every action and neither subsumes the other. 171 tests.
 - [ ] Altana EIP-7702 session key: spend cap + contract allowlist, minted at checkout.
 - [x] **Execution gate** (§2.1) ★ — **landed early, as this plan said it should be.** `deriveEnvelope` and `checkAgainstEnvelope` are pure domain logic in `@bench/core` (one definition, so the app, the worker and the signer cannot drift); `startGatedSession` in `@bench/adapters` puts them in the transport path. Six rules — unseen recipient, unseen selector, single value, cumulative value, action count, simulated position drop — each with tolerance over what was observed, because a bound pinned to the exact maximum is a straitjacket rather than a safety bound. An envelope under three auditions is marked **advisory**: recorded, not enforced. **`npm run gate:demo`** runs beat 2 end to end and then proves it by reading the chain: refused transaction absent, attacker balance zero, controller nonce 1 not 2.
 - [ ] **Revoke control on the hire card**, plus the active-hire dashboard showing cap remaining and a log of blocked transactions with the rule that fired.

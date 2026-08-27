@@ -173,6 +173,27 @@ On Hire:
 - **Authority** via an Altana EIP-7702 **session key** scoped to a spend cap and a contract allowlist, with a revoke control on the hire card. `AltanaWalletProvider` ships in the BNBAgent SDK (TypeScript only — see §7).
 - **Execution gate** (§2.1): every transaction the hired agent produces is simulated and checked against its audition envelope before the session key will sign it. Cap, allowlist and gate are three independent bounds and a transaction must clear all three. Blocked transactions are logged to the hire card with the rule that fired.
 
+#### 3.6.1 Where each rule is enforced
+
+Putting a rule at the wrong layer is the classic failure in this design: a cap enforced only in the client is a cap the client can be talked out of. Each bound therefore lives at the layer that can actually hold it.
+
+| Rule | Enforced where | Why there |
+|---|---|---|
+| per-tx cap, total cap, contract allowlist | session-key contract, on-chain | a violating transaction cannot be signed at all |
+| expiry, revocation | on-chain state | consensus beats a signature — revoke must win even against a correctly signed transaction |
+| behavioural envelope (§2.1) | the gate, before signing | derived from audition evidence, so it lives where that evidence does |
+| approval threshold ("ask above X") | the dashboard | a comfort line the owner changes at UI speed, never a security boundary |
+
+The **mandate** is the unit that carries the first two groups: a canonically-encoded, owner-signed statement of how much, to whom, and for how long. The agent carries a permission slip, never a blank cheque, and every field is length-delimited before signing so that no value containing a separator can encode as a different mandate with the same signature.
+
+**The envelope is snapshotted onto the hire, not re-derived per transaction.** That is a security property rather than a caching decision: an envelope recomputed live could be widened by the agent auditioning differently *after* it was hired. The bound is what it had demonstrated at the moment you agreed to it.
+
+#### 3.6.2 Consent, and the decision trace
+
+Hiring walks an **ordered consent checklist** that refuses to skip ahead — read the audition, set the ceilings, choose the allowlist, choose the expiry, then confirm all of it together as one decision. A single "I agree" means nothing; the summary step exists so that nobody confirms a set of bounds they never saw side by side.
+
+Every step of a hire — quote, authorization, funding, each gate decision, each refusal, revocation, settlement — appends to a **hash-chained decision trace**. Rewriting any entry invalidates every entry after it. This is the artifact a user reads when an agent did something they did not expect, and it is worth nothing if it can be edited afterwards.
+
 ### 3.7 Broker agent
 
 Bench registers *itself* under ERC-8004 as a broker agent. A user states an intent in natural language — *"$5k in a PCS LP that keeps going out of range, and I'm close to liquidation on Venus"* — and Bench decomposes it, selects a **team** from the audition rankings, and returns one escrow and one capped session key covering all of them.
