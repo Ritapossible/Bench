@@ -11,7 +11,7 @@ Ordering principle: **ship the trust layer before the polish.** An ugly page ran
 - [x] Repo, CI, Postgres + Redis via docker-compose, Next.js + workers monorepo skeleton.
 - [x] **Adapter interfaces first**, before any SDK call: `WalletProvider`, `EscrowClient`, `PaymentClient`, `RegistryClient`. Pin `@bnbagent/sdk` to an exact version. A breaking SDK release must be a one-file fix.
 - [ ] Anvil fork of BSC running locally, reproducible from a pinned block. *(`scripts/fork.sh` written; not yet run against an archive node.)*
-- [ ] **Send the organizer questions today** (memory.md §Open questions). The answers change what gets built; every day of delay is a day of possible rework. **← still outstanding, and it gates Phase 4.**
+- [ ] **Send the organizer questions today** *(still outstanding as of 27 Aug)* (memory.md §Open questions). The answers change what gets built; every day of delay is a day of possible rework. **← still outstanding, and it gates Phase 4.**
 - [x] Pull the **actual scoring rubric** from the contest page. *(Done 25 Aug — https://www.bnbchain.org/en/hackathons/smart-money-era. It contradicted a locked scope decision; full rubric and consequences in memory.md §The rubric, correction in ARCHITECTURE.md §8. Three findings that change the build: Agent Diversity across four categories is a third of the main-track criteria; "activate it" puts the hire pipeline inside criterion one, so it cannot be cut; and "agents must be live on BSC, publicly accessible during judging" means fixtures do not survive judging.)*
 
 ## Phase 1 — Catalog with a pulse (Aug 18–22)
@@ -22,7 +22,7 @@ Goal: a page that is already more useful than a raw registry read.
 - [x] 8004scan cross-reference ingest (complement, credit them; do not rebuild the explorer). *(`CrossReferenceSource` port in core, `Scan8004CrossReference` in adapters, surfaced on `/registry`. **Activates on `ALTLAYER_8004SCAN_API_KEY` alone** and no-ops as `unconfigured` until then — never gates the catalog, since the chain is the source of truth. Response schema is unverified without a key: unrecognised shapes are refused rather than guessed at, and an all-failed run reports `unavailable` rather than 0% agreement, because those are different claims. Pro-tier application submitted separately.)*
 - [x] Prober: scheduled endpoint pings → reachability, p95 latency, A2A/MCP conformance. *(Read-only conformance: A2A well-known card, MCP `initialize`, OASF descriptor.)*
 - [x] **"Verified live" filter working.** This alone makes the catalog ~25× denser in real agents. *(One predicate in `@bench/core`; mirrored in SQL for the WHERE clause.)*
-- [ ] Agent cards + profile pages. Plain styling is fine at this stage. *(Frontend — deliberately deferred.)*
+- [x] Agent cards + profile pages. *(Shipped 25 Aug; served from Postgres since 27 Aug.)*
 - [ ] Onchain anchoring of the rolling probe hash. *(Hash chain, batching, and the anchor job are done; the registry write itself is still `notImplemented` pending a verified Validation Registry ABI.)*
 - [ ] **Public registry health dashboard** (ARCHITECTURE.md §3.2.1). Rides entirely on the indexer and prober, which already work — live share of BSC agents that resolve, respond and conform, against the arXiv baseline. **Ship this independently of Phase 2; it puts something real and verifiable on the internet while the engine is still being built.**
 

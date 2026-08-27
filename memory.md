@@ -2,7 +2,7 @@
 
 Persistent context for anyone (human or agent) picking this project up mid-flight. Keep it current; it is the file to read first.
 
-**Last updated:** 25 Aug 2026 (frontend shipped; shadow engine and execution gate landed)
+**Last updated:** 27 Aug 2026 (persistence landed; the app serves Postgres, not fixtures)
 
 ---
 
@@ -156,7 +156,7 @@ five-track plan in plan.md.
 - **The obvious build loses.** Registry read + agent cards + star sort = an empty directory of dead agents ranked by noise. Twenty teams will ship it.
 - **Ranking rigor alone loses too.** BNB Chain's real problem is that deployed agents never get hired. The marketplace must be a demand engine, not a leaderboard.
 - **Don't overclaim statistical rigor.** Risk-adjusted delta over a dozen settled jobs is meaningless, and TermiX judges trade for a living. Shadow mode exists partly because it produces defensible sample sizes; report window and n next to every score anyway.
-- **Shadow runs can spend real money** via outbound x402 data calls. Hard egress budget per run, plus an outbound allowlist.
+- **Shadow runs can spend real money** via outbound x402 data calls. Hard egress budget per run, plus an outbound allowlist. *(Enforced 27 Aug. It was written on 25 Aug and not called for two days - writing a control and wiring it are separate jobs, and only the second one protects anything.)*
 - **Don't build another explorer.** 8004scan is that, and its sponsor is judging.
 
 ## Hire pipeline — built 25 Aug, from the vault's P12
@@ -225,3 +225,61 @@ and Keystore registration is what remains of Phase 4.
   **Design note worth keeping:** the agent gets a plain `transaction rejected` JSON-RPC error. It learns that it failed, not why — the reasoning is Bench's and is shown to the owner. Handing an agent the rule it tripped is handing it the map around the fence.
 
   **Frontend.** Five routes live, monochrome design system, colour reserved for state. All data behind the `BenchData` interface in `apps/web/src/lib/data` — fixtures today, one file to swap. Wallet deliberately unwired: nothing before hiring needs a signature. `vercel.json` + `npm run build:web` deploy with Root Directory left at `.`.
+
+- **27 Aug 2026 - persistence, and five controls that were reported as enforced but were not.**
+
+  The two things standing between this and a production system were that hires lived in
+  process memory and the web app read fixtures. Both are closed. What made the day worth
+  writing down is what fell out of closing them: **every gap found was a control the code
+  claimed to apply and did not.** They are worth listing as a class, because the same
+  mistake will be available again in Phase 4.
+
+  1. **The envelope's cumulative bounds could never fire.** `authorizeAction` took the
+     agent's spending history as a parameter and every call site passed zero, so each
+     action claimed to be the agent's first. Both bounds now read persisted mandate state.
+     A bound evaluated against numbers the caller supplies is not a bound; it is a report
+     that one was checked.
+  2. **The consent checklist was decorative.** The checkout server action built the consent
+     list itself, always complete, so `consentComplete` could not fail. A user who skipped
+     all five confirmations got the same hire as one who read them. The client now submits
+     what it actually recorded.
+  3. **The egress guard was never called.** Declared as a dependency of `AuditionRunner`
+     and unused, so a shadowed agent had unmetered network access - the thing the guard
+     exists to prevent, and flagged in this file since 25 Aug. The agent now receives its
+     network through the runner rather than finding it, scoped per run. A missing guard
+     denies the network rather than granting it.
+  4. **The fixtures overclaimed liveness.** The fixture clock was frozen at 25 Aug, so its
+     probes were days old, and "verified live" means probed within six hours. The fixture
+     path hid it by passing the same frozen clock into `isVerifiedLive`; the Postgres path
+     could not, and reported zero live agents where the page reported twelve. Overclaiming
+     liveness is the exact failure this project exists to correct.
+  5. **The integration tests were not running in CI**, so they reported as passing by
+     skipping - and `fmt:check` had been red repo-wide for weeks, so the pipeline was
+     failing regardless of any commit.
+
+  **Persistence.** `PgHireStore` and `PgAuditionStore` against checked-in migrations, run
+  by the migrator under an advisory lock rather than `drizzle-kit push`. Hire idempotency
+  is a UNIQUE index and `INSERT ... ON CONFLICT DO NOTHING`, because read-then-write dedupe
+  is a TOCTOU race that charges twice - tested with twelve writers racing one key. Traces
+  are verified on read, so editing the row they live in is detectable.
+
+  **The app serves Postgres** when `DATABASE_URL` is set and fixtures otherwise, decided
+  once at boot and warned about loudly in production. `npm run db:seed` writes a known
+  catalog through the indexer's own repository, so a deployment has real rows before the
+  registry address lands - and it cross-checks the verified-live SQL against
+  `isVerifiedLive`, which was the duplication guarded only by a comment.
+
+  **The build no longer needs a database.** CI caught it: the same `npm run build` passed
+  without `DATABASE_URL` and failed with it. Catalog pages render per request now, so a
+  deploy cannot be failed by a database blip.
+
+  **An end-to-end browser test of the hire path**, because the rubric says TermiX hires
+  unaided. "The orchestrator is correct" and "a stranger can finish this" fail differently.
+
+  **Still blocked on inputs, not code** - all four need something from outside the repo:
+  `BSC_ARCHIVE_RPC_URL` (turns on the `pcs-lp` and `venus-loan` seeders and the window
+  library), `ERC8004_IDENTITY_REGISTRY` + start block (replaces the seed with indexed
+  agents - **fixtures do not survive judging**), x402 facilitator and ERC-8183 addresses
+  (both clients are simulated adapters behind their real interfaces, labelled in the UI),
+  and Altana access for per-agent wallets and EIP-7702 session keys. **Organiser questions
+  are still unsent.**
