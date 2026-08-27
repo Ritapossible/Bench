@@ -19,3 +19,4 @@ export * from './ports/payment.js';
 export * from './ports/escrow.js';
 export * from './ports/shadow.js';
 export * from './ports/probe.js';
+export * from './ports/crossref.js';

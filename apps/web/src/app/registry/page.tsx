@@ -8,7 +8,7 @@ export const metadata = {
 };
 
 export default async function RegistryPage() {
-  const history = await data.catalogHistory();
+  const [history, agreement] = await Promise.all([data.catalogHistory(), data.crossReference()]);
   const latest = history[history.length - 1]!;
   const live = liveShareBps(latest);
 
@@ -99,6 +99,45 @@ export default async function RegistryPage() {
           <p className="tiny">
             Supply is not the constraint. BNB Agent Studio mints a registered, wallet-owning agent in about fifteen
             minutes — the registered line climbs while the verified-live line does not.
+          </p>
+        </div>
+
+        {/* corroboration */}
+        <div className="card stack stack-12">
+          <div className="row-between">
+            <h2 className="h3">Corroboration</h2>
+            {agreement.status === 'ok' ? (
+              <span className="badge badge-live"><span className="dot" />{pct(agreement.agreementBps)} agreement</span>
+            ) : (
+              <span className="badge badge-plain">
+                {agreement.status === 'unconfigured' ? 'Not yet configured' : 'Source unavailable'}
+              </span>
+            )}
+          </div>
+
+          {agreement.status === 'ok' ? (
+            <p className="body">
+              Of the <strong className="ink">{agreement.checked}</strong> agents Bench indexed from chain,{' '}
+              <a href="https://8004scan.io">8004scan</a> also sees{' '}
+              <strong className="ink">{agreement.confirmed}</strong>. The{' '}
+              <strong className="ink">{agreement.notFound}</strong> it does not are the interesting ones.
+            </p>
+          ) : (
+            <p className="body">
+              Bench reads the registry from chain directly, and cross-checks that against{' '}
+              <a href="https://8004scan.io">AltLayer&rsquo;s 8004scan</a> — an independent explorer — so the figures
+              above are corroborated rather than merely asserted.{' '}
+              {agreement.status === 'unconfigured'
+                ? 'An API key has been requested and is not yet in place, so nothing has been cross-checked yet.'
+                : 'The source did not answer usably on the last run.'}
+            </p>
+          )}
+
+          <p className="tiny">
+            One-directional by construction: looking agents up by the ids Bench already holds measures
+            corroboration, not coverage. It can never find agents 8004scan knows and Bench does not, and it is
+            labelled that way rather than presented as a completeness figure. The chain remains the source of
+            truth — this never gates the catalog.
           </p>
         </div>
 

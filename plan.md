@@ -19,7 +19,7 @@ Ordering principle: **ship the trust layer before the polish.** An ugly page ran
 Goal: a page that is already more useful than a raw registry read.
 
 - [x] Indexer: ERC-8004 registry events → `agents`; resolve `tokenURI` → agent card → capabilities, endpoints, declared permissions. *(Reads via viem/ERC-721 mints; unresolvable cards kept with a recorded reason.)*
-- [ ] 8004scan cross-reference ingest (complement, credit them; do not rebuild the explorer).
+- [x] 8004scan cross-reference ingest (complement, credit them; do not rebuild the explorer). *(`CrossReferenceSource` port in core, `Scan8004CrossReference` in adapters, surfaced on `/registry`. **Activates on `ALTLAYER_8004SCAN_API_KEY` alone** and no-ops as `unconfigured` until then — never gates the catalog, since the chain is the source of truth. Response schema is unverified without a key: unrecognised shapes are refused rather than guessed at, and an all-failed run reports `unavailable` rather than 0% agreement, because those are different claims. Pro-tier application submitted separately.)*
 - [x] Prober: scheduled endpoint pings → reachability, p95 latency, A2A/MCP conformance. *(Read-only conformance: A2A well-known card, MCP `initialize`, OASF descriptor.)*
 - [x] **"Verified live" filter working.** This alone makes the catalog ~25× denser in real agents. *(One predicate in `@bench/core`; mirrored in SQL for the WHERE clause.)*
 - [ ] Agent cards + profile pages. Plain styling is fine at this stage. *(Frontend — deliberately deferred.)*

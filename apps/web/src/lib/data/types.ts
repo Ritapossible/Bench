@@ -1,5 +1,6 @@
 import type {
   AgentCategory,
+  AgreementSummary,
   AgentId,
   CatalogEntry,
   CatalogStats,
@@ -21,6 +22,13 @@ export interface BenchData {
   catalogStats(): Promise<CatalogStats>;
   /** Same measurement over time, for the public registry health dashboard. */
   catalogHistory(): Promise<readonly CatalogStats[]>;
+  /**
+   * Independent corroboration of what the indexer found. Returns an
+   * `unconfigured` status until an 8004scan key is granted — the panel says so
+   * rather than disappearing, because "we have not checked" and "there is
+   * nothing to check" are different claims.
+   */
+  crossReference(): Promise<AgreementSummary>;
 
   listAgents(opts?: {
     readonly verifiedLiveOnly?: boolean;

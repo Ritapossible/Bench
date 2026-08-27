@@ -8,6 +8,7 @@ import {
   type CatalogStats,
   type OutcomeRecord,
   type ProbeResult,
+  type AgreementSummary,
   type Score,
   type ShadowRun,
 } from '@bench/core';
@@ -177,6 +178,13 @@ export const fixtureData: BenchData = {
 
   async catalogHistory() {
     return Array.from({ length: 21 }, (_, i) => statsAt(20 - i));
+  },
+
+  async crossReference(): Promise<AgreementSummary> {
+    // Honest default: no 8004scan key is configured yet, so nothing has been
+    // corroborated. This lights up on its own once the key is in the
+    // environment — see buildCrossReference in @bench/adapters.
+    return { source: '8004scan', status: 'unconfigured', checked: 0, confirmed: 0, notFound: 0, agreementBps: 0 };
   },
 
   async listAgents(opts) {

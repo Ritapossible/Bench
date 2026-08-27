@@ -3,10 +3,12 @@ import {
   BenchError,
   type EscrowClient,
   type PaymentClient,
+  type CrossReferenceSource,
   type ProbeClient,
   type RegistryClient,
   type WalletProvider,
 } from '@bench/core';
+import { buildCrossReference } from './catalog/scan-8004.js';
 import { Erc8004RegistryClient } from './chain/erc8004-registry.js';
 import { Erc8183EscrowClient } from './chain/erc8183-escrow.js';
 import { X402PaymentClient } from './chain/x402-payment.js';
@@ -35,6 +37,12 @@ export {
   type CardResolverOptions,
 } from './catalog/card-resolver.js';
 export { HttpProbeClient, extractSseData, type ProbeOptions } from './probe/http-probe.js';
+export {
+  Scan8004CrossReference,
+  buildCrossReference,
+  parseAgentPayload,
+  type Scan8004Options,
+} from './catalog/scan-8004.js';
 export {
   safeFetch,
   assertPublicUrl,
@@ -84,6 +92,8 @@ export interface Adapters {
   readonly wallet: WalletProvider;
   readonly fork: AnvilForkProvider;
   readonly egress: InMemoryEgressGuard;
+  /** No-op until ALTLAYER_8004SCAN_API_KEY is set. Never gates the catalog. */
+  readonly crossRef: CrossReferenceSource;
 }
 
 export function buildAdapters(cfg: BenchConfig): Adapters {
@@ -108,6 +118,9 @@ export function buildAdapters(cfg: BenchConfig): Adapters {
       budgetUsd: cfg.SHADOW_EGRESS_BUDGET_USD,
       allowlist: cfg.SHADOW_EGRESS_ALLOWLIST,
     }),
+    crossRef: buildCrossReference(
+      cfg.ALTLAYER_8004SCAN_API_KEY === undefined ? {} : { apiKey: cfg.ALTLAYER_8004SCAN_API_KEY },
+    ),
   };
 }
 
