@@ -32,7 +32,34 @@ export interface ShadowAgentContext {
   readonly controller: Address;
   readonly window: AuditionWindow;
   readonly position: PositionTemplate;
+  /**
+   * The only way out to the network, metered against this run's egress budget.
+   *
+   * The fork sandboxes the agent's *transactions*; it does nothing about its
+   * HTTP. A shadowed agent still makes real, billable calls - x402-paid data
+   * feeds, price oracles, LLM inference - and a hundred auditions of an agent
+   * that polls in a loop is a real invoice. Every call goes through `check`
+   * before it is made and `record` after, so an unlisted host is refused and a
+   * run that reaches its ceiling stops rather than being noticed later.
+   *
+   * Passed to the agent rather than left for it to find, because a control the
+   * agent has to opt into is not a control.
+   */
+  readonly fetch: MeteredFetch;
 }
+
+/**
+ * A fetch with a price attached.
+ *
+ * The cost is the caller's estimate of what the request bills - an x402 data
+ * feed quotes it, an unpaid endpoint is zero. Estimated before, recorded after,
+ * because the two can differ and the budget has to hold against whichever is
+ * larger.
+ */
+export type MeteredFetch = (
+  url: string,
+  init?: { readonly estimatedCostUsd?: number } & RequestInit,
+) => Promise<Response>;
 
 /**
  * An agent under audition. In production this is a thin shim that hands the
@@ -66,6 +93,8 @@ export interface AuditionResult {
   readonly replayHash: Hex;
   readonly failed: boolean;
   readonly failureReason?: string;
+  /** Real money this agent spent reaching the network during its audition. */
+  readonly egressSpentUsd: number;
 }
 
 export interface AuditionReport {
@@ -81,7 +110,17 @@ export interface AuditionReport {
 
 export interface AuditionRunnerDeps {
   readonly forks: ForkProvider;
+  /**
+   * Absent means the agent gets no network at all, not unmetered network.
+   *
+   * Deny-by-default is the only safe reading of a missing budget: the
+   * alternative is that forgetting to configure a guard silently grants
+   * unlimited billable egress, which is precisely the failure the guard exists
+   * to prevent.
+   */
   readonly egress?: EgressGuard;
+  /** Seam for tests. Defaults to global fetch. */
+  readonly httpFetch?: typeof fetch;
 }
 
 export class AuditionRunner {
@@ -116,6 +155,47 @@ export class AuditionRunner {
     return { window: req.window, position: req.position, doNothing, results, replayHash: hash, peerMedianUsd };
   }
 
+  /**
+   * The agent's network access, bound to one run.
+   *
+   * Refusals are thrown rather than returned. An agent that treats a refused
+   * data call as an empty response would trade on a silence it mistook for a
+   * fact, and the audition would score that as a decision the agent made rather
+   * than as the guard stopping it.
+   */
+  #meteredFetch(runId: string): MeteredFetch {
+    const guard = this.deps.egress;
+    const http = this.deps.httpFetch ?? fetch;
+
+    return async (url, init) => {
+      if (guard === undefined) {
+        throw new BenchError(
+          'EGRESS_BUDGET_EXCEEDED',
+          `no egress guard is configured, so ${url} is refused; auditions run without network rather than without a budget`,
+        );
+      }
+
+      const estimate = init?.estimatedCostUsd ?? 0;
+      const host = new URL(url).host;
+      const decision = await guard.check(runId, host, estimate);
+      if (!decision.allowed) {
+        throw new BenchError(
+          'EGRESS_BUDGET_EXCEEDED',
+          `refused ${url}: ${decision.reason ?? 'not permitted'}`,
+        );
+      }
+
+      const { estimatedCostUsd: _cost, ...request } = init ?? {};
+      try {
+        return await http(url, request);
+      } finally {
+        // Recorded even when the request threw: a call that was made and then
+        // failed has usually still been billed.
+        await guard.record(runId, estimate);
+      }
+    };
+  }
+
   async #baseline(req: AuditionRequest): Promise<TerminalState> {
     const fork = await this.deps.forks.spawn({ window: req.window, archiveRpcUrl: req.archiveRpcUrl });
     try {
@@ -142,6 +222,10 @@ export class AuditionRunner {
       let failed = false;
       let failureReason: string | undefined;
 
+      // Scoped to this agent's run, so one agent cannot spend another's budget
+      // and the recorded total is attributable.
+      const runId = `${hash}:${agent.id}`;
+
       try {
         await withTimeout(
           agent.run({
@@ -149,6 +233,7 @@ export class AuditionRunner {
             controller: seeded.controller,
             window: req.window,
             position: req.position,
+            fetch: this.#meteredFetch(runId),
           }),
           req.agentTimeoutMs ?? 120_000,
           `agent ${agent.id} exceeded its audition timeout`,
@@ -172,6 +257,7 @@ export class AuditionRunner {
         replayHash: hash,
         failed,
         ...(failureReason === undefined ? {} : { failureReason }),
+        egressSpentUsd: this.deps.egress === undefined ? 0 : await this.deps.egress.spent(runId),
       };
     } finally {
       await fork.destroy();

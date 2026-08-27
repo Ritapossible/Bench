@@ -94,6 +94,30 @@ export async function startAnvil(opts: AnvilOptions = {}): Promise<AnvilHandle> 
   let exited = false;
   child.once('exit', () => { exited = true; });
 
+  /**
+   * A missing binary arrives here, not at the `spawn` call.
+   *
+   * Node reports ENOENT asynchronously as an 'error' event, so the try/catch
+   * above never sees it - and an unhandled 'error' on a ChildProcess takes the
+   * whole process down with a raw stack trace. The most likely reason anyone
+   * hits this is that Foundry is not installed, so the message says that rather
+   * than making them read `spawn anvil ENOENT` and work it out.
+   */
+  let spawnError: BenchError | null = null;
+  child.once('error', (cause: NodeJS.ErrnoException) => {
+    exited = true;
+    spawnError =
+      cause.code === 'ENOENT'
+        ? new BenchError(
+            'FORK_UNAVAILABLE',
+            `${binary} is not on PATH. The shadow engine needs Foundry: install it with ` +
+              `\`curl -L https://foundry.paradigm.xyz | bash && foundryup\`, then make sure ` +
+              `~/.foundry/bin is on your PATH.`,
+            cause,
+          )
+        : new BenchError('FORK_UNAVAILABLE', `could not spawn ${binary}: ${cause.message}`, cause);
+  });
+
   const stop = async (): Promise<void> => {
     if (exited || child.pid === undefined) return;
     child.kill('SIGTERM');
@@ -112,6 +136,7 @@ export async function startAnvil(opts: AnvilOptions = {}): Promise<AnvilHandle> 
 
   const deadline = Date.now() + (opts.startupTimeoutMs ?? 30_000);
   while (Date.now() < deadline) {
+    if (spawnError !== null) throw spawnError;
     if (exited) {
       throw new BenchError('FORK_UNAVAILABLE', `anvil exited during startup:\n${out.slice(-2_000)}`);
     }

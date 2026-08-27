@@ -29,6 +29,7 @@ export {
   type AuditionRequest,
   type AuditionResult,
   type AuditionRunnerDeps,
+  type MeteredFetch,
   type ShadowAgent,
   type ShadowAgentContext,
 } from './audition.js';
