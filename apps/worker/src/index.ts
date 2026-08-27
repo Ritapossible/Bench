@@ -1,6 +1,12 @@
 import { buildAdapters } from '@bench/adapters';
 import { loadConfig } from '@bench/config';
-import { PgAuditionStore, PgCatalogRepository, createDb, runMigrations } from '@bench/db';
+import {
+  PgAuditionStore,
+  PgCatalogRepository,
+  createDb,
+  migrationUrl,
+  runMigrations,
+} from '@bench/db';
 import { Indexer, ProbeAnchor, Prober } from '@bench/services';
 import { Queue, Worker } from 'bullmq';
 import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
@@ -20,7 +26,8 @@ async function main(): Promise<void> {
   // app in every deployment ordering worth having, so this is the one process
   // that can be relied on to bring the schema forward; the advisory lock inside
   // makes it safe when several instances boot at once.
-  await runMigrations(cfg.DATABASE_URL);
+  // The direct connection, never the pooled one - see migrationUrl.
+  await runMigrations(migrationUrl() ?? cfg.DATABASE_URL);
 
   const db = createDb(cfg.DATABASE_URL);
   const repo = new PgCatalogRepository(db);

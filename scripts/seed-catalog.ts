@@ -22,7 +22,13 @@
  * inflate the probe count into a track record nobody measured.
  */
 import { VERIFIED_LIVE, isVerifiedLive } from '@bench/core';
-import { PgAuditionStore, PgCatalogRepository, createDb, runMigrations } from '@bench/db';
+import {
+  PgAuditionStore,
+  PgCatalogRepository,
+  createDb,
+  migrationUrl,
+  runMigrations,
+} from '@bench/db';
 import { SEEDS, probes, record, score } from '../apps/web/src/lib/data/fixtures.js';
 
 const CHAIN = 'bsc-testnet' as const;
@@ -34,7 +40,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  await runMigrations(url);
+  await runMigrations(migrationUrl() ?? url);
   const db = createDb(url);
   const catalog = new PgCatalogRepository(db);
   const audition = new PgAuditionStore(db);

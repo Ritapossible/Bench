@@ -19,6 +19,27 @@ import pg from 'pg';
  * and is safe to call from every instance on boot: concurrent callers queue on
  * the lock and the losers find nothing left to apply.
  */
+/**
+ * The connection string migrations should use.
+ *
+ * Neon's Vercel integration provides two: `DATABASE_URL` goes through PgBouncer
+ * and `DATABASE_URL_UNPOOLED` goes straight to the compute. Migrations need the
+ * direct one, and not as a preference - the migrator takes an advisory lock so
+ * that concurrent instances queue rather than race, and PgBouncer in
+ * transaction mode hands each statement to whichever backend is free, so the
+ * lock would be taken on one connection and released on another. The migration
+ * then runs unprotected, which is the exact case the lock exists for.
+ *
+ * Falls back to `DATABASE_URL` for a plain Postgres with no pooler in front,
+ * where the two are the same connection anyway.
+ */
+export function migrationUrl(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const direct =
+    env['DATABASE_URL_UNPOOLED'] ?? env['POSTGRES_URL_NON_POOLING'] ?? env['DIRECT_DATABASE_URL'];
+  const url = direct ?? env['DATABASE_URL'];
+  return url === undefined || url.trim() === '' ? undefined : url;
+}
+
 export async function runMigrations(
   connectionString: string,
   migrationsFolder?: string,
@@ -35,8 +56,8 @@ export async function runMigrations(
 
 // `npm run migrate -w @bench/db`
 if (process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`) {
-  const url = process.env['DATABASE_URL'];
-  if (url === undefined || url === '') {
+  const url = migrationUrl();
+  if (url === undefined) {
     console.error('DATABASE_URL is not set');
     process.exit(1);
   }

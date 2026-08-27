@@ -102,6 +102,34 @@ nothing to resolve until they are built. `npm run build:vercel` reproduces that 
 (clean output, web workspace only) and runs in CI, because a plain `npm run build` builds
 every package first and therefore cannot catch a missing one.
 
+### Deploying with Neon
+
+Add the Neon integration in Vercel and it sets `DATABASE_URL` (through PgBouncer) and
+`DATABASE_URL_UNPOOLED` (straight to the compute). Then, once, from a machine with both in
+its environment:
+
+```bash
+npm run db:migrate                       # uses the direct URL, see below
+npm run db:seed
+```
+
+Three things the code does for this deployment shape, so you do not have to:
+
+- **Migrations take the direct connection.** The migrator holds an advisory lock so
+  concurrent boots queue rather than race, and PgBouncer in transaction mode gives each
+  statement to whichever backend is free - so the lock would be taken on one connection and
+  released on another, leaving the migration unprotected in exactly the case the lock
+  exists for. `migrationUrl()` prefers `DATABASE_URL_UNPOOLED` and falls back to
+  `DATABASE_URL` where there is no pooler.
+- **One pool per process, not per client.** The web app builds a client for the catalog and
+  another for hires; both now share a pool keyed by connection string. Without that, every
+  warm lambda held two pools of ten mostly-idle connections, and a handful of instances
+  exhausts a Neon project's limit.
+- **Serverless pool sizing.** Small `max`, short idle timeout, and a real connection
+  timeout - Neon suspends idle compute, so the first request after a scale-to-zero waits
+  for a cold start, and pg's default of waiting forever turns that into a hung request
+  rather than a slow one.
+
 The build does not need a reachable database. The catalog pages render per request rather
 than being prerendered, so a deploy cannot be failed by a database that is briefly
 unreachable or has not been migrated yet - and the catalog is never stale, which matters
