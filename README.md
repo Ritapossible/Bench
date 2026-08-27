@@ -77,6 +77,18 @@ Integration tests need a database and skip without one:
 TEST_DATABASE_URL=$DATABASE_URL npm test
 ```
 
+And the hire path, end to end, in a real browser against a running server:
+
+```bash
+npm run test:e2e                         # expects a server on :3100
+```
+
+That one exists because of a single line in the contest rubric: TermiX hires from the
+marketplace and evaluates the results, with nobody there to nudge it past a hydration bug
+or a disabled button. The unit tests prove the orchestrator is correct; this proves a
+stranger can finish the journey. It fails on any console error too, because a hire that
+completes while throwing is not a hire path worth shipping.
+
 **Deploying to Vercel:** import the repository and accept the defaults. Vercel detects
 `apps/web` as the Root Directory and the Next.js preset, then runs that workspace's own
 `build` script - which compiles `@bench/core` before `next build`. Nothing needs configuring

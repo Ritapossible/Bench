@@ -66,6 +66,16 @@ export function HireCheckout(props: HireCheckoutProps) {
       <input type="hidden" name="expiryHours" value={expiryHours} />
       <input type="hidden" name="allowlist" value={allowlist} />
       <input type="hidden" name="taskSpec" value={taskSpec} />
+      {/*
+        The confirmations the user actually gave, in the order they gave them.
+        Submitted rather than assumed: the server used to hardcode a complete
+        list, which made `consentComplete` unfailable and the whole checklist
+        decorative. It is the one control here that a user can watch working,
+        so it has to actually be the thing that is checked.
+      */}
+      {done.map((step) => (
+        <input key={step} type="hidden" name="consent" value={step} />
+      ))}
 
       {props.steps.map(({ id: step, title, prompt }, i) => {
         const state = done.includes(step) ? 'done' : step === current ? 'current' : 'upcoming';

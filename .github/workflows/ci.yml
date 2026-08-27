@@ -57,6 +57,16 @@ jobs:
       # working, a deployment has no catalog. It also self-checks that the
       # verified-live SQL and isVerifiedLive still agree.
       - run: npm run db:seed
+      # The one flow the contest rubric names explicitly: TermiX hires from the
+      # marketplace unaided. Unit tests prove the orchestrator is correct; only
+      # this proves a stranger can complete the journey in a browser.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build -w @bench/web
+      - run: npm run start -w @bench/web &
+      - run: npx wait-on http://127.0.0.1:3000 -t 60000
+      - run: npm run test:e2e
+        env:
+          E2E_BASE_URL: http://127.0.0.1:3000
 
   contracts:
     runs-on: ubuntu-latest

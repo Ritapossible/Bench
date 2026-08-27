@@ -2,7 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { deriveEnvelope, type Address, type InterceptedAction } from '@bench/core';
+import {
+  deriveEnvelope,
+  type Address,
+  type ConsentStep,
+  type InterceptedAction,
+} from '@bench/core';
 import { data } from '@/lib/data/index';
 import { DEMO_OWNER, SETTLEMENT_TOKEN, hireOrchestrator } from '@/lib/hire/runtime';
 
@@ -16,9 +21,15 @@ const usdt = (whole: number) => ({
 /**
  * Create a hire from the checkout form.
  *
- * The consent list arrives from the client, but it is the domain that decides
- * whether it is complete and in order - `HireOrchestrator` refuses an
- * incomplete one before any money moves, so a tampered form cannot skip it.
+ * The consent list arrives from the client and is passed through unchanged, so
+ * the domain decides whether it is complete and in order - `HireOrchestrator`
+ * refuses an incomplete one before any money moves, and a tampered form is
+ * refused for the same reason rather than a different one.
+ *
+ * Passing it through matters more than it looks. This action previously built
+ * the list itself, always complete, which meant `consentComplete` could not
+ * fail and the ordered checklist was decorative: a user who skipped every
+ * confirmation got the same hire as one who read all five.
  */
 export async function createHire(form: FormData): Promise<void> {
   const chain = String(form.get('chain'));
@@ -48,13 +59,7 @@ export async function createHire(form: FormData): Promise<void> {
       expiresAt: new Date(Date.now() + Number(form.get('expiryHours') ?? 24) * 3_600_000),
       maxActions: Number(form.get('maxActions') ?? 20),
     },
-    consent: [
-      'reviewed-audition',
-      'set-spend-cap',
-      'set-allowlist',
-      'set-expiry',
-      'reviewed-summary',
-    ],
+    consent: form.getAll('consent').map(String) as ConsentStep[],
     taskSpec: String(form.get('taskSpec') ?? '').slice(0, 500),
     price: usdt(Number(form.get('price') ?? 5)),
     payTo: DEMO_OWNER,
