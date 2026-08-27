@@ -1,6 +1,6 @@
 import { buildAdapters } from '@bench/adapters';
 import { loadConfig } from '@bench/config';
-import { PgCatalogRepository, createDb } from '@bench/db';
+import { PgAuditionStore, PgCatalogRepository, createDb, runMigrations } from '@bench/db';
 import { Indexer, ProbeAnchor, Prober } from '@bench/services';
 import { Queue, Worker } from 'bullmq';
 import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
@@ -15,8 +15,16 @@ import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
  */
 async function main(): Promise<void> {
   const cfg = loadConfig();
+
+  // Migrations before anything opens a pool. The worker boots ahead of the web
+  // app in every deployment ordering worth having, so this is the one process
+  // that can be relied on to bring the schema forward; the advisory lock inside
+  // makes it safe when several instances boot at once.
+  await runMigrations(cfg.DATABASE_URL);
+
   const db = createDb(cfg.DATABASE_URL);
   const repo = new PgCatalogRepository(db);
+  const audition = new PgAuditionStore(db);
   const adapters = buildAdapters(cfg);
   const redis = redisOptionsFrom(cfg.REDIS_URL);
 
@@ -45,9 +53,15 @@ async function main(): Promise<void> {
         const head = await adapters.registry.headBlock();
         const r = await indexer.tick(head);
         console.log(
-          `[bench:indexer] blocks ${r.fromBlock}–${r.toBlock} discovered=${r.discovered} ` +
+          `[bench:indexer] blocks ${r.fromBlock}-${r.toBlock} discovered=${r.discovered} ` +
             `cards ok=${r.cardsResolved} failed=${r.cardsFailed}`,
         );
+
+        // Append the density measurement each tick. The registry health page
+        // plots this as a trend, and a trend only exists if someone writes the
+        // points down as they happen - it cannot be reconstructed later from a
+        // catalog that only remembers its current state.
+        await audition.recordStats(await repo.stats(cfg.BENCH_CHAIN));
       },
       // concurrency 1: two indexer ticks would race on the same checkpoint.
       { ...redis, concurrency: 1 },

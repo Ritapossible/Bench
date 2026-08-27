@@ -183,6 +183,24 @@ describeDb('PgAuditionStore', () => {
     expect(top.map((s) => s.normalized)).toEqual([0.9, 0.4]);
   });
 
+  it('records at most one density measurement per hour', async () => {
+    // The indexer ticks every thirty seconds. Without this, ninety stored
+    // points would cover forty-five minutes, and the registry health page
+    // asks a question measured in days.
+    const base = Date.parse('2026-08-20T00:00:00.000Z');
+    for (const minutes of [0, 10, 45, 61, 70, 130]) {
+      await store.recordStats({
+        chain: 'bsc-testnet',
+        registered: 100,
+        withResolvableCard: 40,
+        verifiedLive: minutes,
+        computedAt: new Date(base + minutes * 60_000),
+      });
+    }
+    const history = await store.statsHistory('bsc-testnet');
+    expect(history.map((h) => h.verifiedLive)).toEqual([0, 61, 130]);
+  });
+
   it('keeps catalog density as a history rather than one repeated number', async () => {
     for (const [i, live] of [3, 5, 8].entries()) {
       await store.recordStats({

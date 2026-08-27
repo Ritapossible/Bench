@@ -28,23 +28,65 @@ The indexer and prober that feed the catalog measure, continuously, what [arXiv 
 
 ## Run it
 
+Fixtures, no database, one command - enough to see every page:
+
 ```bash
 npm install
-npm run build:web     # builds @bench/core, then the Next app
+npm run build:web
 npm run start -w @bench/web
+```
+
+Against the real catalog, which is what production and judging run:
+
+```bash
+docker compose up -d                     # Postgres + Redis
+export DATABASE_URL=postgresql://bench:bench@localhost:5432/bench
+npm run build
+npm run db:migrate                       # checked-in SQL, applied in order
+npm run start -w @bench/worker           # indexer, prober, anchor
+npm run start -w @bench/web
+```
+
+`lib/data/index.ts` picks the backing once, at boot, from `DATABASE_URL`: set, and every
+page reads Postgres; unset, and it reads fixtures and **says so in the logs**. A deployment
+serving fixtures looks exactly like one serving real data, so it is made to announce itself
+rather than be discovered.
+
+Migrations are checked-in SQL under `packages/db/migrations`, applied by
+`drizzle-orm`'s migrator under an advisory lock - not `drizzle-kit push`, which
+applies a diff nobody has reviewed against whatever the database happens to look
+like. The worker runs them on boot, so a deploy in either order converges.
+
+Integration tests need a database and skip without one:
+
+```bash
+TEST_DATABASE_URL=$DATABASE_URL npm test
 ```
 
 **Deploying to Vercel:** import the repository and accept the defaults. Vercel detects
 `apps/web` as the Root Directory and the Next.js preset, then runs that workspace's own
-`build` script — which compiles `@bench/core` before `next build`. Nothing needs configuring
-in the dashboard, and there is deliberately **no `vercel.json`**: Vercel reads that file from
-the repo root but runs commands from the Root Directory, so any command in it written for the
-repo root fails in `apps/web`.
+`build` script - which compiles `@bench/core` before `next build`. Nothing needs configuring
+in the dashboard beyond `DATABASE_URL`, and there is deliberately **no `vercel.json`**:
+Vercel reads that file from the repo root but runs commands from the Root Directory, so any
+command in it written for the repo root fails in `apps/web`.
 
 The thing both of those handle is that `@bench/core` compiles to a gitignored `dist/`, so a
-bare `next build` cannot resolve it. The web app is the only deployable; the worker and
-shadow engine run separately.
+bare `next build` cannot resolve it. The web app is the only Vercel deployable; the worker
+and shadow engine run separately, because both are long-lived processes rather than
+request handlers.
 
 ## Status
 
-Phase 1 backend written — indexer, prober, verified-live filter, agent-card resolver. The shadow engine (Phase 2, the longest pole) has not started. Frontend is a scaffold. See [plan.md](./plan.md) for the phase state and cut lines, and [memory.md](./memory.md) for what is currently blocking.
+Built and covered by tests: the ERC-8004 indexer, the prober and its verified-live
+definition, the agent-card resolver, the shadow engine (forked-chain interception with a
+signing gate), the behavioural envelope, the signed mandate, the ordered consent checklist,
+the hash-chained decision trace, the hire pipeline, and the full front end. All of it runs
+against Postgres, not fixtures.
+
+Still stubbed: the x402 payment client and the ERC-8183 escrow client are simulated
+adapters behind their real interfaces, labelled as such everywhere they surface in the UI.
+The catalog is seeded rather than indexed from a live registry until the registry address is
+confirmed.
+
+See [plan.md](./plan.md) for the phase state and cut lines, and [memory.md](./memory.md) for
+what is currently blocking.

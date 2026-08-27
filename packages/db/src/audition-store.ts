@@ -18,7 +18,7 @@ import {
   type ShadowRunStatus,
   type TerminalState,
 } from '@bench/core';
-import { and, desc, eq, inArray, or } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, or } from 'drizzle-orm';
 import type { Db } from './index.js';
 import * as schema from './schema.js';
 
@@ -280,7 +280,30 @@ export class PgAuditionStore implements AuditionStore {
 
   // ------------------------------------------------------------------ stats
 
+  /**
+   * Append a measurement, at most one per hour per chain.
+   *
+   * The indexer ticks every thirty seconds, and appending on every tick would
+   * fill the table with 2,880 rows a day - so a chart of the last ninety points
+   * would cover forty-five minutes, which is not the question the registry
+   * health page asks. Catalog density moves on the scale of days. Throttling
+   * here rather than at the call site means every caller gets the same cadence
+   * without having to know about it.
+   */
   async recordStats(stats: CatalogStats): Promise<void> {
+    const cutoff = new Date(stats.computedAt.getTime() - 60 * 60_000);
+    const recent = await this.db
+      .select({ id: schema.catalogStatsHistory.id })
+      .from(schema.catalogStatsHistory)
+      .where(
+        and(
+          eq(schema.catalogStatsHistory.chain, stats.chain),
+          gt(schema.catalogStatsHistory.computedAt, cutoff),
+        ),
+      )
+      .limit(1);
+    if (recent.length > 0) return;
+
     await this.db.insert(schema.catalogStatsHistory).values({
       chain: stats.chain,
       registered: stats.registered,

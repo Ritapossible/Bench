@@ -22,6 +22,7 @@
     "db:up": "docker compose up -d postgres redis",
     "db:down": "docker compose down",
     "db:generate": "npm run generate -w @bench/db",
+    "db:migrate": "npm run migrate -w @bench/db",
     "db:push": "npm run push -w @bench/db",
     "fork": "bash scripts/fork.sh",
     "build:web": "tsc -b packages/core && npm run build -w @bench/web",
