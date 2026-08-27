@@ -43,9 +43,23 @@ docker compose up -d                     # Postgres + Redis
 export DATABASE_URL=postgresql://bench:bench@localhost:5432/bench
 npm run build
 npm run db:migrate                       # checked-in SQL, applied in order
+npm run db:seed                          # a known catalog, until the registry address lands
 npm run start -w @bench/worker           # indexer, prober, anchor
 npm run start -w @bench/web
 ```
+
+`db:seed` writes the demo catalog through the indexer's own repository and the prober's
+own liveness maths, so what you see has been through the same code path as indexed data
+and the same verified-live predicate. It reads its definitions from the fixtures rather
+than redefining them - two copies of "the demo catalog" drifting apart is how a staging
+environment stops predicting production - and it re-probes when the existing history has
+gone stale, so running it before a demo refreshes liveness. It also recomputes
+verified-live per agent and fails if that disagrees with the catalog's own SQL, which is
+the only thing holding those two definitions together.
+
+Point the indexer at a real ERC-8004 registry (`ERC8004_IDENTITY_REGISTRY`,
+`ERC8004_REGISTRY_START_BLOCK`) and the worker replaces the seed with indexed agents on
+its next tick.
 
 `lib/data/index.ts` picks the backing once, at boot, from `DATABASE_URL`: set, and every
 page reads Postgres; unset, and it reads fixtures and **says so in the logs**. A deployment

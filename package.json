@@ -23,6 +23,7 @@
     "db:down": "docker compose down",
     "db:generate": "npm run generate -w @bench/db",
     "db:migrate": "npm run migrate -w @bench/db",
+    "db:seed": "tsc -b packages/core packages/db && tsx scripts/seed-catalog.ts",
     "db:push": "npm run push -w @bench/db",
     "fork": "bash scripts/fork.sh",
     "build:web": "tsc -b packages/core && npm run build -w @bench/web",

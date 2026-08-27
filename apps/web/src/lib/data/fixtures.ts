@@ -24,11 +24,26 @@ import type { AddressReportResult, AgentDetail, AgentSummary, BenchData } from '
  */
 
 const CHAIN = 'bsc-testnet' as const;
-const now = () => new Date('2026-08-25T12:00:00Z');
+/**
+ * Real time, not a frozen instant.
+ *
+ * A fixed clock looked like the safer choice - deterministic pages, stable
+ * screenshots - and it quietly made the fixtures dishonest. "Verified live"
+ * means probed within six hours, and probes anchored to a fixed date stop
+ * satisfying that the day after. The fixtures papered over it by passing the
+ * same frozen clock into `isVerifiedLive`, so the front page kept claiming
+ * agents were live off probes that were by then days old. The Postgres path
+ * has no such option, which is how this surfaced: the seeded catalog reported
+ * zero verified-live agents against a fixture page reporting twelve.
+ *
+ * Overclaiming liveness is the specific failure Bench exists to correct, so
+ * the fixtures do not get to do it either.
+ */
+const now = () => new Date();
 
 const id = (tokenId: number): AgentId => ({ chain: CHAIN, tokenId: BigInt(tokenId) });
 
-interface Seed {
+export interface Seed {
   readonly tokenId: number;
   readonly name: string;
   readonly description: string;
@@ -44,7 +59,7 @@ interface Seed {
   readonly cardResolves: boolean;
 }
 
-const SEEDS: readonly Seed[] = [
+export const SEEDS: readonly Seed[] = [
   // ---- rebalancing (judged) ----
   { tokenId: 1041, name: 'Kestrel LP Rebalancer', description: 'Keeps a PancakeSwap v3 position inside its range, rebalancing on band breach with a cooldown.', category: 'rebalancing', live: true, conformant: true, probes: 288, uptimeBps: 9_940, p95: 210, deltaUsd: 341.22, sampleSize: 64, cardResolves: true },
   { tokenId: 1102, name: 'Tideline Range Manager', description: 'Wide-band v3 manager. Fewer rebalances, lower fee burn, more range risk.', category: 'rebalancing', live: true, conformant: true, probes: 201, uptimeBps: 9_610, p95: 340, deltaUsd: 96.15, sampleSize: 43, cardResolves: true },
@@ -90,7 +105,7 @@ function card(s: Seed): AgentCard | null {
   };
 }
 
-function record(s: Seed): AgentRecord {
+export function record(s: Seed): AgentRecord {
   return {
     id: id(s.tokenId),
     owner: `0x${s.tokenId.toString(16).padStart(40, 'a')}` as `0x${string}`,
@@ -102,7 +117,7 @@ function record(s: Seed): AgentRecord {
 }
 
 /** Synthesise a probe history matching the seed's uptime and conformance. */
-function probes(s: Seed): ProbeResult[] {
+export function probes(s: Seed, anchor: Date = now()): ProbeResult[] {
   const agent = id(s.tokenId);
   const endpoint = { protocol: 'a2a' as const, url: `https://agents.example/${s.tokenId}/a2a` };
   const reachableCount = Math.round((s.uptimeBps / 10_000) * s.probes);
@@ -120,7 +135,7 @@ function probes(s: Seed): ProbeResult[] {
     return {
       agent,
       endpoint,
-      at: new Date(now().getTime() - (s.probes - i) * 5 * 60 * 1000),
+      at: new Date(anchor.getTime() - (s.probes - i) * 5 * 60 * 1000),
       reachable,
       latencyMs: reachable ? s.p95 : null,
       conformant: reachable && s.conformant,
@@ -128,7 +143,7 @@ function probes(s: Seed): ProbeResult[] {
   });
 }
 
-function score(s: Seed): Score | null {
+export function score(s: Seed): Score | null {
   if (s.deltaUsd === null || s.sampleSize === 0) return null;
   const metric =
     s.category === 'rebalancing'
@@ -156,7 +171,7 @@ function score(s: Seed): Score | null {
 function summary(s: Seed): AgentSummary {
   const liveness = summarizeProbes(id(s.tokenId), probes(s));
   return {
-    entry: { record: record(s), liveness, verifiedLive: isVerifiedLive(liveness, now()) },
+    entry: { record: record(s), liveness, verifiedLive: isVerifiedLive(liveness) },
     score: score(s),
   };
 }
