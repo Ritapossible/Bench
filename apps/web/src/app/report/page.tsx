@@ -3,7 +3,7 @@ import { data } from '@/lib/data/index';
 import { CATEGORY_LABEL, usd, agentHref } from '@/lib/format';
 
 export const metadata = {
-  title: 'Your position’s report — Bench',
+  title: 'Your position’s report - Bench',
   description: 'Paste any BSC address and see what each agent would have done with that position. No wallet needed.',
 };
 
@@ -26,7 +26,7 @@ export default async function ReportPage({
           <h1 className="h2">What would an agent have done with your position?</h1>
           <p className="lead">
             The position is public state and the audition is a simulation, so nothing here needs you to connect
-            anything. Paste an address — the resulting report is a link you can share.
+            anything. Paste an address - the resulting report is a link you can share.
           </p>
         </div>
 
@@ -133,7 +133,7 @@ export default async function ReportPage({
 
             <p className="small">
               Every figure above is <strong className="ink">simulated</strong>, against a do-nothing baseline over the
-              window named. Same position, same window, every agent in parallel — a controlled comparison, not a
+              window named. Same position, same window, every agent in parallel - a controlled comparison, not a
               post-hoc delta. Computed {report.computedAt.toISOString().slice(0, 10)}.
             </p>
           </div>

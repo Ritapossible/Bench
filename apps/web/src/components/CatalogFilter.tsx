@@ -71,7 +71,7 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
       <p className="small">
         Showing <strong className="ink">{shown.length}</strong> of {rows.length} indexed.{' '}
         {liveOnly
-          ? 'Verified live means the endpoint responded and spoke the protocol its card declares — not merely returned 200.'
+          ? 'Verified live means the endpoint responded and spoke the protocol its card declares - not merely returned 200.'
           : 'Filter off: this is what a raw registry read looks like.'}
       </p>
 

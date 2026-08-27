@@ -8,6 +8,7 @@ import {
   confirmConsent,
   consentComplete,
   encodeMandate,
+  formatTokenAmount,
   mandateDigest,
   nextConsentStep,
   remaining,
@@ -239,5 +240,37 @@ describe('consent checklist', () => {
   it('is idempotent for a step already confirmed', () => {
     const once = confirmConsent([], 'reviewed-audition');
     expect(confirmConsent(once, 'reviewed-audition')).toEqual(once);
+  });
+});
+
+describe('human-readable amounts', () => {
+  it('renders base units as a number a person can check', () => {
+    // Raw base units in a refusal explanation is exactly the sort of thing
+    // that makes an audit trail unreadable at the moment it matters.
+    const usdt = (n: bigint) => ({ token: USDT, symbol: 'USDT', decimals: 18, amount: n });
+    expect(formatTokenAmount(usdt(5n * 10n ** 18n))).toBe('5 USDT');
+    expect(formatTokenAmount(usdt(1_500_000_000_000_000_000n))).toBe('1.5 USDT');
+    expect(formatTokenAmount(usdt(0n))).toBe('0 USDT');
+    expect(formatTokenAmount(usdt(1n))).toBe('0.000000000000000001 USDT');
+    expect(formatTokenAmount(usdt(5n * 10n ** 18n), { symbol: false })).toBe('5');
+  });
+
+  it('puts formatted amounts into refusal explanations, not base units', () => {
+    // Realistic denominations: a per-tx cap of 2 USDT and an attempt at 3.
+    const unit = 10n ** 18n;
+    const realistic: HireMandate = {
+      ...mandate,
+      bounds: {
+        ...mandate.bounds,
+        totalSpendCap: { token: USDT, symbol: 'USDT', decimals: 18, amount: 10n * unit },
+        perTxCap: { token: USDT, symbol: 'USDT', decimals: 18, amount: 2n * unit },
+      },
+    };
+    const d = checkMandate(candidate({ value: 3n * unit }), realistic, EMPTY_MANDATE_STATE, now);
+    expect(d.rules).toContain('per-tx-cap-exceeded');
+    expect(d.explanation).toContain('3 USDT');
+    expect(d.explanation).toContain('2 USDT');
+    // The unreadable form must not survive into something a person reads.
+    expect(d.explanation).not.toContain('3000000000000000000');
   });
 });

@@ -7,7 +7,7 @@ import {
 } from '@bench/core';
 
 export const metadata = {
-  title: 'Docs — Bench',
+  title: 'Docs - Bench',
   description:
     'How auditions work, how to read a score, what “verified live” means, and how to re-run any audition yourself.',
 };
@@ -61,8 +61,8 @@ export default function DocsPage() {
           <h2 className="h3">What Bench is</h2>
           <p className="body">
             An agent marketplace for BNB Smart Chain that ranks agents on <strong className="ink">measured
-            behaviour</strong> instead of on reviews. Every listed agent is run continuously in <em>shadow mode</em> —
-            against replayed history and against real positions, with no funds at risk — and what it would have done
+            behaviour</strong> instead of on reviews. Every listed agent is run continuously in <em>shadow mode</em> -
+            against replayed history and against real positions, with no funds at risk - and what it would have done
             is recorded. Hiring settles through escrow under a spend cap, and a hired agent is held to the behaviour
             it demonstrated.
           </p>
@@ -91,7 +91,7 @@ export default function DocsPage() {
           </div>
           <p className="body">
             A marketplace that indexes those registries and sorts by stars ships a directory of dead agents ranked by
-            noise. Bench recomputes the first of those numbers daily against its own index — see{' '}
+            noise. Bench recomputes the first of those numbers daily against its own index - see{' '}
             <Link href="/registry">registry health</Link>.
           </p>
         </section>
@@ -157,8 +157,8 @@ export default function DocsPage() {
             An agent with three days of audition data is presented as an agent with three days of audition data.
           </p>
           <p className="body">
-            Deltas are stated against the do-nothing baseline — what the position would have been worth had nobody
-            acted — and against the peer median for the same window.
+            Deltas are stated against the do-nothing baseline - what the position would have been worth had nobody
+            acted - and against the peer median for the same window.
           </p>
         </section>
 
@@ -166,7 +166,7 @@ export default function DocsPage() {
           <h2 className="h3">What “verified live” means</h2>
           <p className="body">
             The endpoint responded <em>and</em> spoke the protocol its agent card declares. An endpoint that returns
-            200 to everything is not a live agent, it is a live web server — and that distinction is the whole
+            200 to everything is not a live agent, it is a live web server - and that distinction is the whole
             difference between this filter and a registry read.
           </p>
           <div className="tablewrap">
@@ -201,7 +201,7 @@ export default function DocsPage() {
                 <tr><td><strong>Yield optimization</strong></td><td>risk-adjusted return on mirrored capital</td><td>do-nothing; peer median</td></tr>
                 <tr><td><strong>Health factor</strong></td><td>lead time before the liquidation price is touched</td><td>no-alert; naive threshold</td></tr>
                 <tr><td>Monitoring</td><td>precision / recall, false-alarm rate</td><td>naive threshold alerter</td></tr>
-                <tr><td>Other</td><td>liveness only — never a fabricated performance number</td><td>—</td></tr>
+                <tr><td>Other</td><td>liveness only - never a fabricated performance number</td><td>-</td></tr>
               </tbody>
             </table>
           </div>
@@ -214,7 +214,7 @@ export default function DocsPage() {
           <h2 className="h3">The execution gate</h2>
           <p className="body">
             Two independent bounds apply to every transaction a hired agent produces, and neither subsumes the
-            other. The <strong className="ink">mandate</strong> answers <em>did the owner authorise this?</em> — a
+            other. The <strong className="ink">mandate</strong> answers <em>did the owner authorise this?</em> - a
             signed statement of how much, to whom, and for how long. The <strong className="ink">envelope</strong>{' '}
             answers <em>has this agent ever done this?</em> A transaction must clear both.
           </p>
@@ -238,14 +238,14 @@ export default function DocsPage() {
             </table>
           </div>
           <p className="body">
-            Each bound carries headroom over what was observed — {DEFAULT_ENVELOPE_POLICY.valueToleranceBps / 100}% on
-            value, {DEFAULT_ENVELOPE_POLICY.actionToleranceBps / 100}% on action count — because a bound pinned to the
+            Each bound carries headroom over what was observed - {DEFAULT_ENVELOPE_POLICY.valueToleranceBps / 100}% on
+            value, {DEFAULT_ENVELOPE_POLICY.actionToleranceBps / 100}% on action count - because a bound pinned to the
             exact maximum is a straitjacket rather than a safety bound. An envelope built from fewer than{' '}
             {MIN_ENVELOPE_SAMPLE} auditions is <strong className="ink">advisory</strong>: recorded, not enforced.
           </p>
           <p className="body">
             A refused transaction is never forwarded, so there is no state to unwind and nothing for a reorg to
-            resurrect. The agent receives a plain rejection — it learns that it failed, not which rule it tripped,
+            resurrect. The agent receives a plain rejection - it learns that it failed, not which rule it tripped,
             because handing an agent the rule is handing it the way around it. The reasoning goes to you.
           </p>
         </section>
@@ -254,7 +254,7 @@ export default function DocsPage() {
           <h2 className="h3">Verify it yourself</h2>
           <p className="body">
             Every audition stores the fork block, the window and the seed it ran with, and the controller key is
-            derived from that seed — so a replay controls the same address and reaches the same state. Re-running one
+            derived from that seed - so a replay controls the same address and reaches the same state. Re-running one
             is a command, not a request:
           </p>
           <pre className="pre">npx bench-replay &lt;auditionId&gt;</pre>
@@ -290,7 +290,7 @@ export default function DocsPage() {
           <h2 className="h3">What Bench refuses to do</h2>
           <div className="stack stack-12">
             <p className="quote">Bench cannot list an agent that has never worked.</p>
-            <p className="quote">You cannot hire on a claim or a review — only on what the agent already did.</p>
+            <p className="quote">You cannot hire on a claim or a review - only on what the agent already did.</p>
             <p className="quote">A hired agent cannot exceed your cap, or do anything it did not do in audition.</p>
           </div>
           <p className="body">
@@ -305,13 +305,13 @@ export default function DocsPage() {
               <thead><tr><th>Piece</th><th>State</th></tr></thead>
               <tbody>
                 <tr><td>Registry indexer and liveness prober</td><td><span className="badge badge-live"><span className="dot" />Built</span></td></tr>
-                <tr><td>Shadow engine — fork, interception, replay</td><td><span className="badge badge-live"><span className="dot" />Built</span></td></tr>
+                <tr><td>Shadow engine - fork, interception, replay</td><td><span className="badge badge-live"><span className="dot" />Built</span></td></tr>
                 <tr><td>Execution gate</td><td><span className="badge badge-live"><span className="dot" />Built</span></td></tr>
                 <tr><td>Catalog, audition reports, registry dashboard</td><td><span className="badge badge-live"><span className="dot" />Built</span></td></tr>
                 <tr><td>PancakeSwap LP and Venus position seeding</td><td><span className="badge badge-thin">Needs an archive node</span></td></tr>
                 <tr><td>Per-category scorers and the live leaderboard</td><td><span className="badge badge-dead">In progress</span></td></tr>
-                <tr><td>Hire lifecycle — mandate, consent, decision trace</td><td><span className="badge badge-live"><span className="dot" />Built</span></td></tr>
-                <tr><td>Hiring on chain — x402 settlement, ERC-8183 escrow, session keys</td><td><span className="badge badge-dead">Not yet</span></td></tr>
+                <tr><td>Hire lifecycle - mandate, consent, decision trace</td><td><span className="badge badge-live"><span className="dot" />Built</span></td></tr>
+                <tr><td>Hiring on chain - x402 settlement, ERC-8183 escrow, session keys</td><td><span className="badge badge-dead">Not yet</span></td></tr>
               </tbody>
             </table>
           </div>

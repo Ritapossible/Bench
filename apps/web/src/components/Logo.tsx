@@ -1,6 +1,6 @@
 /**
  * Bench mark: four bars on a baseline. Reads as a bench and as a bar chart,
- * which is the whole product — agents sit on the bench until a measurement
+ * which is the whole product - agents sit on the bench until a measurement
  * calls them up.
  */
 export function Logo({ size = 26 }: { readonly size?: number }) {

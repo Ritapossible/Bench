@@ -55,7 +55,7 @@ export default async function AgentPage({
               </>
             ) : (
               <>
-                <div className="statnum">—</div>
+                <div className="statnum">-</div>
                 <p className="small">No completed auditions. Listed and probed, not ranked.</p>
               </>
             )}
@@ -66,7 +66,7 @@ export default async function AgentPage({
               <span className="eyebrow">Realized</span>
               <span className="badge badge-plain">n=0</span>
             </div>
-            <div className="statnum ink">—</div>
+            <div className="statnum ink">-</div>
             <p className="small">
               No settled hires yet. Realized converges on simulated as real jobs settle; the two are never merged
               into one number.
@@ -103,7 +103,7 @@ export default async function AgentPage({
           <div className="stack stack-8">
             <h2 className="h3">Auditions</h2>
             <p className="body" style={{ maxWidth: '46rem' }}>
-              Each run records its fork block, window and seed, so anyone can re-run it and check the arithmetic —
+              Each run records its fork block, window and seed, so anyone can re-run it and check the arithmetic -
               <span className="mono"> npx bench-replay &lt;id&gt;</span>.
             </p>
           </div>
@@ -129,12 +129,12 @@ export default async function AgentPage({
                         <td>{r.window.regime}</td>
                         <td>{r.position.label}</td>
                         <td className="mono">{r.window.forkBlock.toString()}</td>
-                        <td className="num mono">{o?.actionCount ?? '—'}</td>
+                        <td className="num mono">{o?.actionCount ?? '-'}</td>
                         <td className="num mono" style={{ color: (o?.deltaVsDoNothingUsd ?? 0) < 0 ? 'var(--blocked)' : undefined }}>
-                          {o ? usd(o.deltaVsDoNothingUsd, { sign: true }) : '—'}
+                          {o ? usd(o.deltaVsDoNothingUsd, { sign: true }) : '-'}
                         </td>
-                        <td className="num mono">{o?.deltaVsPeerMedianUsd != null ? usd(o.deltaVsPeerMedianUsd, { sign: true }) : '—'}</td>
-                        <td className="num mono">{o ? usd(o.maxDrawdownUsd) : '—'}</td>
+                        <td className="num mono">{o?.deltaVsPeerMedianUsd != null ? usd(o.deltaVsPeerMedianUsd, { sign: true }) : '-'}</td>
+                        <td className="num mono">{o ? usd(o.maxDrawdownUsd) : '-'}</td>
                         <td className="mono tiny">{r.id}</td>
                       </tr>
                     );
@@ -148,14 +148,14 @@ export default async function AgentPage({
         {/* hire */}
         <div className="slab on-dark stack stack-16">
           <span className="eyebrow">Hiring</span>
-          <h2 className="h3">Lands in Phase 4, with the gate attached.</h2>
+          <h2 className="h3">Bounded by what it just did.</h2>
           <p className="body" style={{ maxWidth: '44rem' }}>
             Payment through Binance x402, escrow through ERC-8183, authority through a revocable Altana session key
-            scoped to a spend cap and a contract allowlist — and every transaction this agent produces simulated
+            scoped to a spend cap and a contract allowlist - and every transaction this agent produces simulated
             against the envelope it established above before that key will sign it.
           </p>
           <div className="row">
-            <button className="btn btn-primary" disabled style={{ opacity: 0.55, cursor: 'not-allowed' }}>Hire — Phase 4</button>
+            <button className="btn btn-primary" disabled style={{ opacity: 0.55, cursor: 'not-allowed' }}>Hire - Phase 4</button>
             <Link href="/report" className="btn btn-ghost on-dark">See it against your own position →</Link>
           </div>
         </div>

@@ -6,7 +6,7 @@ export const usd = (n: number, opts: { sign?: boolean } = {}): string => {
 
 export const pct = (bps: number, dp = 1): string => `${(bps / 100).toFixed(dp)}%`;
 
-export const ms = (n: number | null): string => (n === null ? '—' : `${n} ms`);
+export const ms = (n: number | null): string => (n === null ? '-' : `${n} ms`);
 
 export const shortAddr = (a: string): string => (a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 

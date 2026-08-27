@@ -2,14 +2,14 @@ import { ImageResponse } from 'next/og';
 
 /**
  * Social card. Generated rather than shipped as a PNG so it cannot drift from
- * the product's own claim — this deployment will be opened from a link in a
+ * the product's own claim - this deployment will be opened from a link in a
  * submission form and in chat, and the card is the first thing seen.
  *
  * `next/og` ships with Next, so this adds no dependency.
  */
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
-export const alt = 'Bench — hire agents that have already worked your position';
+export const alt = 'Bench - hire agents that have already worked your position';
 
 export default function OgImage() {
   return new ImageResponse(

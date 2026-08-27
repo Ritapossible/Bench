@@ -3,7 +3,7 @@ import { data } from '@/lib/data/index';
 import { CatalogFilter, type AgentRow } from '@/components/CatalogFilter';
 import { agentHref } from '@/lib/format';
 
-export const metadata = { title: 'Catalog — Bench' };
+export const metadata = { title: 'Catalog - Bench' };
 
 export default async function AgentsPage() {
   const agents = await data.listAgents();
@@ -35,7 +35,7 @@ export default async function AgentsPage() {
           <h1 className="h2">Every agent, with its record attached.</h1>
           <p className="lead">
             Ranked on what each agent did in audition against a do-nothing baseline. Agents with no completed
-            auditions are listed and probed, and say so — they are never given a fabricated number.
+            auditions are listed and probed, and say so - they are never given a fabricated number.
           </p>
         </div>
 

@@ -27,6 +27,28 @@ export interface TokenAmount {
   readonly amount: bigint;
 }
 
+/**
+ * Render a token amount for a human.
+ *
+ * Base units are correct for arithmetic and unreadable in a sentence - and the
+ * decision trace and the mandate's refusal explanations are both read by
+ * people deciding whether an agent misbehaved. Trailing zeros are trimmed so a
+ * whole number reads as one.
+ */
+export function formatTokenAmount(a: TokenAmount, opts: { readonly symbol?: boolean } = {}): string {
+  const negative = a.amount < 0n;
+  const abs = negative ? -a.amount : a.amount;
+  const base = 10n ** BigInt(a.decimals);
+  const whole = (abs / base).toString();
+  const frac = (abs % base).toString().padStart(a.decimals, '0').replace(/0+$/, '');
+  const num = `${negative ? '-' : ''}${whole}${frac === '' ? '' : `.${frac}`}`;
+  return opts.symbol === false ? num : `${num} ${a.symbol}`;
+}
+
+/** Same, for a bare base-unit value whose token is known from context. */
+export const formatBaseUnits = (v: bigint, decimals: number): string =>
+  formatTokenAmount({ token: '0x', symbol: '', decimals, amount: v } as TokenAmount, { symbol: false });
+
 /** A half-open block range [from, to). */
 export interface BlockRange {
   readonly from: bigint;

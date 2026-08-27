@@ -108,7 +108,7 @@ p { margin: 0; }
 
 /* A 42-character address has no break opportunity, so on a narrow screen it
    pushes the page sideways from inside a container that is itself correctly
-   sized — which is why the offending element never shows up as too wide. Any
+   sized - which is why the offending element never shows up as too wide. Any
    hash, address or tx id gets this. */
 .break { overflow-wrap: anywhere; word-break: break-word; }
 
@@ -241,7 +241,7 @@ table.t tr:last-child td { border-bottom: 0; }
 .field {
   width: 100%;
   /* An <input> carries an intrinsic minimum width from its `size` attribute,
-     and `min-width: auto` on a flex item honours it — so a flex-basis wider
+     and `min-width: auto` on a flex item honours it - so a flex-basis wider
      than a narrow viewport refuses to shrink and pushes the page sideways. */
   min-width: 0;
   border: 1.5px solid var(--line);
@@ -259,7 +259,7 @@ table.t tr:last-child td { border-bottom: 0; }
 
 /* NOTE: backdrop-filter makes this element the containing block for any
    position:fixed descendant. The drawer is therefore rendered as a SIBLING of
-   the header, never inside it — see Nav.tsx. */
+   the header, never inside it - see Nav.tsx. */
 .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
 .nav-inner { display: flex; align-items: center; gap: 1rem; height: 4.5rem; }
 .nav-brand { text-decoration: none; flex: none; }
@@ -320,7 +320,7 @@ table.t tr:last-child td { border-bottom: 0; }
   padding: clamp(2.5rem, 6vw, 4.5rem) var(--pad);
   display: grid; gap: clamp(2rem, 5vw, 4rem);
   /* minmax(0, 1fr), never a bare 1fr: a bare `1fr` track carries an `auto`
-     minimum, so the track gets sized to its content's min-content — and the
+     minimum, so the track gets sized to its content's min-content - and the
      nested .grid-3 inside, whose `minmax(min(100%, 15rem), 1fr)` cannot
      resolve its percentage against an indefinite container, contributes three
      15rem columns. That is 736px of track inside a 412px viewport. */
@@ -347,6 +347,43 @@ table.t tr:last-child td { border-bottom: 0; }
   .docs { grid-template-columns: 15rem minmax(0, 1fr); }
   .docs-nav { display: block; position: sticky; top: 6rem; }
 }
+
+/* ---------- consent stepper ---------- */
+
+.step {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 1.15rem 1.25rem;
+  transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+.step[data-state='current'] { border-color: var(--ink); box-shadow: 0 6px 24px rgba(0,0,0,0.05); }
+.step[data-state='upcoming'] { opacity: 0.5; }
+.step-head { display: flex; align-items: flex-start; gap: 0.9rem; }
+.step-head .btn { margin-left: auto; flex: none; }
+.step-num {
+  flex: none; width: 1.75rem; height: 1.75rem; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.85rem; font-weight: 700;
+  background: #ececec; color: var(--muted);
+}
+.step[data-state='current'] .step-num { background: var(--ink); color: var(--ink-inverse); }
+.step[data-state='done'] .step-num { background: var(--live-bg); color: var(--live); }
+.step-body { margin-top: 1.15rem; padding-top: 1.15rem; border-top: 1px solid var(--line); }
+
+textarea.field { border-radius: var(--r-sm); resize: vertical; }
+
+/* ---------- trace ---------- */
+
+.trace { display: flex; flex-direction: column; }
+.trace-row {
+  display: grid; gap: 0.25rem 1rem; padding: 0.85rem 0;
+  border-bottom: 1px solid var(--line);
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+}
+.trace-row:last-child { border-bottom: 0; }
+.trace-seq { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.trace-detail { overflow-wrap: anywhere; }
 
 /* ---------- misc ---------- */
 

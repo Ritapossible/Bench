@@ -9,6 +9,7 @@ const LINKS = [
   ['Catalog', '/agents'],
   ['Your report', '/report'],
   ['Registry health', '/registry'],
+  ['Your hires', '/hires'],
   ['Docs', '/docs'],
 ] as const;
 
@@ -70,7 +71,7 @@ export function Nav() {
         Deliberately a sibling of <header>, not a child.
 
         .nav carries `backdrop-filter`, and that makes it the containing block
-        for `position: fixed` descendants — so a drawer rendered inside it gets
+        for `position: fixed` descendants - so a drawer rendered inside it gets
         clipped to the 4.5rem header box, and its contents spill over the page
         with no background behind them. Same trap as `transform` and `filter`.
       */}

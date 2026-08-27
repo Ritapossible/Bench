@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { AgentId } from './agent.js';
+import { formatBaseUnits, formatTokenAmount } from './primitives.js';
 import type { Address, Hex, TokenAmount } from './primitives.js';
 
 /**
@@ -162,7 +163,8 @@ function explain(
   m: HireMandate,
   s: MandateState,
 ): string {
-  const sym = m.bounds.totalSpendCap.symbol;
+  const dp = m.bounds.totalSpendCap.decimals;
+  const amt = (v: bigint) => `${formatBaseUnits(v, dp)} ${m.bounds.totalSpendCap.symbol}`;
   const parts = rules.map((r) => {
     switch (r) {
       case 'revoked':
@@ -172,9 +174,9 @@ function explain(
       case 'wrong-token':
         return `it spends ${c.token}, but the mandate covers ${m.bounds.totalSpendCap.token}`;
       case 'per-tx-cap-exceeded':
-        return `it moves ${c.value} against a per-transaction cap of ${m.bounds.perTxCap.amount} ${sym}`;
+        return `it moves ${amt(c.value)} against a per-transaction cap of ${formatTokenAmount(m.bounds.perTxCap)}`;
       case 'total-cap-exceeded':
-        return `it would take this hire to ${s.spent + c.value} against a total cap of ${m.bounds.totalSpendCap.amount} ${sym}`;
+        return `it would take this hire to ${amt(s.spent + c.value)} against a total cap of ${formatTokenAmount(m.bounds.totalSpendCap)}`;
       case 'action-limit-reached':
         return `it is action ${s.actions + 1} against a limit of ${m.bounds.maxActions}`;
       case 'contract-not-allowlisted':

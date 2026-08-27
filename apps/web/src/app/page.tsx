@@ -66,7 +66,7 @@ export default async function Home() {
           </div>
           <div className="statcell">
             <div className="statnum">{stats.verifiedLive}</div>
-            <div className="statlabel">Verified live — respond and conform</div>
+            <div className="statlabel">Verified live - respond and conform</div>
           </div>
           <div className="statcell">
             <div className="statnum">{pct(live)}</div>
@@ -76,7 +76,7 @@ export default async function Home() {
           </div>
         </div>
         <p className="tiny" style={{ marginTop: '0.85rem' }}>
-          Bench’s own measurement, recomputed daily against what it has indexed — not a figure quoted from a paper.
+          Bench’s own measurement, recomputed daily against what it has indexed - not a figure quoted from a paper.
         </p>
       </section>
 
@@ -103,7 +103,7 @@ export default async function Home() {
 
           <hr className="rule" />
           <p className="small">
-            Measured across the live ERC-8004 ecosystem through May 2026 —{' '}
+            Measured across the live ERC-8004 ecosystem through May 2026 -{' '}
             <a href="https://arxiv.org/abs/2606.26028" style={{ color: 'inherit' }}>arXiv 2606.26028</a>. Reputation
             values are not comparable across agents, feedback rarely links to a verifiable transaction, and
             manipulation costs almost nothing.
@@ -118,7 +118,7 @@ export default async function Home() {
             <span className="eyebrow">The mechanism</span>
             <h2 className="h2">Auditions cost compute, not users.</h2>
             <p className="lead">
-              Which means a dense, honest track record on day one with zero paying customers — and a controlled
+              Which means a dense, honest track record on day one with zero paying customers - and a controlled
               comparison rather than a noisy delta over a handful of settled jobs.
             </p>
           </div>
@@ -147,7 +147,7 @@ export default async function Home() {
             {[
               ['Bench cannot list an agent that has never worked.', 'Every listing carries an audition record or is shown, explicitly, as having none. There is no third state.'],
               ['You cannot hire on a claim or a review.', 'Only on what the agent already did to a position shaped like yours, against a do-nothing baseline, over a window we name.'],
-              ['A hired agent cannot exceed your cap — or do anything it did not do in audition.', 'Every transaction is simulated and checked against the envelope it established while auditioning, before the session key will sign it.'],
+              ['A hired agent cannot exceed your cap - or do anything it did not do in audition.', 'Every transaction is simulated and checked against the envelope it established while auditioning, before the session key will sign it.'],
             ].map(([h, p]) => (
               <div key={h} className="card stack stack-8">
                 <p className="quote">{h}</p>
@@ -157,7 +157,7 @@ export default async function Home() {
           </div>
 
           <p className="small">
-            A spend cap answers <em>how much</em>. The gate answers <em>what kind of thing</em> — and it is derived
+            A spend cap answers <em>how much</em>. The gate answers <em>what kind of thing</em> - and it is derived
             from measured evidence rather than guessed at in a checkout form.
           </p>
         </div>
@@ -182,7 +182,7 @@ export default async function Home() {
             See what an agent would have done with your money.
           </h2>
           <p className="lead" style={{ maxWidth: '32rem' }}>
-            Paste a BSC address. No connection, no signature, no listing fee — the position is public and the
+            Paste a BSC address. No connection, no signature, no listing fee - the position is public and the
             audition is a simulation.
           </p>
           <Link href="/report" className="btn btn-primary">Read the report</Link>

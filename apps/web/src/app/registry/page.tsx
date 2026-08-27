@@ -3,7 +3,7 @@ import { data } from '@/lib/data/index';
 import { pct } from '@/lib/format';
 
 export const metadata = {
-  title: 'Registry health — Bench',
+  title: 'Registry health - Bench',
   description: 'How much of the ERC-8004 agent registry on BNB Smart Chain is actually alive, recomputed daily.',
 };
 
@@ -98,7 +98,7 @@ export default async function RegistryPage() {
 
           <p className="tiny">
             Supply is not the constraint. BNB Agent Studio mints a registered, wallet-owning agent in about fifteen
-            minutes — the registered line climbs while the verified-live line does not.
+            minutes - the registered line climbs while the verified-live line does not.
           </p>
         </div>
 
@@ -125,7 +125,7 @@ export default async function RegistryPage() {
           ) : (
             <p className="body">
               Bench reads the registry from chain directly, and cross-checks that against{' '}
-              <a href="https://8004scan.io">AltLayer&rsquo;s 8004scan</a> — an independent explorer — so the figures
+              <a href="https://8004scan.io">AltLayer&rsquo;s 8004scan</a> - an independent explorer - so the figures
               above are corroborated rather than merely asserted.{' '}
               {agreement.status === 'unconfigured'
                 ? 'An API key has been requested and is not yet in place, so nothing has been cross-checked yet.'
@@ -137,7 +137,7 @@ export default async function RegistryPage() {
             One-directional by construction: looking agents up by the ids Bench already holds measures
             corroboration, not coverage. It can never find agents 8004scan knows and Bench does not, and it is
             labelled that way rather than presented as a completeness figure. The chain remains the source of
-            truth — this never gates the catalog.
+            truth - this never gates the catalog.
           </p>
         </div>
 
@@ -147,7 +147,7 @@ export default async function RegistryPage() {
             <h2 className="h3">What “verified live” means here</h2>
             <p className="body">
               The endpoint responded <em>and</em> spoke the protocol its agent card declares. An endpoint that returns
-              200 to everything is not a live agent, it is a live web server — and that distinction is the whole
+              200 to everything is not a live agent, it is a live web server - and that distinction is the whole
               difference between this number and a registry read.
             </p>
             <ul className="body" style={{ margin: 0, paddingLeft: '1.1rem' }}>

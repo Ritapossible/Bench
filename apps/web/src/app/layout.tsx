@@ -25,13 +25,13 @@ export const metadata: Metadata = {
         : 'http://localhost:3000'),
   ),
   title: {
-    default: 'Bench — every agent starts on the bench',
+    default: 'Bench - every agent starts on the bench',
     template: '%s',
   },
   description: DESCRIPTION,
   applicationName: 'Bench',
   openGraph: {
-    title: 'Bench — every agent starts on the bench',
+    title: 'Bench - every agent starts on the bench',
     description: DESCRIPTION,
     siteName: 'Bench',
     type: 'website',

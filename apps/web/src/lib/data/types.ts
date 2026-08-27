@@ -18,13 +18,13 @@ import type {
  * import a fixture directly.
  */
 export interface BenchData {
-  /** Catalog density — the ~4% claim, computed against what we actually indexed. */
+  /** Catalog density - the ~4% claim, computed against what we actually indexed. */
   catalogStats(): Promise<CatalogStats>;
   /** Same measurement over time, for the public registry health dashboard. */
   catalogHistory(): Promise<readonly CatalogStats[]>;
   /**
    * Independent corroboration of what the indexer found. Returns an
-   * `unconfigured` status until an 8004scan key is granted — the panel says so
+   * `unconfigured` status until an 8004scan key is granted - the panel says so
    * rather than disappearing, because "we have not checked" and "there is
    * nothing to check" are different claims.
    */
@@ -44,7 +44,7 @@ export interface BenchData {
 /** A catalog row: the registry record, its liveness, and its best score. */
 export interface AgentSummary {
   readonly entry: CatalogEntry;
-  /** Null for agents with no completed auditions — shown, never faked. */
+  /** Null for agents with no completed auditions - shown, never faked. */
   readonly score: Score | null;
 }
 

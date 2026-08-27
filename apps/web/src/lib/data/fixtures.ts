@@ -19,7 +19,7 @@ import type { AddressReport, AgentDetail, AgentSummary, BenchData } from './type
  *
  * Shaped exactly like what the indexer, prober and shadow engine will return,
  * so that swapping in the real source is a change to `./index.ts` and nothing
- * else. Numbers here are illustrative and the UI labels them as such — see the
+ * else. Numbers here are illustrative and the UI labels them as such - see the
  * simulated/realized split, which fixtures honour like everything else.
  */
 
@@ -70,12 +70,12 @@ const SEEDS: readonly Seed[] = [
   { tokenId: 1221, name: 'Cobalt Monitor', description: 'Event monitoring for treasury multisigs.', category: 'monitoring', live: true, conformant: true, probes: 288, uptimeBps: 9_760, p95: 155, deltaUsd: null, sampleSize: 0, cardResolves: true },
 
   // ---- the ~96% the verified-live filter exists to remove ----
-  // Responds, but does not speak the protocol on its card — the distinction
+  // Responds, but does not speak the protocol on its card - the distinction
   // that separates Bench's filter from a registry read.
   { tokenId: 1240, name: 'AlphaVault Optimizer', description: 'Declares A2A; the endpoint returns 200 to everything and implements none of it.', category: 'yield', live: true, conformant: false, probes: 60, uptimeBps: 9_990, p95: 44, deltaUsd: null, sampleSize: 0, cardResolves: true },
   { tokenId: 1256, name: 'Quantum Yield Maximizer', description: 'Endpoint has not answered since registration.', category: 'yield', live: false, conformant: false, probes: 288, uptimeBps: 0, p95: 0, deltaUsd: null, sampleSize: 0, cardResolves: true },
   { tokenId: 1288, name: 'unresolved', description: '', category: 'other', live: false, conformant: false, probes: 12, uptimeBps: 0, p95: 0, deltaUsd: null, sampleSize: 0, cardResolves: false },
-  { tokenId: 1301, name: 'Ember Rebalancer', description: 'Flapping endpoint — reachable under half the time.', category: 'rebalancing', live: true, conformant: true, probes: 288, uptimeBps: 4_400, p95: 1_820, deltaUsd: null, sampleSize: 0, cardResolves: true },
+  { tokenId: 1301, name: 'Ember Rebalancer', description: 'Flapping endpoint - reachable under half the time.', category: 'rebalancing', live: true, conformant: true, probes: 288, uptimeBps: 4_400, p95: 1_820, deltaUsd: null, sampleSize: 0, cardResolves: true },
 ];
 
 function card(s: Seed): AgentCard | null {
@@ -110,7 +110,7 @@ function probes(s: Seed): ProbeResult[] {
   // Spread failures evenly through the history rather than bunching them at
   // one end. Bunching them last makes the newest probe a failure for every
   // agent below 100% uptime, which silently fails isVerifiedLive's
-  // `latest.reachable` check — the catalog then shows one agent instead of
+  // `latest.reachable` check - the catalog then shows one agent instead of
   // eight, and looks like a filter bug rather than a fixture bug.
   const failEvery = failures > 0 ? s.probes / failures : Number.POSITIVE_INFINITY;
   return Array.from({ length: s.probes }, (_, i) => {
@@ -183,7 +183,7 @@ export const fixtureData: BenchData = {
   async crossReference(): Promise<AgreementSummary> {
     // Honest default: no 8004scan key is configured yet, so nothing has been
     // corroborated. This lights up on its own once the key is in the
-    // environment — see buildCrossReference in @bench/adapters.
+    // environment - see buildCrossReference in @bench/adapters.
     return { source: '8004scan', status: 'unconfigured', checked: 0, confirmed: 0, notFound: 0, agreementBps: 0 };
   },
 
@@ -206,7 +206,7 @@ export const fixtureData: BenchData = {
           agent: found.entry.record.id,
           window: {
             id: ['crash-0725', 'chop-0801', 'rally-0812'][i]!,
-            label: ['Crash — 25 Jul', 'Chop — 1 Aug', 'Rally — 12 Aug'][i]!,
+            label: ['Crash - 25 Jul', 'Chop - 1 Aug', 'Rally - 12 Aug'][i]!,
             regime: (['crash', 'chop', 'rally'] as const)[i]!,
             forkBlock: BigInt(48_120_000 + i * 40_000),
             endBlock: BigInt(48_140_000 + i * 40_000),
@@ -249,7 +249,7 @@ export const fixtureData: BenchData = {
       address,
       positionLabel: 'PancakeSwap v3 · BNB/USDT 0.05% · in range',
       positionValueUsd: 12_480.55,
-      windowLabel: '25 Jul – 25 Aug 2026',
+      windowLabel: '25 Jul - 25 Aug 2026',
       doNothingUsd: 12_480.55,
       lines: ranked.map((a) => ({
         agent: a.entry.record.id,

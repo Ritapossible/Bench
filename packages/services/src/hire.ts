@@ -6,6 +6,8 @@ import {
   checkAgainstEnvelope,
   checkMandate,
   consentComplete,
+  formatBaseUnits,
+  formatTokenAmount,
   mandateDigest,
   revoke as revokeState,
   EMPTY_MANDATE_STATE,
@@ -178,7 +180,7 @@ export class HireOrchestrator {
         payTo: req.payTo,
         amount: req.price,
       });
-      record = this.#advance(record, 'quoted', 'quote', `quoted ${quote.amount.amount} ${quote.amount.symbol}`);
+      record = this.#advance(record, 'quoted', 'quote', `quoted ${formatTokenAmount(quote.amount)}`);
       await this.deps.store.put(record);
 
       const auth = await this.deps.payment.authorize(quote);
@@ -262,7 +264,9 @@ export class HireOrchestrator {
       m.allowed ? 'gate-check' : 'mandate-check',
       allowed ? 'ok' : 'blocked',
       rules,
-      allowed ? `admitted ${candidate.value} to ${candidate.to ?? 'contract creation'}` : explanation,
+      allowed
+        ? `admitted ${formatBaseUnits(candidate.value, record.mandate.bounds.totalSpendCap.decimals)} ${record.mandate.bounds.totalSpendCap.symbol} to ${candidate.to ?? 'contract creation'}`
+        : explanation,
     );
     if (allowed) next = { ...next, mandateState: applySpend(next.mandateState, candidate.value) };
     await this.deps.store.put(next);
