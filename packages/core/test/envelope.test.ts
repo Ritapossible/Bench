@@ -82,7 +82,10 @@ describe('checkAgainstEnvelope', () => {
   });
 
   it('refuses a function it never called', () => {
-    const d = checkAgainstEnvelope(candidate({ data: '0xdeadbeef0000' as `0x${string}` }), envelope);
+    const d = checkAgainstEnvelope(
+      candidate({ data: '0xdeadbeef0000' as `0x${string}` }),
+      envelope,
+    );
     expect(d.rules).toContain('unseen-call');
   });
 
@@ -116,7 +119,11 @@ describe('checkAgainstEnvelope', () => {
 
   it('reports every rule that fired, not just the first', () => {
     const d = checkAgainstEnvelope(
-      candidate({ to: STRANGER as `0x${string}`, value: 10_000n, data: '0xdeadbeef00' as `0x${string}` }),
+      candidate({
+        to: STRANGER as `0x${string}`,
+        value: 10_000n,
+        data: '0xdeadbeef00' as `0x${string}`,
+      }),
       envelope,
     );
     expect(d.rules.length).toBeGreaterThanOrEqual(3);

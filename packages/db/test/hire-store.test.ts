@@ -30,7 +30,12 @@ const USDT = '0x55d398326f99059ff775485246999027b3197955' as Address;
 const VENUS = '0xfd5840cd36d94d7229439859c0112a4185bc0255' as Address;
 const OWNER = '0x1111111111111111111111111111111111111111' as Address;
 
-const amount = (n: bigint): TokenAmount => ({ token: USDT, symbol: 'USDT', decimals: 18, amount: n });
+const amount = (n: bigint): TokenAmount => ({
+  token: USDT,
+  symbol: 'USDT',
+  decimals: 18,
+  amount: n,
+});
 
 const action = (to: Address, value: bigint): InterceptedAction => ({
   seq: 0,
@@ -186,7 +191,12 @@ describeDb('PgHireStore', () => {
   it('updates a claimed hire in place without creating a second row', async () => {
     const r = record();
     await store.claim(r);
-    await store.put({ ...r, state: 'active', escrowJobId: 'job_1', paymentTxHash: '0xpaid' as Hex });
+    await store.put({
+      ...r,
+      state: 'active',
+      escrowJobId: 'job_1',
+      paymentTxHash: '0xpaid' as Hex,
+    });
 
     const read = await store.get(r.id);
     expect(read?.state).toBe('active');

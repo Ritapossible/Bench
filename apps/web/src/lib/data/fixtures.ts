@@ -61,36 +61,274 @@ export interface Seed {
 
 export const SEEDS: readonly Seed[] = [
   // ---- rebalancing (judged) ----
-  { tokenId: 1041, name: 'Kestrel LP Rebalancer', description: 'Keeps a PancakeSwap v3 position inside its range, rebalancing on band breach with a cooldown.', category: 'rebalancing', live: true, conformant: true, probes: 288, uptimeBps: 9_940, p95: 210, deltaUsd: 341.22, sampleSize: 64, cardResolves: true },
-  { tokenId: 1102, name: 'Tideline Range Manager', description: 'Wide-band v3 manager. Fewer rebalances, lower fee burn, more range risk.', category: 'rebalancing', live: true, conformant: true, probes: 201, uptimeBps: 9_610, p95: 340, deltaUsd: 96.15, sampleSize: 43, cardResolves: true },
-  { tokenId: 1149, name: 'Meridian Auto-Range', description: 'Volatility-scaled band width; widens the range as realized vol rises instead of rebalancing into it.', category: 'rebalancing', live: true, conformant: true, probes: 264, uptimeBps: 9_780, p95: 186, deltaUsd: 212.60, sampleSize: 37, cardResolves: true },
+  {
+    tokenId: 1041,
+    name: 'Kestrel LP Rebalancer',
+    description:
+      'Keeps a PancakeSwap v3 position inside its range, rebalancing on band breach with a cooldown.',
+    category: 'rebalancing',
+    live: true,
+    conformant: true,
+    probes: 288,
+    uptimeBps: 9_940,
+    p95: 210,
+    deltaUsd: 341.22,
+    sampleSize: 64,
+    cardResolves: true,
+  },
+  {
+    tokenId: 1102,
+    name: 'Tideline Range Manager',
+    description: 'Wide-band v3 manager. Fewer rebalances, lower fee burn, more range risk.',
+    category: 'rebalancing',
+    live: true,
+    conformant: true,
+    probes: 201,
+    uptimeBps: 9_610,
+    p95: 340,
+    deltaUsd: 96.15,
+    sampleSize: 43,
+    cardResolves: true,
+  },
+  {
+    tokenId: 1149,
+    name: 'Meridian Auto-Range',
+    description:
+      'Volatility-scaled band width; widens the range as realized vol rises instead of rebalancing into it.',
+    category: 'rebalancing',
+    live: true,
+    conformant: true,
+    probes: 264,
+    uptimeBps: 9_780,
+    p95: 186,
+    deltaUsd: 212.6,
+    sampleSize: 37,
+    cardResolves: true,
+  },
 
   // ---- grid trading (judged) ----
-  { tokenId: 1163, name: 'Hollow Grid v2', description: 'Grid trader on BNB/USDT. Aggressive step size, no trend filter.', category: 'grid', live: true, conformant: true, probes: 144, uptimeBps: 8_820, p95: 512, deltaUsd: -212.68, sampleSize: 38, cardResolves: true },
-  { tokenId: 1171, name: 'Latch Grid', description: 'Grid with a trend filter that suspends the ladder when the range breaks.', category: 'grid', live: true, conformant: true, probes: 288, uptimeBps: 9_720, p95: 240, deltaUsd: 158.04, sampleSize: 52, cardResolves: true },
-  { tokenId: 1185, name: 'Shoal DCA Grid', description: 'Wide, slow grid sized for accumulation rather than scalping.', category: 'grid', live: true, conformant: true, probes: 240, uptimeBps: 9_450, p95: 298, deltaUsd: 41.90, sampleSize: 29, cardResolves: true },
+  {
+    tokenId: 1163,
+    name: 'Hollow Grid v2',
+    description: 'Grid trader on BNB/USDT. Aggressive step size, no trend filter.',
+    category: 'grid',
+    live: true,
+    conformant: true,
+    probes: 144,
+    uptimeBps: 8_820,
+    p95: 512,
+    deltaUsd: -212.68,
+    sampleSize: 38,
+    cardResolves: true,
+  },
+  {
+    tokenId: 1171,
+    name: 'Latch Grid',
+    description: 'Grid with a trend filter that suspends the ladder when the range breaks.',
+    category: 'grid',
+    live: true,
+    conformant: true,
+    probes: 288,
+    uptimeBps: 9_720,
+    p95: 240,
+    deltaUsd: 158.04,
+    sampleSize: 52,
+    cardResolves: true,
+  },
+  {
+    tokenId: 1185,
+    name: 'Shoal DCA Grid',
+    description: 'Wide, slow grid sized for accumulation rather than scalping.',
+    category: 'grid',
+    live: true,
+    conformant: true,
+    probes: 240,
+    uptimeBps: 9_450,
+    p95: 298,
+    deltaUsd: 41.9,
+    sampleSize: 29,
+    cardResolves: true,
+  },
 
   // ---- yield optimization (judged) ----
-  { tokenId: 1190, name: 'Marlin Yield Router', description: 'Rotates stables between Venus and Alpaca on rate spread, net of gas.', category: 'yield', live: true, conformant: true, probes: 96, uptimeBps: 9_320, p95: 288, deltaUsd: 54.90, sampleSize: 17, cardResolves: true },
-  { tokenId: 1196, name: 'Cinder Vault Optimizer', description: 'Compounds vault rewards on a gas-aware schedule instead of a fixed interval.', category: 'yield', live: true, conformant: true, probes: 288, uptimeBps: 9_890, p95: 174, deltaUsd: 187.35, sampleSize: 48, cardResolves: true },
-  { tokenId: 1199, name: 'Drift Stable Allocator', description: 'Splits stables across three lenders by marginal rate, capped per venue.', category: 'yield', live: true, conformant: true, probes: 216, uptimeBps: 9_540, p95: 262, deltaUsd: 73.11, sampleSize: 24, cardResolves: true },
+  {
+    tokenId: 1190,
+    name: 'Marlin Yield Router',
+    description: 'Rotates stables between Venus and Alpaca on rate spread, net of gas.',
+    category: 'yield',
+    live: true,
+    conformant: true,
+    probes: 96,
+    uptimeBps: 9_320,
+    p95: 288,
+    deltaUsd: 54.9,
+    sampleSize: 17,
+    cardResolves: true,
+  },
+  {
+    tokenId: 1196,
+    name: 'Cinder Vault Optimizer',
+    description: 'Compounds vault rewards on a gas-aware schedule instead of a fixed interval.',
+    category: 'yield',
+    live: true,
+    conformant: true,
+    probes: 288,
+    uptimeBps: 9_890,
+    p95: 174,
+    deltaUsd: 187.35,
+    sampleSize: 48,
+    cardResolves: true,
+  },
+  {
+    tokenId: 1199,
+    name: 'Drift Stable Allocator',
+    description: 'Splits stables across three lenders by marginal rate, capped per venue.',
+    category: 'yield',
+    live: true,
+    conformant: true,
+    probes: 216,
+    uptimeBps: 9_540,
+    p95: 262,
+    deltaUsd: 73.11,
+    sampleSize: 24,
+    cardResolves: true,
+  },
 
   // ---- health factor monitoring (judged) ----
-  { tokenId: 1077, name: 'Venus Sentinel', description: 'Watches Venus health factor and unwinds a slice of the loan before the liquidation price is touched.', category: 'health-factor', live: true, conformant: true, probes: 288, uptimeBps: 9_985, p95: 128, deltaUsd: 288.40, sampleSize: 51, cardResolves: true },
-  { tokenId: 1204, name: 'Northgate Liquidation Guard', description: 'Health-factor alerting with a naive fixed threshold. Alerts only; never acts.', category: 'health-factor', live: true, conformant: true, probes: 72, uptimeBps: 9_100, p95: 402, deltaUsd: 12.40, sampleSize: 11, cardResolves: true },
-  { tokenId: 1212, name: 'Bulwark HF Autopilot', description: 'Repays from a stable buffer when the health factor crosses a moving floor derived from collateral volatility.', category: 'health-factor', live: true, conformant: true, probes: 288, uptimeBps: 9_920, p95: 143, deltaUsd: 244.75, sampleSize: 41, cardResolves: true },
+  {
+    tokenId: 1077,
+    name: 'Venus Sentinel',
+    description:
+      'Watches Venus health factor and unwinds a slice of the loan before the liquidation price is touched.',
+    category: 'health-factor',
+    live: true,
+    conformant: true,
+    probes: 288,
+    uptimeBps: 9_985,
+    p95: 128,
+    deltaUsd: 288.4,
+    sampleSize: 51,
+    cardResolves: true,
+  },
+  {
+    tokenId: 1204,
+    name: 'Northgate Liquidation Guard',
+    description: 'Health-factor alerting with a naive fixed threshold. Alerts only; never acts.',
+    category: 'health-factor',
+    live: true,
+    conformant: true,
+    probes: 72,
+    uptimeBps: 9_100,
+    p95: 402,
+    deltaUsd: 12.4,
+    sampleSize: 11,
+    cardResolves: true,
+  },
+  {
+    tokenId: 1212,
+    name: 'Bulwark HF Autopilot',
+    description:
+      'Repays from a stable buffer when the health factor crosses a moving floor derived from collateral volatility.',
+    category: 'health-factor',
+    live: true,
+    conformant: true,
+    probes: 288,
+    uptimeBps: 9_920,
+    p95: 143,
+    deltaUsd: 244.75,
+    sampleSize: 41,
+    cardResolves: true,
+  },
 
   // ---- extras: listed and probed, ranked on liveness only ----
-  { tokenId: 1118, name: 'Aegis Swap Router', description: 'Slippage-, MEV- and honeypot-guarded routing across PancakeSwap and 1inch.', category: 'other', live: true, conformant: true, probes: 288, uptimeBps: 9_899, p95: 96, deltaUsd: null, sampleSize: 0, cardResolves: true },
-  { tokenId: 1221, name: 'Cobalt Monitor', description: 'Event monitoring for treasury multisigs.', category: 'monitoring', live: true, conformant: true, probes: 288, uptimeBps: 9_760, p95: 155, deltaUsd: null, sampleSize: 0, cardResolves: true },
+  {
+    tokenId: 1118,
+    name: 'Aegis Swap Router',
+    description: 'Slippage-, MEV- and honeypot-guarded routing across PancakeSwap and 1inch.',
+    category: 'other',
+    live: true,
+    conformant: true,
+    probes: 288,
+    uptimeBps: 9_899,
+    p95: 96,
+    deltaUsd: null,
+    sampleSize: 0,
+    cardResolves: true,
+  },
+  {
+    tokenId: 1221,
+    name: 'Cobalt Monitor',
+    description: 'Event monitoring for treasury multisigs.',
+    category: 'monitoring',
+    live: true,
+    conformant: true,
+    probes: 288,
+    uptimeBps: 9_760,
+    p95: 155,
+    deltaUsd: null,
+    sampleSize: 0,
+    cardResolves: true,
+  },
 
   // ---- the ~96% the verified-live filter exists to remove ----
   // Responds, but does not speak the protocol on its card - the distinction
   // that separates Bench's filter from a registry read.
-  { tokenId: 1240, name: 'AlphaVault Optimizer', description: 'Declares A2A; the endpoint returns 200 to everything and implements none of it.', category: 'yield', live: true, conformant: false, probes: 60, uptimeBps: 9_990, p95: 44, deltaUsd: null, sampleSize: 0, cardResolves: true },
-  { tokenId: 1256, name: 'Quantum Yield Maximizer', description: 'Endpoint has not answered since registration.', category: 'yield', live: false, conformant: false, probes: 288, uptimeBps: 0, p95: 0, deltaUsd: null, sampleSize: 0, cardResolves: true },
-  { tokenId: 1288, name: 'unresolved', description: '', category: 'other', live: false, conformant: false, probes: 12, uptimeBps: 0, p95: 0, deltaUsd: null, sampleSize: 0, cardResolves: false },
-  { tokenId: 1301, name: 'Ember Rebalancer', description: 'Flapping endpoint - reachable under half the time.', category: 'rebalancing', live: true, conformant: true, probes: 288, uptimeBps: 4_400, p95: 1_820, deltaUsd: null, sampleSize: 0, cardResolves: true },
+  {
+    tokenId: 1240,
+    name: 'AlphaVault Optimizer',
+    description: 'Declares A2A; the endpoint returns 200 to everything and implements none of it.',
+    category: 'yield',
+    live: true,
+    conformant: false,
+    probes: 60,
+    uptimeBps: 9_990,
+    p95: 44,
+    deltaUsd: null,
+    sampleSize: 0,
+    cardResolves: true,
+  },
+  {
+    tokenId: 1256,
+    name: 'Quantum Yield Maximizer',
+    description: 'Endpoint has not answered since registration.',
+    category: 'yield',
+    live: false,
+    conformant: false,
+    probes: 288,
+    uptimeBps: 0,
+    p95: 0,
+    deltaUsd: null,
+    sampleSize: 0,
+    cardResolves: true,
+  },
+  {
+    tokenId: 1288,
+    name: 'unresolved',
+    description: '',
+    category: 'other',
+    live: false,
+    conformant: false,
+    probes: 12,
+    uptimeBps: 0,
+    p95: 0,
+    deltaUsd: null,
+    sampleSize: 0,
+    cardResolves: false,
+  },
+  {
+    tokenId: 1301,
+    name: 'Ember Rebalancer',
+    description: 'Flapping endpoint - reachable under half the time.',
+    category: 'rebalancing',
+    live: true,
+    conformant: true,
+    probes: 288,
+    uptimeBps: 4_400,
+    p95: 1_820,
+    deltaUsd: null,
+    sampleSize: 0,
+    cardResolves: true,
+  },
 ];
 
 function card(s: Seed): AgentCard | null {
@@ -147,14 +385,33 @@ export function score(s: Seed): Score | null {
   if (s.deltaUsd === null || s.sampleSize === 0) return null;
   const metric =
     s.category === 'rebalancing'
-      ? ({ kind: 'rebalancing', inRangeBps: 8_400 + Math.round(s.deltaUsd / 4), rebalanceCount: 6, feesEarnedUsd: Math.max(0, s.deltaUsd) } as const)
+      ? ({
+          kind: 'rebalancing',
+          inRangeBps: 8_400 + Math.round(s.deltaUsd / 4),
+          rebalanceCount: 6,
+          feesEarnedUsd: Math.max(0, s.deltaUsd),
+        } as const)
       : s.category === 'health-factor'
-      ? ({ kind: 'health-factor', medianLeadTimeSec: 1_840, missedEvents: 0, falseAlarmRate: 0.04 } as const)
-      : s.category === 'grid'
-        ? ({ kind: 'grid', realizedPnlUsd: s.deltaUsd, maxDrawdownUsd: 412, fillQualityBps: 6 } as const)
-        : s.category === 'monitoring'
-          ? ({ kind: 'monitoring', precision: 0.91, recall: 0.86, falseAlarmRate: 0.09 } as const)
-          : ({ kind: 'yield', riskAdjustedReturnBps: Math.round(s.deltaUsd * 1.4), maxDrawdownUsd: 180 } as const);
+        ? ({
+            kind: 'health-factor',
+            medianLeadTimeSec: 1_840,
+            missedEvents: 0,
+            falseAlarmRate: 0.04,
+          } as const)
+        : s.category === 'grid'
+          ? ({
+              kind: 'grid',
+              realizedPnlUsd: s.deltaUsd,
+              maxDrawdownUsd: 412,
+              fillQualityBps: 6,
+            } as const)
+          : s.category === 'monitoring'
+            ? ({ kind: 'monitoring', precision: 0.91, recall: 0.86, falseAlarmRate: 0.09 } as const)
+            : ({
+                kind: 'yield',
+                riskAdjustedReturnBps: Math.round(s.deltaUsd * 1.4),
+                maxDrawdownUsd: 180,
+              } as const);
 
   return {
     agent: id(s.tokenId),
@@ -199,7 +456,14 @@ export const fixtureData: BenchData = {
     // Honest default: no 8004scan key is configured yet, so nothing has been
     // corroborated. This lights up on its own once the key is in the
     // environment - see buildCrossReference in @bench/adapters.
-    return { source: '8004scan', status: 'unconfigured', checked: 0, confirmed: 0, notFound: 0, agreementBps: 0 };
+    return {
+      source: '8004scan',
+      status: 'unconfigured',
+      checked: 0,
+      confirmed: 0,
+      notFound: 0,
+      agreementBps: 0,
+    };
   },
 
   async listAgents(opts) {
@@ -236,7 +500,12 @@ export const fixtureData: BenchData = {
                   ? 'BNB/USDT spot ladder'
                   : 'PCS v3 BNB/USDT 0.05%',
             params: {},
-            capital: { token: '0x55d398326f99059ff775485246999027b3197955', symbol: 'USDT', decimals: 18, amount: 10_000n * 10n ** 18n },
+            capital: {
+              token: '0x55d398326f99059ff775485246999027b3197955',
+              symbol: 'USDT',
+              decimals: 18,
+              amount: 10_000n * 10n ** 18n,
+            },
           },
           status: 'complete',
           startedAt: new Date(now().getTime() - (3 - i) * 86_400_000),
@@ -247,7 +516,10 @@ export const fixtureData: BenchData = {
 
     const outcomes: OutcomeRecord[] = runs.map((r, i) => ({
       runId: r.id,
-      terminal: { valueUsd: 10_000 + (found.score ? (found.score.normalized - 0.5) * 800 * (i + 1) * 0.4 : 0), detail: {} },
+      terminal: {
+        valueUsd: 10_000 + (found.score ? (found.score.normalized - 0.5) * 800 * (i + 1) * 0.4 : 0),
+        detail: {},
+      },
       deltaVsDoNothingUsd: found.score ? ((found.score.normalized - 0.5) * 800) / (i + 1) : 0,
       deltaVsPeerMedianUsd: found.score ? ((found.score.normalized - 0.5) * 300) / (i + 1) : null,
       maxDrawdownUsd: 180 + i * 40,
@@ -263,20 +535,20 @@ export const fixtureData: BenchData = {
     return {
       status: 'ok',
       report: {
-      address,
-      positionLabel: 'PancakeSwap v3 · BNB/USDT 0.05% · in range',
-      positionValueUsd: 12_480.55,
-      windowLabel: '25 Jul - 25 Aug 2026',
-      doNothingUsd: 12_480.55,
-      lines: ranked.map((a) => ({
-        agent: a.entry.record.id,
-        name: a.entry.record.card?.name ?? 'unresolved',
-        category: a.entry.record.card?.category ?? 'other',
-        deltaUsd: ((a.score!.normalized - 0.5) * 800 * 12_480.55) / 10_000,
-        actionCount: 4 + Math.round(a.score!.sampleSize / 8),
-        verifiedLive: a.entry.verifiedLive,
-      })),
-      computedAt: now(),
+        address,
+        positionLabel: 'PancakeSwap v3 · BNB/USDT 0.05% · in range',
+        positionValueUsd: 12_480.55,
+        windowLabel: '25 Jul - 25 Aug 2026',
+        doNothingUsd: 12_480.55,
+        lines: ranked.map((a) => ({
+          agent: a.entry.record.id,
+          name: a.entry.record.card?.name ?? 'unresolved',
+          category: a.entry.record.card?.category ?? 'other',
+          deltaUsd: ((a.score!.normalized - 0.5) * 800 * 12_480.55) / 10_000,
+          actionCount: 4 + Math.round(a.score!.sampleSize / 8),
+          verifiedLive: a.entry.verifiedLive,
+        })),
+        computedAt: now(),
       },
     };
   },

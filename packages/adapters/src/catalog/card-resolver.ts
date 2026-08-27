@@ -121,8 +121,7 @@ export function normalizeCard(obj: Record<string, unknown>): AgentCard {
     throw new BenchError('INVALID_AGENT_CARD', 'card has no name');
   }
 
-  const description =
-    str(obj['description']) ?? str(obj['summary']) ?? str(obj['bio']) ?? '';
+  const description = str(obj['description']) ?? str(obj['summary']) ?? str(obj['bio']) ?? '';
 
   const endpoints = extractEndpoints(obj);
   const category = inferCategory(obj, name, description);
@@ -140,7 +139,9 @@ export function normalizeCard(obj: Record<string, unknown>): AgentCard {
 }
 
 /** `exactOptionalPropertyTypes` forbids assigning undefined, hence the spread. */
-function attestationOf(obj: Record<string, unknown>): { attestation?: { kind: string; ref: string } } {
+function attestationOf(obj: Record<string, unknown>): {
+  attestation?: { kind: string; ref: string };
+} {
   const a = obj['attestation'] ?? obj['tee'];
   if (typeof a !== 'object' || a === null) return {};
   const rec = a as Record<string, unknown>;
@@ -173,7 +174,8 @@ function extractEndpoints(obj: Record<string, unknown>): readonly AgentEndpoint[
       if (typeof raw !== 'object' || raw === null) continue;
       const rec = raw as Record<string, unknown>;
       const protocol = asProtocol(rec['protocol'] ?? rec['type'] ?? rec['kind']);
-      if (protocol !== null) push(protocol, str(rec['url']) ?? str(rec['endpoint']) ?? str(rec['uri']));
+      if (protocol !== null)
+        push(protocol, str(rec['url']) ?? str(rec['endpoint']) ?? str(rec['uri']));
     }
   } else if (typeof eps === 'object' && eps !== null) {
     for (const [key, value] of Object.entries(eps as Record<string, unknown>)) {
@@ -228,13 +230,21 @@ export function inferCategory(
   description: string,
 ): AgentCategory {
   const declared = str(obj['category'])?.toLowerCase();
-  const CATEGORIES: readonly AgentCategory[] = ['yield', 'grid', 'monitoring', 'health-factor', 'other'];
+  const CATEGORIES: readonly AgentCategory[] = [
+    'yield',
+    'grid',
+    'monitoring',
+    'health-factor',
+    'other',
+  ];
   const exact = CATEGORIES.find((c) => c === declared);
   if (exact !== undefined) return exact;
 
   const skills = Array.isArray(obj['skills'])
     ? obj['skills']
-        .map((s) => (typeof s === 'string' ? s : str((s as Record<string, unknown> | null)?.['name'])))
+        .map((s) =>
+          typeof s === 'string' ? s : str((s as Record<string, unknown> | null)?.['name']),
+        )
         .filter((s): s is string => s !== null)
     : [];
   const haystack = [name, description, ...skills].join(' ').toLowerCase();

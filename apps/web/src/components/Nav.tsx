@@ -59,9 +59,19 @@ export function Nav() {
             Read your report
           </Link>
 
-          <button className="burger" onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open}>
+          <button
+            className="burger"
+            onClick={() => setOpen(true)}
+            aria-label="Open menu"
+            aria-expanded={open}
+          >
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4 7h16M4 12h13M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <path
+                d="M4 7h16M4 12h13M4 17h16"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
             </svg>
           </button>
         </div>
@@ -83,13 +93,20 @@ export function Nav() {
               <Wordmark size={22} />
               <button className="burger" onClick={() => setOpen(false)} aria-label="Close menu">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path
+                    d="M6 6l12 12M18 6L6 18"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
                 </svg>
               </button>
             </div>
 
             <nav className="drawer-links">
-              <Link href="/" data-active={path === '/'}>Home</Link>
+              <Link href="/" data-active={path === '/'}>
+                Home
+              </Link>
               {LINKS.map(([label, href]) => (
                 <Link key={href} href={href} data-active={path === href}>
                   {label}

@@ -305,7 +305,10 @@ export class PgHireStore implements HireStore {
       .returning({ id: schema.hires.id });
 
     if (updated.length === 0) {
-      throw new BenchError('NOT_FOUND', `hire ${record.id} does not exist; claim it before updating it`);
+      throw new BenchError(
+        'NOT_FOUND',
+        `hire ${record.id} does not exist; claim it before updating it`,
+      );
     }
   }
 

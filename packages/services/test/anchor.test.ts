@@ -57,11 +57,10 @@ class StubRepo implements Partial<CatalogRepository> {
 }
 
 const build = (registry: StubRegistry, repo: StubRepo, over = {}) =>
-  new ProbeAnchor(
-    registry as unknown as RegistryClient,
-    repo as unknown as CatalogRepository,
-    { minBatch: 1, ...over },
-  );
+  new ProbeAnchor(registry as unknown as RegistryClient, repo as unknown as CatalogRepository, {
+    minBatch: 1,
+    ...over,
+  });
 
 describe('ProbeAnchor', () => {
   it('holds below the minimum batch rather than spending gas', async () => {

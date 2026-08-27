@@ -17,7 +17,9 @@ export function Logo({ size = 26 }: { readonly size?: number }) {
 
 export function Wordmark({ size = 26 }: { readonly size?: number }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', color: 'var(--ink)' }}>
+    <span
+      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', color: 'var(--ink)' }}
+    >
       <Logo size={size} />
       <span style={{ fontWeight: 700, fontSize: '1.25rem', letterSpacing: '-0.04em' }}>Bench</span>
     </span>

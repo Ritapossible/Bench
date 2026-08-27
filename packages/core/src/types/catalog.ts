@@ -60,10 +60,7 @@ export function isVerifiedLive(s: LivenessSummary, now: Date = new Date()): bool
  * the function sorts, because callers reading from Postgres and callers
  * reading from a fake should not have to agree on order.
  */
-export function summarizeProbes(
-  agent: AgentId,
-  probes: readonly ProbeResult[],
-): LivenessSummary {
+export function summarizeProbes(agent: AgentId, probes: readonly ProbeResult[]): LivenessSummary {
   if (probes.length === 0) {
     return {
       agent,

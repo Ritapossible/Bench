@@ -15,7 +15,12 @@
  */
 import { AuditionRunner, type ShadowAgent } from '@bench/services';
 import { AnvilForkProvider, controllerFor, startAnvil, startGatedSession } from '@bench/adapters';
-import { deriveEnvelope, type AuditionWindow, type InterceptedAction, type PositionTemplate } from '@bench/core';
+import {
+  deriveEnvelope,
+  type AuditionWindow,
+  type InterceptedAction,
+  type PositionTemplate,
+} from '@bench/core';
 import { createWalletClient, defineChain, formatEther, http, parseEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
@@ -43,7 +48,12 @@ const POSITION: PositionTemplate = {
   kind: 'spot-balance',
   label: '10 BNB spot @ $600',
   params: { nativeWei: 10n * 10n ** 18n, nativePriceUsd: 600 },
-  capital: { token: '0x0000000000000000000000000000000000000000', symbol: 'BNB', decimals: 18, amount: 10n * 10n ** 18n },
+  capital: {
+    token: '0x0000000000000000000000000000000000000000',
+    symbol: 'BNB',
+    decimals: 18,
+    amount: 10n * 10n ** 18n,
+  },
 };
 
 const wallet = (rpcUrl: string) =>
@@ -90,7 +100,9 @@ async function main(): Promise<void> {
     });
     const r = report.results[0]!;
     runs.push({ actions: r.actions, positionDropUsd: Math.max(0, -r.deltaVsDoNothingUsd) });
-    console.log(`   run ${i + 1}: ${r.actions.length} actions, position ${r.deltaVsDoNothingUsd.toFixed(2)} USD`);
+    console.log(
+      `   run ${i + 1}: ${r.actions.length} actions, position ${r.deltaVsDoNothingUsd.toFixed(2)} USD`,
+    );
   }
 
   const envelope = deriveEnvelope(runs);
@@ -123,7 +135,9 @@ async function main(): Promise<void> {
     } catch {
       refused = true;
     }
-    console.log(`   ${refused ? '✗' : '!!'} tries to send 5 BNB to an address it never touched — ${refused ? 'REFUSED' : 'ALLOWED (bug)'}`);
+    console.log(
+      `   ${refused ? '✗' : '!!'} tries to send 5 BNB to an address it never touched — ${refused ? 'REFUSED' : 'ALLOWED (bug)'}`,
+    );
 
     const blocked = session.decisions.filter((d) => !d.decision.allowed);
     for (const b of blocked) console.log(`\n   ${b.decision.explanation}`);
@@ -132,18 +146,28 @@ async function main(): Promise<void> {
     // ---- 3. Prove it -------------------------------------------------
     console.log('\n3. PROOF — read the chain rather than take our word for it\n');
 
-    const attackerBal = BigInt((await rpc(live.url, 'eth_getBalance', [ATTACKER, 'latest'])) as string);
+    const attackerBal = BigInt(
+      (await rpc(live.url, 'eth_getBalance', [ATTACKER, 'latest'])) as string,
+    );
     const vendorBal = BigInt((await rpc(live.url, 'eth_getBalance', [VENDOR, 'latest'])) as string);
-    const nonce = BigInt((await rpc(live.url, 'eth_getTransactionCount', [controller, 'latest'])) as string);
+    const nonce = BigInt(
+      (await rpc(live.url, 'eth_getTransactionCount', [controller, 'latest'])) as string,
+    );
     const height = BigInt((await rpc(live.url, 'eth_blockNumber', [])) as string);
 
-    console.log(`   vendor balance     ${formatEther(vendorBal)} BNB   (the allowed transfer landed)`);
-    console.log(`   attacker balance   ${formatEther(attackerBal)} BNB   (the refused one never existed)`);
+    console.log(
+      `   vendor balance     ${formatEther(vendorBal)} BNB   (the allowed transfer landed)`,
+    );
+    console.log(
+      `   attacker balance   ${formatEther(attackerBal)} BNB   (the refused one never existed)`,
+    );
     console.log(`   controller nonce   ${nonce}              (one transaction, not two)`);
     console.log(`   chain height       ${height}              (one block mined)`);
 
     const ok = refused && attackerBal === 0n && nonce === 1n && vendorBal === parseEther('0.05');
-    console.log(`\n${ok ? '✓ PASS' : '✗ FAIL'} — the refused transaction is on no chain, and cost no gas.\n`);
+    console.log(
+      `\n${ok ? '✓ PASS' : '✗ FAIL'} — the refused transaction is on no chain, and cost no gas.\n`,
+    );
     if (!ok) process.exitCode = 1;
   } finally {
     await session.close();

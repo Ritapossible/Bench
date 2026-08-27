@@ -43,7 +43,9 @@ export const agentEndpoints = pgTable(
   'agent_endpoints',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
     protocol: text('protocol').notNull(),
     url: text('url').notNull(),
   },
@@ -54,8 +56,12 @@ export const probeResults = pgTable(
   'probe_results',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
-    endpointId: uuid('endpoint_id').notNull().references(() => agentEndpoints.id, { onDelete: 'cascade' }),
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    endpointId: uuid('endpoint_id')
+      .notNull()
+      .references(() => agentEndpoints.id, { onDelete: 'cascade' }),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
     reachable: boolean('reachable').notNull(),
     latencyMs: integer('latency_ms'),
@@ -136,8 +142,12 @@ export const shadowRuns = pgTable(
   'shadow_runs',
   {
     id: text('id').primaryKey(),
-    agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
-    windowId: text('window_id').notNull().references(() => auditionWindows.id),
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    windowId: text('window_id')
+      .notNull()
+      .references(() => auditionWindows.id),
     positionKind: text('position_kind').notNull(),
     positionParams: jsonb('position_params').notNull(),
     status: text('status').notNull().default('queued'),
@@ -151,7 +161,9 @@ export const shadowRuns = pgTable(
 
 export const shadowActions = pgTable('shadow_actions', {
   id: uuid('id').defaultRandom().primaryKey(),
-  runId: text('run_id').notNull().references(() => shadowRuns.id, { onDelete: 'cascade' }),
+  runId: text('run_id')
+    .notNull()
+    .references(() => shadowRuns.id, { onDelete: 'cascade' }),
   seq: integer('seq').notNull(),
   at: timestamp('at', { withTimezone: true }).notNull(),
   to: text('to'),
@@ -164,7 +176,9 @@ export const shadowActions = pgTable('shadow_actions', {
 });
 
 export const outcomeRecords = pgTable('outcome_records', {
-  runId: text('run_id').primaryKey().references(() => shadowRuns.id, { onDelete: 'cascade' }),
+  runId: text('run_id')
+    .primaryKey()
+    .references(() => shadowRuns.id, { onDelete: 'cascade' }),
   terminalValueUsd: doublePrecision('terminal_value_usd').notNull(),
   terminalDetail: jsonb('terminal_detail').notNull(),
   deltaVsDoNothingUsd: doublePrecision('delta_vs_do_nothing_usd').notNull(),
@@ -178,7 +192,9 @@ export const outcomeRecords = pgTable('outcome_records', {
 export const scores = pgTable(
   'scores',
   {
-    agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
     category: text('category').notNull(),
     // 'simulated' | 'realized' — never merged. Two columns, always labelled.
     basis: text('basis').notNull(),
@@ -228,7 +244,9 @@ export const sessionKeys = pgTable('session_keys', {
 
 export const escrowJobs = pgTable('escrow_jobs', {
   id: text('id').primaryKey(),
-  agentId: uuid('agent_id').notNull().references(() => agents.id),
+  agentId: uuid('agent_id')
+    .notNull()
+    .references(() => agents.id),
   client: text('client').notNull(),
   amountToken: text('amount_token').notNull(),
   amount: numeric('amount', { precision: 78, scale: 0 }).notNull(),
@@ -285,8 +303,12 @@ export const hires = pgTable(
  */
 export const feedback = pgTable('feedback', {
   id: uuid('id').defaultRandom().primaryKey(),
-  hireId: text('hire_id').notNull().references(() => hires.id, { onDelete: 'cascade' }),
-  escrowJobId: text('escrow_job_id').notNull().references(() => escrowJobs.id),
+  hireId: text('hire_id')
+    .notNull()
+    .references(() => hires.id, { onDelete: 'cascade' }),
+  escrowJobId: text('escrow_job_id')
+    .notNull()
+    .references(() => escrowJobs.id),
   rating: integer('rating').notNull(),
   comment: text('comment'),
   weight: doublePrecision('weight').notNull(),

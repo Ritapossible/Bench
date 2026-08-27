@@ -36,7 +36,10 @@ export interface GatedSessionHandle {
   /** Give this to the hired agent instead of a node URL. */
   readonly rpcUrl: string;
   /** Every decision, in order — the hire card's blocked-transaction log. */
-  readonly decisions: readonly { readonly candidate: CandidateAction; readonly decision: GateDecision }[];
+  readonly decisions: readonly {
+    readonly candidate: CandidateAction;
+    readonly decision: GateDecision;
+  }[];
   readonly blockedCount: () => number;
   close(): Promise<void>;
 }

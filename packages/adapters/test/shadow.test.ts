@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { execSync } from 'node:child_process';
 import { replayHash, type InterceptedAction, type PositionTemplate } from '@bench/core';
-import { createWalletClient, defineChain, encodeFunctionData, http, parseAbi, parseEther } from 'viem';
+import {
+  createWalletClient,
+  defineChain,
+  encodeFunctionData,
+  http,
+  parseAbi,
+  parseEther,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { AnvilForkProvider } from '../src/shadow/anvil-fork.js';
 import { controllerFor } from '../src/shadow/seeders.js';
@@ -29,7 +36,12 @@ const POSITION: PositionTemplate = {
   kind: 'spot-balance',
   label: '10 BNB spot',
   params: { nativeWei: 10n * 10n ** 18n, nativePriceUsd: 600 },
-  capital: { token: '0x0000000000000000000000000000000000000000', symbol: 'BNB', decimals: 18, amount: 10n * 10n ** 18n },
+  capital: {
+    token: '0x0000000000000000000000000000000000000000',
+    symbol: 'BNB',
+    decimals: 18,
+    amount: 10n * 10n ** 18n,
+  },
 };
 
 const anvilChain = defineChain({
@@ -92,7 +104,11 @@ describe.skipIf(!anvilAvailable())('shadow engine against a live anvil', () => {
       // Act as the agent would: talk to the RPC we were handed, sign with the
       // throwaway key, and broadcast. Nothing tells it this is a fork.
       const account = privateKeyToAccount(controllerFor(WINDOW.seed).privateKey);
-      const wallet = createWalletClient({ account, chain: anvilChain, transport: http(fork.rpcUrl) });
+      const wallet = createWalletClient({
+        account,
+        chain: anvilChain,
+        transport: http(fork.rpcUrl),
+      });
 
       const hash = await wallet.sendTransaction({
         to: '0x2222222222222222222222222222222222222222',
@@ -138,16 +154,26 @@ describe.skipIf(!anvilAvailable())('shadow engine against a live anvil', () => {
     try {
       const actions: InterceptedAction[] = [];
       fork.onAction((a) => actions.push(a));
-      await fork.seedPosition({ ...POSITION, params: { nativeWei: 10n ** 15n, nativePriceUsd: 600 } });
+      await fork.seedPosition({
+        ...POSITION,
+        params: { nativeWei: 10n ** 15n, nativePriceUsd: 600 },
+      });
 
       const account = privateKeyToAccount(controllerFor(WINDOW.seed).privateKey);
-      const wallet = createWalletClient({ account, chain: anvilChain, transport: http(fork.rpcUrl) });
+      const wallet = createWalletClient({
+        account,
+        chain: anvilChain,
+        transport: http(fork.rpcUrl),
+      });
 
       // More than the controller holds. An agent that repeatedly submits
       // invalid transactions is telling you something about itself, so the
       // attempt is recorded rather than dropped.
       await expect(
-        wallet.sendTransaction({ to: '0x2222222222222222222222222222222222222222', value: parseEther('1000') }),
+        wallet.sendTransaction({
+          to: '0x2222222222222222222222222222222222222222',
+          value: parseEther('1000'),
+        }),
       ).rejects.toThrow();
 
       expect(actions.length).toBeGreaterThanOrEqual(0);

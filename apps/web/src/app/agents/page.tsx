@@ -15,7 +15,6 @@ import { agentHref } from '@/lib/format';
  */
 export const revalidate = 60;
 
-
 export const metadata = { title: 'Catalog - Bench' };
 
 export default async function AgentsPage() {
@@ -47,8 +46,9 @@ export default async function AgentsPage() {
           <span className="eyebrow">Catalog</span>
           <h1 className="h2">Every agent, with its record attached.</h1>
           <p className="lead">
-            Ranked on what each agent did in audition against a do-nothing baseline. Agents with no completed
-            auditions are listed and probed, and say so - they are never given a fabricated number.
+            Ranked on what each agent did in audition against a do-nothing baseline. Agents with no
+            completed auditions are listed and probed, and say so - they are never given a
+            fabricated number.
           </p>
         </div>
 

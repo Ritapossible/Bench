@@ -97,7 +97,8 @@ function expandIPv6(addr: string): number[] | null {
       if (piece.includes('.')) {
         // Trailing dotted-quad form: a.b.c.d occupies the last two hextets.
         const octets = piece.split('.').map(Number);
-        if (octets.length !== 4 || octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+        if (octets.length !== 4 || octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255))
+          return null;
         const [a, b, c, d] = octets as [number, number, number, number];
         out.push((a << 8) | b, (c << 8) | d);
         continue;
@@ -130,7 +131,8 @@ function isBlockedIPv6(ip: string, allowLoopback: boolean): boolean {
   // are decided by the IPv4 rules rather than the IPv6 ones.
   const leadingZero = h.slice(0, 5).every((x) => x === 0);
   const isMapped = leadingZero && h[5] === 0xffff;
-  const isCompatible = leadingZero && h[5] === 0 && (h[6] !== 0 || h[7] !== 0) && !(h[6] === 0 && h[7] === 1);
+  const isCompatible =
+    leadingZero && h[5] === 0 && (h[6] !== 0 || h[7] !== 0) && !(h[6] === 0 && h[7] === 1);
   if (isMapped || isCompatible) {
     const hi = h[6]!;
     const lo = h[7]!;
@@ -228,7 +230,10 @@ export async function safeFetch(
         method: opts.method ?? 'GET',
         redirect: 'manual',
         signal: controller.signal,
-        headers: { 'user-agent': 'Bench/0.1 (+https://github.com/Ritapossible/Bench)', ...opts.headers },
+        headers: {
+          'user-agent': 'Bench/0.1 (+https://github.com/Ritapossible/Bench)',
+          ...opts.headers,
+        },
         ...(opts.body === undefined ? {} : { body: opts.body }),
       });
 
@@ -252,7 +257,10 @@ export async function safeFetch(
       };
     } catch (err) {
       if (err instanceof BenchError) throw err;
-      const reason = err instanceof Error && err.name === 'AbortError' ? `timeout after ${timeoutMs}ms` : String(err);
+      const reason =
+        err instanceof Error && err.name === 'AbortError'
+          ? `timeout after ${timeoutMs}ms`
+          : String(err);
       throw new BenchError('ENDPOINT_UNREACHABLE', `${rawUrl}: ${reason}`, err);
     } finally {
       clearTimeout(timer);

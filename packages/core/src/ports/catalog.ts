@@ -1,10 +1,5 @@
 import type { AgentEndpoint, AgentId, AgentRecord, ProbeResult } from '../types/agent.js';
-import type {
-  CatalogPage,
-  CatalogQuery,
-  CatalogStats,
-  LivenessSummary,
-} from '../types/catalog.js';
+import type { CatalogPage, CatalogQuery, CatalogStats, LivenessSummary } from '../types/catalog.js';
 import type { ChainName, Hex } from '../types/primitives.js';
 
 /** One endpoint owed a probe, with the agent it belongs to. */

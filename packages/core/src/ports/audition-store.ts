@@ -34,7 +34,11 @@ export interface AuditionStore {
   latestScores(agents: readonly AgentId[], basis: ScoreBasis): Promise<ReadonlyMap<string, Score>>;
   latestScore(agent: AgentId, basis: ScoreBasis): Promise<Score | null>;
   /** Best normalized score per category, for the leaderboard. */
-  topByCategory(category: AgentCategory, basis: ScoreBasis, limit: number): Promise<readonly Score[]>;
+  topByCategory(
+    category: AgentCategory,
+    basis: ScoreBasis,
+    limit: number,
+  ): Promise<readonly Score[]>;
 
   /**
    * Append today's catalog density measurement.

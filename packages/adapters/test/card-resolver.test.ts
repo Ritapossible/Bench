@@ -1,6 +1,11 @@
 import { BenchError } from '@bench/core';
 import { describe, expect, it } from 'vitest';
-import { CardResolver, inferCategory, normalizeCard, toFetchableUrl } from '../src/catalog/card-resolver.js';
+import {
+  CardResolver,
+  inferCategory,
+  normalizeCard,
+  toFetchableUrl,
+} from '../src/catalog/card-resolver.js';
 
 /**
  * Agent cards are attacker-controlled and mostly broken: only ~4% of BSC
@@ -108,7 +113,9 @@ describe('normalizeCard', () => {
 
 describe('inferCategory', () => {
   it('prefers an explicit declaration over inference', () => {
-    expect(inferCategory({ category: 'monitoring' }, 'Yield Farmer', 'farms yield')).toBe('monitoring');
+    expect(inferCategory({ category: 'monitoring' }, 'Yield Farmer', 'farms yield')).toBe(
+      'monitoring',
+    );
   });
 
   it('reads health-factor as more specific than yield', () => {
@@ -133,7 +140,9 @@ describe('inferCategory', () => {
 describe('CardResolver', () => {
   it('reads an inline data: URI with no network at all', async () => {
     const json = JSON.stringify({ name: 'Inline', url: 'https://a.example/a2a' });
-    const card = await new CardResolver().resolve(`data:application/json,${encodeURIComponent(json)}`);
+    const card = await new CardResolver().resolve(
+      `data:application/json,${encodeURIComponent(json)}`,
+    );
     expect(card.name).toBe('Inline');
   });
 
@@ -145,9 +154,9 @@ describe('CardResolver', () => {
   });
 
   it('reports non-JSON with a specific reason', async () => {
-    await expect(
-      new CardResolver().resolve('data:text/plain,hello%20world'),
-    ).rejects.toThrow(/not JSON/);
+    await expect(new CardResolver().resolve('data:text/plain,hello%20world')).rejects.toThrow(
+      /not JSON/,
+    );
   });
 
   it('rejects a JSON array — a card must be an object', async () => {

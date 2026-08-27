@@ -135,11 +135,7 @@ export class PgCatalogRepository implements CatalogRepository {
   }
 
   async getAgent(id: AgentId): Promise<AgentRecord | null> {
-    const rows = await this.db
-      .select()
-      .from(schema.agents)
-      .where(agentMatches(id))
-      .limit(1);
+    const rows = await this.db.select().from(schema.agents).where(agentMatches(id)).limit(1);
     const row = rows[0];
     return row === undefined ? null : toRecord(row);
   }
@@ -273,10 +269,7 @@ export class PgCatalogRepository implements CatalogRepository {
       })
       .from(schema.agentEndpoints)
       .innerJoin(schema.agents, eq(schema.agentEndpoints.agentId, schema.agents.id))
-      .leftJoin(
-        schema.probeResults,
-        eq(schema.probeResults.endpointId, schema.agentEndpoints.id),
-      )
+      .leftJoin(schema.probeResults, eq(schema.probeResults.endpointId, schema.agentEndpoints.id))
       .groupBy(
         schema.agentEndpoints.id,
         schema.agents.chain,
@@ -284,7 +277,9 @@ export class PgCatalogRepository implements CatalogRepository {
         schema.agentEndpoints.protocol,
         schema.agentEndpoints.url,
       )
-      .having(sql`max(${schema.probeResults.at}) is null or max(${schema.probeResults.at}) < ${cutoff}`)
+      .having(
+        sql`max(${schema.probeResults.at}) is null or max(${schema.probeResults.at}) < ${cutoff}`,
+      )
       .orderBy(sql`max(${schema.probeResults.at}) asc nulls first`)
       .limit(limit);
 
@@ -446,9 +441,7 @@ export class PgCatalogRepository implements CatalogRepository {
       .where(eq(schema.indexerCheckpoints.chain, chain))
       .limit(1);
     const row = rows[0];
-    return row === undefined
-      ? null
-      : { chain, lastBlock: row.lastBlock, updatedAt: row.updatedAt };
+    return row === undefined ? null : { chain, lastBlock: row.lastBlock, updatedAt: row.updatedAt };
   }
 
   async setCheckpoint(chain: ChainName, lastBlock: bigint): Promise<void> {

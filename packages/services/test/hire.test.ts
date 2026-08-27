@@ -17,7 +17,12 @@ const VENUS = '0xfd5840cd36d94d7229439859c0112a4185bc0255' as Address;
 const STRANGER = '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef' as Address;
 const OWNER = '0x1111111111111111111111111111111111111111' as Address;
 
-const amount = (n: bigint): TokenAmount => ({ token: USDT, symbol: 'USDT', decimals: 18, amount: n });
+const amount = (n: bigint): TokenAmount => ({
+  token: USDT,
+  symbol: 'USDT',
+  decimals: 18,
+  amount: n,
+});
 
 const action = (to: Address, value: bigint): InterceptedAction => ({
   seq: 0,
@@ -41,7 +46,13 @@ class FakePayment implements PaymentClient {
   constructor(private readonly failOn?: 'quote' | 'authorize' | 'settle') {}
   async quote(req: { readonly payTo: Address; readonly amount: TokenAmount }) {
     if (this.failOn === 'quote') throw new Error('quote unavailable');
-    return { payTo: req.payTo, amount: req.amount, scheme: 'permit2-upto' as const, expiresAt: new Date('2026-12-01'), nonce: '0x01' as Hex };
+    return {
+      payTo: req.payTo,
+      amount: req.amount,
+      scheme: 'permit2-upto' as const,
+      expiresAt: new Date('2026-12-01'),
+      nonce: '0x01' as Hex,
+    };
   }
   async authorize(quote: Awaited<ReturnType<FakePayment['quote']>>) {
     if (this.failOn === 'authorize') throw new Error('user rejected');
@@ -52,7 +63,9 @@ class FakePayment implements PaymentClient {
     this.settled += 1;
     return { txHash: '0xpaid' as Hex, settled: auth.quote.amount, at: new Date() };
   }
-  async spentAgainst() { return amount(0n); }
+  async spentAgainst() {
+    return amount(0n);
+  }
 }
 
 class FakeEscrow implements EscrowClient {
@@ -60,14 +73,32 @@ class FakeEscrow implements EscrowClient {
   #job: EscrowJob | null = null;
   async openJob(spec: { agent: EscrowJob['agent']; client: Address; amount: TokenAmount }) {
     this.opened += 1;
-    this.#job = { id: `job_${this.opened}`, agent: spec.agent, client: spec.client, amount: spec.amount, status: 'open', disputeWindowEndsAt: null, deliveryProof: null };
+    this.#job = {
+      id: `job_${this.opened}`,
+      agent: spec.agent,
+      client: spec.client,
+      amount: spec.amount,
+      status: 'open',
+      disputeWindowEndsAt: null,
+      deliveryProof: null,
+    };
     return this.#job;
   }
-  async fund() { return '0xfund' as Hex; }
-  async deliver() { return '0xdeliver' as Hex; }
-  async settle() { return '0xsettle' as Hex; }
-  async dispute() { return '0xdispute' as Hex; }
-  async get() { return this.#job; }
+  async fund() {
+    return '0xfund' as Hex;
+  }
+  async deliver() {
+    return '0xdeliver' as Hex;
+  }
+  async settle() {
+    return '0xsettle' as Hex;
+  }
+  async dispute() {
+    return '0xdispute' as Hex;
+  }
+  async get() {
+    return this.#job;
+  }
 }
 
 const request = (over: Partial<HireRequest> = {}): HireRequest => ({
@@ -81,7 +112,13 @@ const request = (over: Partial<HireRequest> = {}): HireRequest => ({
     expiresAt: new Date('2026-12-01T00:00:00Z'),
     maxActions: 5,
   },
-  consent: ['reviewed-audition', 'set-spend-cap', 'set-allowlist', 'set-expiry', 'reviewed-summary'],
+  consent: [
+    'reviewed-audition',
+    'set-spend-cap',
+    'set-allowlist',
+    'set-expiry',
+    'reviewed-summary',
+  ],
   taskSpec: 'keep the Venus health factor above 1.5',
   price: amount(5n),
   payTo: '0x3333333333333333333333333333333333333333' as Address,
@@ -92,7 +129,17 @@ const request = (over: Partial<HireRequest> = {}): HireRequest => ({
 
 const build = (payment = new FakePayment(), escrow = new FakeEscrow()) => {
   const store = new InMemoryHireStore();
-  return { store, payment, escrow, o: new HireOrchestrator({ payment, escrow, store, clock: () => new Date('2026-08-26T00:00:00Z') }) };
+  return {
+    store,
+    payment,
+    escrow,
+    o: new HireOrchestrator({
+      payment,
+      escrow,
+      store,
+      clock: () => new Date('2026-08-26T00:00:00Z'),
+    }),
+  };
 };
 
 describe('HireOrchestrator', () => {
@@ -103,7 +150,13 @@ describe('HireOrchestrator', () => {
     expect(h.escrowJobId).toBe('job_1');
     expect(h.paymentTxHash).toBe('0xpaid');
     expect(verifyTrace(h.trace)).toBeNull();
-    expect(h.trace.map((t) => t.step)).toEqual(['consent', 'quote', 'authorize', 'fund', 'mint-session-key']);
+    expect(h.trace.map((t) => t.step)).toEqual([
+      'consent',
+      'quote',
+      'authorize',
+      'fund',
+      'mint-session-key',
+    ]);
   });
 
   it('is idempotent — a retry never charges twice', async () => {
@@ -117,7 +170,9 @@ describe('HireOrchestrator', () => {
 
   it('refuses to move money on incomplete consent', async () => {
     const { o, payment } = build();
-    await expect(o.hire(request({ consent: ['reviewed-audition'] }))).rejects.toThrow(/consent is incomplete/);
+    await expect(o.hire(request({ consent: ['reviewed-audition'] }))).rejects.toThrow(
+      /consent is incomplete/,
+    );
     expect(payment.settled).toBe(0);
   });
 
@@ -144,7 +199,10 @@ describe('authorizeAction — both bounds', () => {
   // Only the transaction. Spending history is the orchestrator's to supply,
   // from persisted state - see ProposedAction.
   const candidate = (to: Address, value: bigint) => ({
-    to, value, data: '0x' as Hex, token: USDT,
+    to,
+    value,
+    data: '0x' as Hex,
+    token: USDT,
   });
 
   it('counts spending against the envelope from recorded state, not from the caller', async () => {
@@ -157,7 +215,9 @@ describe('authorizeAction — both bounds', () => {
     // the default 100% action tolerance and 50% value tolerance the cumulative
     // ceiling is well under what four 100-wei actions reach.
     const { o, store } = build();
-    const h = await o.hire(request({ bounds: { ...request().bounds, maxActions: 50, totalSpendCap: amount(100_000n) } }));
+    const h = await o.hire(
+      request({ bounds: { ...request().bounds, maxActions: 50, totalSpendCap: amount(100_000n) } }),
+    );
 
     const outcomes: boolean[] = [];
     for (let i = 0; i < 6; i += 1) {

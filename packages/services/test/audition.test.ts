@@ -29,7 +29,12 @@ const window_: AuditionWindow = {
   seed: 'seed-1',
 };
 
-const capital: TokenAmount = { token: USDT, symbol: 'USDT', decimals: 18, amount: 10_000n * 10n ** 18n };
+const capital: TokenAmount = {
+  token: USDT,
+  symbol: 'USDT',
+  decimals: 18,
+  amount: 10_000n * 10n ** 18n,
+};
 
 const position: PositionTemplate = {
   kind: 'pcs-lp',
@@ -96,11 +101,15 @@ class FakeForks implements ForkProvider {
  */
 class BudgetGuard implements EgressGuard {
   readonly #spent = new Map<string, number>();
-  constructor(private readonly budgetUsd: number, private readonly allowlist: readonly string[]) {}
+  constructor(
+    private readonly budgetUsd: number,
+    private readonly allowlist: readonly string[],
+  ) {}
 
   async check(runId: string, host: string, cost: number): Promise<EgressDecision> {
     if (!this.allowlist.includes(host)) return { allowed: false, reason: 'host-not-allowlisted' };
-    if ((this.#spent.get(runId) ?? 0) + cost > this.budgetUsd) return { allowed: false, reason: 'over-budget' };
+    if ((this.#spent.get(runId) ?? 0) + cost > this.budgetUsd)
+      return { allowed: false, reason: 'over-budget' };
     return { allowed: true };
   }
 
@@ -143,13 +152,19 @@ describe('AuditionRunner', () => {
   it('gives every agent the same window, which is what makes the comparison controlled', async () => {
     const forks = new FakeForks([10_000, 10_000, 10_000]);
     await new AuditionRunner({ forks }).run(request([agent('a'), agent('b')]));
-    expect(forks.seenWindows.every((w) => w.id === window_.id && w.forkBlock === window_.forkBlock)).toBe(true);
+    expect(
+      forks.seenWindows.every((w) => w.id === window_.id && w.forkBlock === window_.forkBlock),
+    ).toBe(true);
   });
 
   it('records what an agent did before it threw, because that is still behaviour', async () => {
     const forks = new FakeForks([10_000, 9_500]);
     const report = await new AuditionRunner({ forks }).run(
-      request([agent('boom', async () => { throw new Error('strategy exploded'); })]),
+      request([
+        agent('boom', async () => {
+          throw new Error('strategy exploded');
+        }),
+      ]),
     );
 
     const [r] = report.results;
@@ -174,7 +189,13 @@ describe('AuditionRunner', () => {
   it('takes the peer median across agents that completed, ignoring the ones that did not', async () => {
     const forks = new FakeForks([10_000, 10_100, 10_900, 10_500]);
     const report = await new AuditionRunner({ forks }).run(
-      request([agent('a'), agent('b', async () => { throw new Error('x'); }), agent('c')]),
+      request([
+        agent('a'),
+        agent('b', async () => {
+          throw new Error('x');
+        }),
+        agent('c'),
+      ]),
     );
     // 10_100 and 10_500 completed; 10_900 belonged to the agent that failed.
     expect(report.peerMedianUsd).toBe(10_300);
@@ -197,7 +218,9 @@ describe('AuditionRunner', () => {
       await new AuditionRunner({ forks }).run(
         request([
           agent('a', async (ctx) => {
-            await ctx.fetch('https://data.example/price').catch((e: Error) => { refusal = e.message; });
+            await ctx.fetch('https://data.example/price').catch((e: Error) => {
+              refusal = e.message;
+            });
           }),
         ]),
       );
@@ -207,10 +230,16 @@ describe('AuditionRunner', () => {
     it('refuses a host that is not on the allowlist', async () => {
       const forks = new FakeForks([10_000, 10_000]);
       let refusal = '';
-      await new AuditionRunner({ forks, egress: guard(), httpFetch: async () => new Response('{}') }).run(
+      await new AuditionRunner({
+        forks,
+        egress: guard(),
+        httpFetch: async () => new Response('{}'),
+      }).run(
         request([
           agent('a', async (ctx) => {
-            await ctx.fetch('https://exfiltrate.example/x').catch((e: Error) => { refusal = e.message; });
+            await ctx.fetch('https://exfiltrate.example/x').catch((e: Error) => {
+              refusal = e.message;
+            });
           }),
         ]),
       );
@@ -242,7 +271,10 @@ describe('AuditionRunner', () => {
       const report = await new AuditionRunner({
         forks,
         egress: guard(),
-        httpFetch: async () => { calls += 1; return new Response('{}'); },
+        httpFetch: async () => {
+          calls += 1;
+          return new Response('{}');
+        },
       }).run(
         request([
           agent('greedy', async (ctx) => {
@@ -270,7 +302,16 @@ describe('AuditionRunner', () => {
         forks,
         egress: shared,
         httpFetch: async () => new Response('{}'),
-      }).run(request([agent('a', async (c) => { await spend(c); }), agent('b', async (c) => { await spend(c); })]));
+      }).run(
+        request([
+          agent('a', async (c) => {
+            await spend(c);
+          }),
+          agent('b', async (c) => {
+            await spend(c);
+          }),
+        ]),
+      );
 
       // Both succeed. Against a shared counter the second would have been
       // refused at $1.20 for something the first agent did.

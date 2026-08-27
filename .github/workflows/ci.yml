@@ -20,6 +20,44 @@ jobs:
       - run: npm test
       - run: npm run fmt:check
 
+  # The integration tests skip themselves without TEST_DATABASE_URL, which means
+  # a build with no database reports them as passing. They cover the guarantees
+  # that only exist in Postgres - the unique index that makes hire idempotency
+  # hold across instances, the jsonb codecs, the trace verified on read - so
+  # they get a real database rather than a green tick for having skipped.
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: bench
+          POSTGRES_PASSWORD: bench
+          POSTGRES_DB: bench
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bench"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://bench:bench@localhost:5432/bench
+      DATABASE_URL: postgresql://bench:bench@localhost:5432/bench
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      # The documented setup path is part of the product: if `db:seed` stops
+      # working, a deployment has no catalog. It also self-checks that the
+      # verified-live SQL and isVerifiedLive still agree.
+      - run: npm run db:seed
+
   contracts:
     runs-on: ubuntu-latest
     steps:

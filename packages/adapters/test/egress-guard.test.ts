@@ -2,8 +2,7 @@ import { BenchError } from '@bench/core';
 import { describe, expect, it } from 'vitest';
 import { InMemoryEgressGuard } from '../src/shadow/egress-guard.js';
 
-const guard = () =>
-  new InMemoryEgressGuard({ budgetUsd: 0.25, allowlist: ['api.example.com'] });
+const guard = () => new InMemoryEgressGuard({ budgetUsd: 0.25, allowlist: ['api.example.com'] });
 
 describe('EgressGuard', () => {
   it('denies hosts that are not allowlisted', async () => {

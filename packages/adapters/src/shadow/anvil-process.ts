@@ -88,11 +88,17 @@ export async function startAnvil(opts: AnvilOptions = {}): Promise<AnvilHandle> 
   }
 
   let out = '';
-  child.stdout?.on('data', (c: Buffer) => { out += c.toString(); });
-  child.stderr?.on('data', (c: Buffer) => { out += c.toString(); });
+  child.stdout?.on('data', (c: Buffer) => {
+    out += c.toString();
+  });
+  child.stderr?.on('data', (c: Buffer) => {
+    out += c.toString();
+  });
 
   let exited = false;
-  child.once('exit', () => { exited = true; });
+  child.once('exit', () => {
+    exited = true;
+  });
 
   /**
    * A missing binary arrives here, not at the `spawn` call.
@@ -138,7 +144,10 @@ export async function startAnvil(opts: AnvilOptions = {}): Promise<AnvilHandle> 
   while (Date.now() < deadline) {
     if (spawnError !== null) throw spawnError;
     if (exited) {
-      throw new BenchError('FORK_UNAVAILABLE', `anvil exited during startup:\n${out.slice(-2_000)}`);
+      throw new BenchError(
+        'FORK_UNAVAILABLE',
+        `anvil exited during startup:\n${out.slice(-2_000)}`,
+      );
     }
     if (await rpcReady(url)) {
       return { url, port, pid: child.pid, log: () => out, stop };
@@ -147,5 +156,8 @@ export async function startAnvil(opts: AnvilOptions = {}): Promise<AnvilHandle> 
   }
 
   await stop();
-  throw new BenchError('FORK_UNAVAILABLE', `anvil did not become ready on ${url}:\n${out.slice(-2_000)}`);
+  throw new BenchError(
+    'FORK_UNAVAILABLE',
+    `anvil did not become ready on ${url}:\n${out.slice(-2_000)}`,
+  );
 }

@@ -1,8 +1,5 @@
 import 'server-only';
-import {
-  HireOrchestrator,
-  InMemoryHireStore,
-} from '@bench/services';
+import { HireOrchestrator, InMemoryHireStore } from '@bench/services';
 import { createDb, PgHireStore } from '@bench/db';
 import type {
   Address,
@@ -44,7 +41,11 @@ class SimulatedPayment implements PaymentClient {
     return { quote, signature: '0xsimulated' as Hex, ceiling: quote.amount };
   }
   async settle(auth: Awaited<ReturnType<SimulatedPayment['authorize']>>) {
-    return { txHash: `0xsim${Math.random().toString(16).slice(2, 10)}` as Hex, settled: auth.quote.amount, at: new Date() };
+    return {
+      txHash: `0xsim${Math.random().toString(16).slice(2, 10)}` as Hex,
+      settled: auth.quote.amount,
+      at: new Date(),
+    };
   }
   async spentAgainst() {
     return { token: USDT, symbol: 'USDT', decimals: 18, amount: 0n };
@@ -53,7 +54,12 @@ class SimulatedPayment implements PaymentClient {
 
 class SimulatedEscrow implements EscrowClient {
   #jobs = new Map<string, EscrowJob>();
-  async openJob(spec: { agent: EscrowJob['agent']; client: Address; amount: TokenAmount; disputeWindowSec: number }) {
+  async openJob(spec: {
+    agent: EscrowJob['agent'];
+    client: Address;
+    amount: TokenAmount;
+    disputeWindowSec: number;
+  }) {
     const job: EscrowJob = {
       id: `job_${Math.random().toString(36).slice(2, 10)}`,
       agent: spec.agent,
@@ -125,7 +131,11 @@ function runtime() {
     globalForHire.__benchHire = {
       store,
       durable,
-      orchestrator: new HireOrchestrator({ payment: new SimulatedPayment(), escrow: new SimulatedEscrow(), store }),
+      orchestrator: new HireOrchestrator({
+        payment: new SimulatedPayment(),
+        escrow: new SimulatedEscrow(),
+        store,
+      }),
     };
   }
   return globalForHire.__benchHire;

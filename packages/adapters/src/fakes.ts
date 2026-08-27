@@ -49,9 +49,7 @@ export class FakeRegistryClient implements RegistryClient {
   }
 
   async getAgent(id: AgentId): Promise<AgentRecord | null> {
-    return (
-      this.agents.find((a) => a.id.tokenId === id.tokenId && a.id.chain === id.chain) ?? null
-    );
+    return this.agents.find((a) => a.id.tokenId === id.tokenId && a.id.chain === id.chain) ?? null;
   }
 
   async resolveCard(uri: string): Promise<AgentCard> {

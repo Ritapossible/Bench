@@ -19,8 +19,12 @@ import pg from 'pg';
  * and is safe to call from every instance on boot: concurrent callers queue on
  * the lock and the losers find nothing left to apply.
  */
-export async function runMigrations(connectionString: string, migrationsFolder?: string): Promise<void> {
-  const folder = migrationsFolder ?? resolve(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
+export async function runMigrations(
+  connectionString: string,
+  migrationsFolder?: string,
+): Promise<void> {
+  const folder =
+    migrationsFolder ?? resolve(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
   const pool = new pg.Pool({ connectionString, max: 1 });
   try {
     await migrate(drizzle(pool), { migrationsFolder: folder });

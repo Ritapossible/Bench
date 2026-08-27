@@ -75,7 +75,8 @@ async function main(): Promise<void> {
   // its own data and it is better to find that out here than on the front page.
   let live = 0;
   for (const seed of SEEDS) {
-    if (isVerifiedLive(await catalog.liveness({ chain: CHAIN, tokenId: BigInt(seed.tokenId) }))) live += 1;
+    if (isVerifiedLive(await catalog.liveness({ chain: CHAIN, tokenId: BigInt(seed.tokenId) })))
+      live += 1;
   }
 
   console.log(

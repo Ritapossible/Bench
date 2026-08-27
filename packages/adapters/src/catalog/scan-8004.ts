@@ -67,7 +67,9 @@ class Pacer {
 }
 
 /** Narrow an unknown JSON body to the facts we are willing to publish. */
-export function parseAgentPayload(body: unknown): { known: boolean; endpointCount: number | null } | null {
+export function parseAgentPayload(
+  body: unknown,
+): { known: boolean; endpointCount: number | null } | null {
   if (body === null || typeof body !== 'object') return null;
   const o = body as Record<string, unknown>;
 
@@ -76,7 +78,8 @@ export function parseAgentPayload(body: unknown): { known: boolean; endpointCoun
   if (inner === null || typeof inner !== 'object') return null;
 
   // An explicit not-found is a *successful* comparison, not a failure.
-  if (o['error'] === 'not_found' || o['found'] === false) return { known: false, endpointCount: null };
+  if (o['error'] === 'not_found' || o['found'] === false)
+    return { known: false, endpointCount: null };
 
   const hasIdentity =
     typeof inner['tokenId'] === 'string' ||
@@ -187,7 +190,9 @@ export class Scan8004CrossReference implements CrossReferenceSource {
       records,
       checkedAt,
       ...(failed + unrecognised > 0
-        ? { note: `${failed} request(s) failed, ${unrecognised} unrecognised response(s); omitted from the comparison` }
+        ? {
+            note: `${failed} request(s) failed, ${unrecognised} unrecognised response(s); omitted from the comparison`,
+          }
         : {}),
     };
   }

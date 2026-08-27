@@ -138,13 +138,14 @@ export class AuditionRunner {
     // different measurement from the ones it is compared against.
     const doNothing = await this.#baseline(req);
 
-    const results = await mapLimit(
-      req.agents,
-      req.maxConcurrentForks ?? 4,
-      async (agent) => this.#runOne(req, agent, doNothing, hash),
+    const results = await mapLimit(req.agents, req.maxConcurrentForks ?? 4, async (agent) =>
+      this.#runOne(req, agent, doNothing, hash),
     );
 
-    const completed = results.filter((r) => !r.failed).map((r) => r.terminal.valueUsd).sort((a, b) => a - b);
+    const completed = results
+      .filter((r) => !r.failed)
+      .map((r) => r.terminal.valueUsd)
+      .sort((a, b) => a - b);
     const peerMedianUsd =
       completed.length === 0
         ? null
@@ -152,7 +153,14 @@ export class AuditionRunner {
           ? completed[(completed.length - 1) / 2]!
           : (completed[completed.length / 2 - 1]! + completed[completed.length / 2]!) / 2;
 
-    return { window: req.window, position: req.position, doNothing, results, replayHash: hash, peerMedianUsd };
+    return {
+      window: req.window,
+      position: req.position,
+      doNothing,
+      results,
+      replayHash: hash,
+      peerMedianUsd,
+    };
   }
 
   /**
@@ -197,7 +205,10 @@ export class AuditionRunner {
   }
 
   async #baseline(req: AuditionRequest): Promise<TerminalState> {
-    const fork = await this.deps.forks.spawn({ window: req.window, archiveRpcUrl: req.archiveRpcUrl });
+    const fork = await this.deps.forks.spawn({
+      window: req.window,
+      archiveRpcUrl: req.archiveRpcUrl,
+    });
     try {
       await fork.seedPosition(req.position);
       return await fork.terminalState(req.position);
@@ -212,7 +223,10 @@ export class AuditionRunner {
     doNothing: TerminalState,
     hash: Hex,
   ): Promise<AuditionResult> {
-    const fork = await this.deps.forks.spawn({ window: req.window, archiveRpcUrl: req.archiveRpcUrl });
+    const fork = await this.deps.forks.spawn({
+      window: req.window,
+      archiveRpcUrl: req.archiveRpcUrl,
+    });
     const actions: InterceptedAction[] = [];
 
     try {

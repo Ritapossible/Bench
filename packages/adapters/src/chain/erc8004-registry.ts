@@ -192,11 +192,15 @@ export class Erc8004RegistryClient implements RegistryClient {
    * There is intentionally no reputation write anywhere in Bench.
    */
   async writeValidation(_entry: ValidationEntry): Promise<Hex> {
-    return notImplemented('Erc8004RegistryClient.writeValidation (verify Validation Registry ABI first)');
+    return notImplemented(
+      'Erc8004RegistryClient.writeValidation (verify Validation Registry ABI first)',
+    );
   }
 
   async anchorProbeDigest(_digest: Hex): Promise<Hex> {
-    return notImplemented('Erc8004RegistryClient.anchorProbeDigest (needs anchor target + wallet client)');
+    return notImplemented(
+      'Erc8004RegistryClient.anchorProbeDigest (needs anchor target + wallet client)',
+    );
   }
 
   /**

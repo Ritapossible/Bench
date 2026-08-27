@@ -30,11 +30,35 @@ export interface Score {
 }
 
 export type CategoryMetric =
-  | { readonly kind: 'rebalancing'; readonly inRangeBps: number; readonly rebalanceCount: number; readonly feesEarnedUsd: number }
-  | { readonly kind: 'yield'; readonly riskAdjustedReturnBps: number; readonly maxDrawdownUsd: number }
-  | { readonly kind: 'grid'; readonly realizedPnlUsd: number; readonly maxDrawdownUsd: number; readonly fillQualityBps: number }
-  | { readonly kind: 'monitoring'; readonly precision: number; readonly recall: number; readonly falseAlarmRate: number }
-  | { readonly kind: 'health-factor'; readonly medianLeadTimeSec: number; readonly missedEvents: number; readonly falseAlarmRate: number };
+  | {
+      readonly kind: 'rebalancing';
+      readonly inRangeBps: number;
+      readonly rebalanceCount: number;
+      readonly feesEarnedUsd: number;
+    }
+  | {
+      readonly kind: 'yield';
+      readonly riskAdjustedReturnBps: number;
+      readonly maxDrawdownUsd: number;
+    }
+  | {
+      readonly kind: 'grid';
+      readonly realizedPnlUsd: number;
+      readonly maxDrawdownUsd: number;
+      readonly fillQualityBps: number;
+    }
+  | {
+      readonly kind: 'monitoring';
+      readonly precision: number;
+      readonly recall: number;
+      readonly falseAlarmRate: number;
+    }
+  | {
+      readonly kind: 'health-factor';
+      readonly medianLeadTimeSec: number;
+      readonly missedEvents: number;
+      readonly falseAlarmRate: number;
+    };
 
 /**
  * Sample size below which a score is shown but explicitly marked thin. Never

@@ -31,7 +31,9 @@ export async function mapLimit<T, R>(
 }
 
 /** Outcome-preserving variant: one failure never discards the batch. */
-export type Settled<R> = { readonly ok: true; readonly value: R } | { readonly ok: false; readonly error: unknown };
+export type Settled<R> =
+  | { readonly ok: true; readonly value: R }
+  | { readonly ok: false; readonly error: unknown };
 
 export async function mapLimitSettled<T, R>(
   items: readonly T[],

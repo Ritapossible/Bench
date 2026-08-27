@@ -16,7 +16,11 @@ const STEP_TITLE: Record<string, string> = {
   'reviewed-summary': 'Confirm, together',
 };
 
-const STEPS = CONSENT_STEPS.map((id) => ({ id, title: STEP_TITLE[id] ?? id, prompt: CONSENT_PROMPTS[id] }));
+const STEPS = CONSENT_STEPS.map((id) => ({
+  id,
+  title: STEP_TITLE[id] ?? id,
+  prompt: CONSENT_PROMPTS[id],
+}));
 
 const VENUS = '0xfd5840cd36d94d7229439859c0112a4185bc0255';
 const PCS = '0x46a15b0b27311cedf172ab29e4f4766fbe7f4364';
@@ -43,14 +47,18 @@ export default async function HirePage({
     <section className="wrap section">
       <div className="stack stack-32" style={{ maxWidth: '46rem' }}>
         <div className="stack stack-16">
-          <Link href={agentHref(chain, BigInt(tokenId))} className="small" style={{ textDecoration: 'none' }}>
+          <Link
+            href={agentHref(chain, BigInt(tokenId))}
+            className="small"
+            style={{ textDecoration: 'none' }}
+          >
             &larr; {card?.name ?? 'Agent'}
           </Link>
           <span className="eyebrow">Hire</span>
           <h1 className="h2">Set the bounds before anything is signed.</h1>
           <p className="lead">
-            Five confirmations, in order, and the last one shows all of them together. Nothing moves until the
-            final step - and a hired agent is still held to what it did in audition.
+            Five confirmations, in order, and the last one shows all of them together. Nothing moves
+            until the final step - and a hired agent is still held to what it did in audition.
           </p>
         </div>
 
@@ -58,11 +66,15 @@ export default async function HirePage({
           <div className="card stack stack-12">
             <p className="quote">This agent has no audition record yet.</p>
             <p className="body">
-              Bench will not offer a hire without one. There is nothing to rank it on, and nothing to derive a
-              behavioural bound from - which would leave the spend cap as the only thing standing between the
-              agent and your position.
+              Bench will not offer a hire without one. There is nothing to rank it on, and nothing
+              to derive a behavioural bound from - which would leave the spend cap as the only thing
+              standing between the agent and your position.
             </p>
-            <div><Link href="/agents" className="btn btn-outline btn-sm">Back to the catalog</Link></div>
+            <div>
+              <Link href="/agents" className="btn btn-outline btn-sm">
+                Back to the catalog
+              </Link>
+            </div>
           </div>
         ) : (
           <HireCheckout

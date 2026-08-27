@@ -12,9 +12,9 @@ import { assertPublicUrl, safeFetch } from '../src/net/safe-fetch.js';
 describe('assertPublicUrl', () => {
   it('blocks cloud instance metadata', async () => {
     // 169.254.169.254 is the single highest-value SSRF target on any cloud host.
-    await expect(assertPublicUrl('http://169.254.169.254/latest/meta-data/')).rejects.toBeInstanceOf(
-      BenchError,
-    );
+    await expect(
+      assertPublicUrl('http://169.254.169.254/latest/meta-data/'),
+    ).rejects.toBeInstanceOf(BenchError);
   });
 
   it('blocks loopback, which is where our own database lives', async () => {

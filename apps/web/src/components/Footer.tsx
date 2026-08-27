@@ -14,21 +14,33 @@ export function Footer() {
 
         <div className="row-between" style={{ gap: '1rem' }}>
           <div className="row" style={{ gap: '1.25rem' }}>
-            <Link href="/agents" className="small" style={{ textDecoration: 'none' }}>Catalog</Link>
-            <Link href="/registry" className="small" style={{ textDecoration: 'none' }}>Registry health</Link>
-            <Link href="/report" className="small" style={{ textDecoration: 'none' }}>Your report</Link>
-            <Link href="/docs" className="small" style={{ textDecoration: 'none' }}>Docs</Link>
+            <Link href="/agents" className="small" style={{ textDecoration: 'none' }}>
+              Catalog
+            </Link>
+            <Link href="/registry" className="small" style={{ textDecoration: 'none' }}>
+              Registry health
+            </Link>
+            <Link href="/report" className="small" style={{ textDecoration: 'none' }}>
+              Your report
+            </Link>
+            <Link href="/docs" className="small" style={{ textDecoration: 'none' }}>
+              Docs
+            </Link>
           </div>
-          <a href="https://github.com/Ritapossible/Bench" className="small" style={{ textDecoration: 'none' }}>
+          <a
+            href="https://github.com/Ritapossible/Bench"
+            className="small"
+            style={{ textDecoration: 'none' }}
+          >
             GitHub ↗
           </a>
         </div>
 
         <p className="tiny">
           Built for BNB Chain’s{' '}
-          <a href="https://www.bnbchain.org/en/hackathons/smart-money-era">The Smart Money Era</a> hackathon.
-          Testnet only - no real value has touched this deployment. Audition results are simulated and labelled
-          as such throughout.
+          <a href="https://www.bnbchain.org/en/hackathons/smart-money-era">The Smart Money Era</a>{' '}
+          hackathon. Testnet only - no real value has touched this deployment. Audition results are
+          simulated and labelled as such throughout.
         </p>
       </div>
     </footer>

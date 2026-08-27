@@ -92,15 +92,15 @@ describe('checkMandate', () => {
   });
 
   it('refuses contract creation, which has no destination to allowlist', () => {
-    expect(checkMandate(candidate({ to: null }), mandate, EMPTY_MANDATE_STATE, now).rules).toContain(
-      'contract-not-allowlisted',
-    );
+    expect(
+      checkMandate(candidate({ to: null }), mandate, EMPTY_MANDATE_STATE, now).rules,
+    ).toContain('contract-not-allowlisted');
   });
 
   it('enforces per-transaction and cumulative ceilings separately', () => {
-    expect(checkMandate(candidate({ value: 201n }), mandate, EMPTY_MANDATE_STATE, now).rules).toContain(
-      'per-tx-cap-exceeded',
-    );
+    expect(
+      checkMandate(candidate({ value: 201n }), mandate, EMPTY_MANDATE_STATE, now).rules,
+    ).toContain('per-tx-cap-exceeded');
     const nearlySpent = { ...EMPTY_MANDATE_STATE, spent: 950n };
     expect(checkMandate(candidate({ value: 100n }), mandate, nearlySpent, now).rules).toContain(
       'total-cap-exceeded',
@@ -108,19 +108,23 @@ describe('checkMandate', () => {
   });
 
   it('refuses a different token than the one the cap is denominated in', () => {
-    expect(checkMandate(candidate({ token: STRANGER }), mandate, EMPTY_MANDATE_STATE, now).rules).toContain(
-      'wrong-token',
-    );
+    expect(
+      checkMandate(candidate({ token: STRANGER }), mandate, EMPTY_MANDATE_STATE, now).rules,
+    ).toContain('wrong-token');
   });
 
   it('stops a loop that stays individually in-cap', () => {
     const used = { ...EMPTY_MANDATE_STATE, actions: 5 };
-    expect(checkMandate(candidate({ value: 1n }), mandate, used, now).rules).toContain('action-limit-reached');
+    expect(checkMandate(candidate({ value: 1n }), mandate, used, now).rules).toContain(
+      'action-limit-reached',
+    );
   });
 
   it('expires on its own, without anyone intervening', () => {
     const late = new Date('2026-09-02T00:00:00Z');
-    expect(checkMandate(candidate(), mandate, EMPTY_MANDATE_STATE, late).rules).toContain('expired');
+    expect(checkMandate(candidate(), mandate, EMPTY_MANDATE_STATE, late).rules).toContain(
+      'expired',
+    );
   });
 
   it('revocation beats an otherwise perfectly valid transaction', () => {
@@ -176,8 +180,20 @@ describe('hire state machine', () => {
 describe('decision trace', () => {
   const build = (): readonly TraceEntry[] => {
     let t: readonly TraceEntry[] = [];
-    t = appendTrace(t, { at: now, step: 'quote', outcome: 'ok', rules: [], detail: 'quoted 5 USDT' });
-    t = appendTrace(t, { at: now, step: 'fund', outcome: 'ok', rules: [], detail: 'escrow funded' });
+    t = appendTrace(t, {
+      at: now,
+      step: 'quote',
+      outcome: 'ok',
+      rules: [],
+      detail: 'quoted 5 USDT',
+    });
+    t = appendTrace(t, {
+      at: now,
+      step: 'fund',
+      outcome: 'ok',
+      rules: [],
+      detail: 'escrow funded',
+    });
     t = appendTrace(t, {
       at: now,
       step: 'gate-check',

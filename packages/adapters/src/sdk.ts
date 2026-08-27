@@ -29,7 +29,11 @@ export const SDK_PINNED_VERSION = '0.5.0' as const;
  * session keys) is TypeScript-only — that constraint is why this whole
  * codebase is TypeScript rather than Python.
  */
-export const SDK_WALLET_PROVIDERS = ['EVMWalletProvider', 'TWAKProvider', 'AltanaWalletProvider'] as const;
+export const SDK_WALLET_PROVIDERS = [
+  'EVMWalletProvider',
+  'TWAKProvider',
+  'AltanaWalletProvider',
+] as const;
 
 export type SdkWalletProviderName = (typeof SDK_WALLET_PROVIDERS)[number];
 

@@ -43,7 +43,10 @@ export function HireCheckout(props: HireCheckoutProps) {
 
   // Generated once per checkout. A double-submit, a refresh, or a flaky
   // connection reaches the same hire instead of paying twice.
-  const idempotencyKey = useMemo(() => `web_${Math.random().toString(36).slice(2)}_${Date.now()}`, []);
+  const idempotencyKey = useMemo(
+    () => `web_${Math.random().toString(36).slice(2)}_${Date.now()}`,
+    [],
+  );
 
   const current = props.steps.find((s) => !done.includes(s.id))?.id ?? null;
   const confirm = (s: string) => setDone((d) => (d.includes(s) ? d : [...d, s]));
@@ -69,7 +72,9 @@ export function HireCheckout(props: HireCheckoutProps) {
         return (
           <section key={step} className="step" data-state={state}>
             <header className="step-head">
-              <span className="step-num" aria-hidden="true">{state === 'done' ? '✓' : i + 1}</span>
+              <span className="step-num" aria-hidden="true">
+                {state === 'done' ? '✓' : i + 1}
+              </span>
               <div className="stack stack-4" style={{ minWidth: 0 }}>
                 <h3 className="h4">{title}</h3>
                 <p className="tiny">{prompt}</p>
@@ -87,8 +92,9 @@ export function HireCheckout(props: HireCheckoutProps) {
                   <>
                     <p className="body">{props.auditionSummary}</p>
                     <p className="small">
-                      This record is also the bound. A hired agent cannot do anything it did not do here - that is
-                      the envelope, and it is fixed at the moment you hire, so it cannot widen afterwards.
+                      This record is also the bound. A hired agent cannot do anything it did not do
+                      here - that is the envelope, and it is fixed at the moment you hire, so it
+                      cannot widen afterwards.
                     </p>
                   </>
                 ) : null}
@@ -96,25 +102,56 @@ export function HireCheckout(props: HireCheckoutProps) {
                 {step === 'set-spend-cap' ? (
                   <div className="grid grid-3">
                     <Field label="Total ceiling" hint="across the whole hire">
-                      <input className="field" type="number" min={1} value={totalCap} onChange={(e) => setTotalCap(Number(e.target.value))} />
+                      <input
+                        className="field"
+                        type="number"
+                        min={1}
+                        value={totalCap}
+                        onChange={(e) => setTotalCap(Number(e.target.value))}
+                      />
                     </Field>
                     <Field label="Per transaction" hint="largest single action">
-                      <input className="field" type="number" min={1} value={perTxCap} onChange={(e) => setPerTxCap(Number(e.target.value))} />
+                      <input
+                        className="field"
+                        type="number"
+                        min={1}
+                        value={perTxCap}
+                        onChange={(e) => setPerTxCap(Number(e.target.value))}
+                      />
                     </Field>
                     <Field label="Max actions" hint="stops an in-cap loop">
-                      <input className="field" type="number" min={1} value={maxActions} onChange={(e) => setMaxActions(Number(e.target.value))} />
+                      <input
+                        className="field"
+                        type="number"
+                        min={1}
+                        value={maxActions}
+                        onChange={(e) => setMaxActions(Number(e.target.value))}
+                      />
                     </Field>
                   </div>
                 ) : null}
 
                 {step === 'set-allowlist' ? (
                   <>
-                    <Field label="Contracts it may touch" hint="one address per line; anything else is refused">
-                      <textarea className="field" rows={4} style={{ borderRadius: 'var(--r-sm)', fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }} value={allowlist} onChange={(e) => setAllowlist(e.target.value)} />
+                    <Field
+                      label="Contracts it may touch"
+                      hint="one address per line; anything else is refused"
+                    >
+                      <textarea
+                        className="field"
+                        rows={4}
+                        style={{
+                          borderRadius: 'var(--r-sm)',
+                          fontFamily: 'ui-monospace, monospace',
+                          fontSize: '0.85rem',
+                        }}
+                        value={allowlist}
+                        onChange={(e) => setAllowlist(e.target.value)}
+                      />
                     </Field>
                     <p className="small">
-                      {allowCount} valid address{allowCount === 1 ? '' : 'es'}. Pre-filled from the contracts this
-                      agent actually used in audition.
+                      {allowCount} valid address{allowCount === 1 ? '' : 'es'}. Pre-filled from the
+                      contracts this agent actually used in audition.
                     </p>
                   </>
                 ) : null}
@@ -122,10 +159,21 @@ export function HireCheckout(props: HireCheckoutProps) {
                 {step === 'set-expiry' ? (
                   <>
                     <Field label="Authority ends in" hint="hours from now">
-                      <input className="field" type="number" min={1} value={expiryHours} onChange={(e) => setExpiryHours(Number(e.target.value))} />
+                      <input
+                        className="field"
+                        type="number"
+                        min={1}
+                        value={expiryHours}
+                        onChange={(e) => setExpiryHours(Number(e.target.value))}
+                      />
                     </Field>
                     <Field label="What you want done" hint="recorded with the escrow job">
-                      <input className="field" value={taskSpec} onChange={(e) => setTaskSpec(e.target.value)} placeholder="keep my Venus health factor above 1.5" />
+                      <input
+                        className="field"
+                        value={taskSpec}
+                        onChange={(e) => setTaskSpec(e.target.value)}
+                        placeholder="keep my Venus health factor above 1.5"
+                      />
                     </Field>
                   </>
                 ) : null}
@@ -135,19 +183,40 @@ export function HireCheckout(props: HireCheckoutProps) {
                     <div className="tablewrap">
                       <table className="t">
                         <tbody>
-                          <tr><td>Agent</td><td className="num">{props.agentName}</td></tr>
-                          <tr><td>Price</td><td className="num mono">{usd(props.price)}</td></tr>
-                          <tr><td>Total ceiling</td><td className="num mono">{usd(totalCap)}</td></tr>
-                          <tr><td>Per transaction</td><td className="num mono">{usd(perTxCap)}</td></tr>
-                          <tr><td>Max actions</td><td className="num mono">{maxActions}</td></tr>
-                          <tr><td>Contracts allowed</td><td className="num mono">{allowCount}</td></tr>
-                          <tr><td>Expires</td><td className="num mono">{expiryHours}h from now</td></tr>
+                          <tr>
+                            <td>Agent</td>
+                            <td className="num">{props.agentName}</td>
+                          </tr>
+                          <tr>
+                            <td>Price</td>
+                            <td className="num mono">{usd(props.price)}</td>
+                          </tr>
+                          <tr>
+                            <td>Total ceiling</td>
+                            <td className="num mono">{usd(totalCap)}</td>
+                          </tr>
+                          <tr>
+                            <td>Per transaction</td>
+                            <td className="num mono">{usd(perTxCap)}</td>
+                          </tr>
+                          <tr>
+                            <td>Max actions</td>
+                            <td className="num mono">{maxActions}</td>
+                          </tr>
+                          <tr>
+                            <td>Contracts allowed</td>
+                            <td className="num mono">{allowCount}</td>
+                          </tr>
+                          <tr>
+                            <td>Expires</td>
+                            <td className="num mono">{expiryHours}h from now</td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
                     <p className="small">
-                      Every bound above, as one decision. Nothing is signed and no escrow opens until you confirm
-                      here - and you can revoke at any time afterwards.
+                      Every bound above, as one decision. Nothing is signed and no escrow opens
+                      until you confirm here - and you can revoke at any time afterwards.
                     </p>
                   </div>
                 ) : null}
@@ -164,19 +233,35 @@ export function HireCheckout(props: HireCheckoutProps) {
       })}
 
       <div className="card stack stack-12">
-        <button className="btn btn-primary" type="submit" disabled={current !== null} style={current !== null ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}>
-          {current === null ? `Hire ${props.agentName}` : `Complete all ${props.steps.length} steps to hire`}
+        <button
+          className="btn btn-primary"
+          type="submit"
+          disabled={current !== null}
+          style={current !== null ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+        >
+          {current === null
+            ? `Hire ${props.agentName}`
+            : `Complete all ${props.steps.length} steps to hire`}
         </button>
         <p className="tiny">
-          Settlement is simulated on this deployment - the mandate, consent, decision trace and both bounds are the
-          real implementations, and x402 and ERC-8183 replace the two stubbed adapters without touching them.
+          Settlement is simulated on this deployment - the mandate, consent, decision trace and both
+          bounds are the real implementations, and x402 and ERC-8183 replace the two stubbed
+          adapters without touching them.
         </p>
       </div>
     </form>
   );
 }
 
-function Field({ label, hint, children }: { readonly label: string; readonly hint: string; readonly children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  readonly label: string;
+  readonly hint: string;
+  readonly children: React.ReactNode;
+}) {
   return (
     <label className="stack stack-4">
       <span className="h4">{label}</span>

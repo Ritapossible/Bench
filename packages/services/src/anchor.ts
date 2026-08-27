@@ -29,7 +29,13 @@ export interface AnchorOptions {
 
 export type AnchorTickResult =
   | { readonly anchored: false; readonly pending: number }
-  | { readonly anchored: true; readonly pending: number; readonly digest: Hex; readonly txHash: Hex; readonly probeCount: number };
+  | {
+      readonly anchored: true;
+      readonly pending: number;
+      readonly digest: Hex;
+      readonly txHash: Hex;
+      readonly probeCount: number;
+    };
 
 const DEFAULTS = { batchSize: 500, minBatch: 25 } as const;
 

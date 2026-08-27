@@ -27,7 +27,9 @@ export async function createHire(form: FormData): Promise<void> {
   if (agent === null) redirect('/agents');
 
   const runs = agent.runs.map((r, i) => ({
-    actions: (agent.outcomes[i] === undefined ? [] : syntheticActions(agent.outcomes[i]!.actionCount)) as readonly InterceptedAction[],
+    actions: (agent.outcomes[i] === undefined
+      ? []
+      : syntheticActions(agent.outcomes[i]!.actionCount)) as readonly InterceptedAction[],
     positionDropUsd: Math.max(0, -(agent.outcomes[i]?.deltaVsDoNothingUsd ?? 0)),
   }));
 
@@ -46,7 +48,13 @@ export async function createHire(form: FormData): Promise<void> {
       expiresAt: new Date(Date.now() + Number(form.get('expiryHours') ?? 24) * 3_600_000),
       maxActions: Number(form.get('maxActions') ?? 20),
     },
-    consent: ['reviewed-audition', 'set-spend-cap', 'set-allowlist', 'set-expiry', 'reviewed-summary'],
+    consent: [
+      'reviewed-audition',
+      'set-spend-cap',
+      'set-allowlist',
+      'set-expiry',
+      'reviewed-summary',
+    ],
     taskSpec: String(form.get('taskSpec') ?? '').slice(0, 500),
     price: usdt(Number(form.get('price') ?? 5)),
     payTo: DEMO_OWNER,

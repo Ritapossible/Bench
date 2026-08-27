@@ -32,7 +32,15 @@ export interface AgentRow {
  * equal depth, so the filter presents them as peers rather than burying three
  * of them behind a dropdown.
  */
-const CATEGORIES = ['all', 'rebalancing', 'grid', 'yield', 'health-factor', 'monitoring', 'other'] as const;
+const CATEGORIES = [
+  'all',
+  'rebalancing',
+  'grid',
+  'yield',
+  'health-factor',
+  'monitoring',
+  'other',
+] as const;
 
 export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) {
   const [liveOnly, setLiveOnly] = useState(true);
@@ -63,8 +71,14 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
         </div>
 
         <label className="filter-toggle">
-          <input type="checkbox" checked={liveOnly} onChange={(e) => setLiveOnly(e.target.checked)} />
-          <span className="small ink" style={{ whiteSpace: 'nowrap' }}>Verified live only</span>
+          <input
+            type="checkbox"
+            checked={liveOnly}
+            onChange={(e) => setLiveOnly(e.target.checked)}
+          />
+          <span className="small ink" style={{ whiteSpace: 'nowrap' }}>
+            Verified live only
+          </span>
         </label>
       </div>
 
@@ -82,9 +96,13 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
               <div className="sumcard-head">
                 <h3 className="h4">{r.name}</h3>
                 {r.verifiedLive ? (
-                  <span className="badge badge-live"><span className="dot" /> Verified live</span>
+                  <span className="badge badge-live">
+                    <span className="dot" /> Verified live
+                  </span>
                 ) : (
-                  <span className="badge badge-dead">{r.conformant ? 'Not verified' : 'Non-conformant'}</span>
+                  <span className="badge badge-dead">
+                    {r.conformant ? 'Not verified' : 'Non-conformant'}
+                  </span>
                 )}
                 {r.thin ? <span className="badge badge-thin">Thin sample</span> : null}
               </div>
@@ -111,8 +129,8 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
               <div className="sumcard-body">
                 <p className="body">{r.description || 'Agent card did not resolve.'}</p>
                 <p className="tiny mono">
-                  #{r.tokenId} · {CATEGORY_LABEL[r.category] ?? r.category} · uptime {pct(r.uptimeBps)} · p95{' '}
-                  {ms(r.p95LatencyMs)} · {r.probeCount} probes
+                  #{r.tokenId} · {CATEGORY_LABEL[r.category] ?? r.category} · uptime{' '}
+                  {pct(r.uptimeBps)} · p95 {ms(r.p95LatencyMs)} · {r.probeCount} probes
                 </p>
               </div>
             </div>
@@ -120,7 +138,9 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
         ))}
 
         {shown.length === 0 ? (
-          <div className="card"><p className="body">Nothing matches. Loosen a filter.</p></div>
+          <div className="card">
+            <p className="body">Nothing matches. Loosen a filter.</p>
+          </div>
         ) : null}
       </div>
     </div>

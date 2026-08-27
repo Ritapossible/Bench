@@ -50,7 +50,11 @@ export interface InterceptedAction {
   readonly data: Hex;
   /** Best-effort human-readable decode; null when the ABI is unknown. */
   readonly decoded: { readonly signature: string; readonly args: unknown } | null;
-  readonly simulated: { readonly success: boolean; readonly gasUsed: bigint; readonly revertReason?: string };
+  readonly simulated: {
+    readonly success: boolean;
+    readonly gasUsed: bigint;
+    readonly revertReason?: string;
+  };
 }
 
 export type ShadowRunStatus = 'queued' | 'running' | 'complete' | 'failed' | 'egress-halted';

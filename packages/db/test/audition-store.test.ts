@@ -22,7 +22,12 @@ const OWNER = '0x1111111111111111111111111111111111111111' as Address;
 
 const agent = (tokenId: bigint): AgentId => ({ chain: 'bsc-testnet', tokenId });
 
-const capital: TokenAmount = { token: USDT, symbol: 'USDT', decimals: 18, amount: 5_000_000_000_000_000_000_000n };
+const capital: TokenAmount = {
+  token: USDT,
+  symbol: 'USDT',
+  decimals: 18,
+  amount: 5_000_000_000_000_000_000_000n,
+};
 
 const agentRecord = (tokenId: bigint): AgentRecord => ({
   id: agent(tokenId),
@@ -56,7 +61,12 @@ const run = (id: string, a: AgentId): ShadowRun => ({
   position: {
     kind: 'pcs-lp',
     label: 'PCS BNB/USDT 0.05%',
-    params: { pool: '0xabc', lowerTick: -100, upperTick: 100, liquidity: 12_345_678_901_234_567_890n },
+    params: {
+      pool: '0xabc',
+      lowerTick: -100,
+      upperTick: 100,
+      liquidity: 12_345_678_901_234_567_890n,
+    },
     capital,
   },
   status: 'finished',
@@ -69,7 +79,10 @@ const score = (a: AgentId, over: Partial<Score> = {}): Score => ({
   agent: a,
   category: 'rebalancing',
   basis: 'simulated',
-  window: { start: new Date('2026-08-01T00:00:00.000Z'), end: new Date('2026-08-08T00:00:00.000Z') },
+  window: {
+    start: new Date('2026-08-01T00:00:00.000Z'),
+    end: new Date('2026-08-08T00:00:00.000Z'),
+  },
   sampleSize: 6,
   baseline: { kind: 'do-nothing' },
   normalized: 0.72,
@@ -141,7 +154,10 @@ describeDb('PgAuditionStore', () => {
     await store.putScore(score(agent(1n)));
     await store.putScore(
       score(agent(1n), {
-        window: { start: new Date('2026-08-08T00:00:00.000Z'), end: new Date('2026-08-15T00:00:00.000Z') },
+        window: {
+          start: new Date('2026-08-08T00:00:00.000Z'),
+          end: new Date('2026-08-15T00:00:00.000Z'),
+        },
         normalized: 0.81,
       }),
     );

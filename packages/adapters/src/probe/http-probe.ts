@@ -168,12 +168,20 @@ export class HttpProbeClient implements ProbeClient {
     });
 
     if (res.status !== 200) {
-      return { conformant: false, detail: `initialize returned HTTP ${res.status}`, latencyMs: res.latencyMs };
+      return {
+        conformant: false,
+        detail: `initialize returned HTTP ${res.status}`,
+        latencyMs: res.latencyMs,
+      };
     }
 
     const payload = parseJsonObject(extractSseData(res.body));
     if (payload === null) {
-      return { conformant: false, detail: 'initialize response is not JSON-RPC', latencyMs: res.latencyMs };
+      return {
+        conformant: false,
+        detail: 'initialize response is not JSON-RPC',
+        latencyMs: res.latencyMs,
+      };
     }
     if (payload['jsonrpc'] !== '2.0') {
       return { conformant: false, detail: 'response is not jsonrpc 2.0', latencyMs: res.latencyMs };
@@ -181,9 +189,10 @@ export class HttpProbeClient implements ProbeClient {
     const result = payload['result'];
     if (typeof result !== 'object' || result === null) {
       const err = payload['error'];
-      const detail = typeof err === 'object' && err !== null
-        ? `initialize errored: ${JSON.stringify(err).slice(0, 120)}`
-        : 'initialize returned no result';
+      const detail =
+        typeof err === 'object' && err !== null
+          ? `initialize errored: ${JSON.stringify(err).slice(0, 120)}`
+          : 'initialize returned no result';
       return { conformant: false, detail, latencyMs: res.latencyMs };
     }
     const rec = result as Record<string, unknown>;
@@ -212,13 +221,22 @@ export class HttpProbeClient implements ProbeClient {
     }
     const doc = parseJsonObject(res.body);
     if (doc === null) {
-      return { conformant: false, detail: 'descriptor is not a JSON object', latencyMs: res.latencyMs };
+      return {
+        conformant: false,
+        detail: 'descriptor is not a JSON object',
+        latencyMs: res.latencyMs,
+      };
     }
-    const hasSchema = typeof doc['schema_version'] === 'string' || typeof doc['schemaVersion'] === 'string';
+    const hasSchema =
+      typeof doc['schema_version'] === 'string' || typeof doc['schemaVersion'] === 'string';
     const hasIdentity = typeof doc['name'] === 'string';
     return hasSchema && hasIdentity
       ? { conformant: true, detail: 'oasf descriptor ok', latencyMs: res.latencyMs }
-      : { conformant: false, detail: 'descriptor missing schema_version or name', latencyMs: res.latencyMs };
+      : {
+          conformant: false,
+          detail: 'descriptor missing schema_version or name',
+          latencyMs: res.latencyMs,
+        };
   }
 }
 

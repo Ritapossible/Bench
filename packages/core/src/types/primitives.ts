@@ -35,7 +35,10 @@ export interface TokenAmount {
  * people deciding whether an agent misbehaved. Trailing zeros are trimmed so a
  * whole number reads as one.
  */
-export function formatTokenAmount(a: TokenAmount, opts: { readonly symbol?: boolean } = {}): string {
+export function formatTokenAmount(
+  a: TokenAmount,
+  opts: { readonly symbol?: boolean } = {},
+): string {
   const negative = a.amount < 0n;
   const abs = negative ? -a.amount : a.amount;
   const base = 10n ** BigInt(a.decimals);
@@ -47,7 +50,9 @@ export function formatTokenAmount(a: TokenAmount, opts: { readonly symbol?: bool
 
 /** Same, for a bare base-unit value whose token is known from context. */
 export const formatBaseUnits = (v: bigint, decimals: number): string =>
-  formatTokenAmount({ token: '0x', symbol: '', decimals, amount: v } as TokenAmount, { symbol: false });
+  formatTokenAmount({ token: '0x', symbol: '', decimals, amount: v } as TokenAmount, {
+    symbol: false,
+  });
 
 /** A half-open block range [from, to). */
 export interface BlockRange {

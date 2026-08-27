@@ -219,7 +219,12 @@ export class PgAuditionStore implements AuditionStore {
         metric: score.metric as unknown as Json,
       })
       .onConflictDoUpdate({
-        target: [schema.scores.agentId, schema.scores.category, schema.scores.basis, schema.scores.windowEnd],
+        target: [
+          schema.scores.agentId,
+          schema.scores.category,
+          schema.scores.basis,
+          schema.scores.windowEnd,
+        ],
         set: {
           windowStart: score.window.start,
           sampleSize: score.sampleSize,
@@ -239,7 +244,10 @@ export class PgAuditionStore implements AuditionStore {
    * same rows to express "the newest score per agent" - a sort the index
    * already gives us.
    */
-  async latestScores(agents: readonly AgentId[], basis: ScoreBasis): Promise<ReadonlyMap<string, Score>> {
+  async latestScores(
+    agents: readonly AgentId[],
+    basis: ScoreBasis,
+  ): Promise<ReadonlyMap<string, Score>> {
     if (agents.length === 0) return new Map();
 
     const rows = await this.db
@@ -264,7 +272,11 @@ export class PgAuditionStore implements AuditionStore {
     return (await this.latestScores([agent], basis)).get(agentKey(agent)) ?? null;
   }
 
-  async topByCategory(category: AgentCategory, basis: ScoreBasis, limit: number): Promise<readonly Score[]> {
+  async topByCategory(
+    category: AgentCategory,
+    basis: ScoreBasis,
+    limit: number,
+  ): Promise<readonly Score[]> {
     const rows = await this.db
       .select({ s: schema.scores, chain: schema.agents.chain, tokenId: schema.agents.tokenId })
       .from(schema.scores)
@@ -341,7 +353,10 @@ export class PgAuditionStore implements AuditionStore {
       .limit(1);
     const row = rows[0];
     if (row === undefined) {
-      throw new BenchError('NOT_FOUND', `agent ${agentKey(agent)} is not indexed; index it before recording evidence`);
+      throw new BenchError(
+        'NOT_FOUND',
+        `agent ${agentKey(agent)} is not indexed; index it before recording evidence`,
+      );
     }
     return row.id;
   }
@@ -364,7 +379,10 @@ function toScore(s: typeof schema.scores.$inferSelect, agent: AgentId): Score {
 const encPosition = (p: PositionTemplate): Json => ({
   label: p.label,
   params: Object.fromEntries(
-    Object.entries(p.params).map(([k, v]) => [k, typeof v === 'bigint' ? { $bigint: v.toString() } : v]),
+    Object.entries(p.params).map(([k, v]) => [
+      k,
+      typeof v === 'bigint' ? { $bigint: v.toString() } : v,
+    ]),
   ),
   capital: {
     token: p.capital.token,
@@ -419,4 +437,3 @@ function anyOfAgents(agents: readonly AgentId[]) {
     or(...agents.map((a) => agentMatches(a))),
   );
 }
-

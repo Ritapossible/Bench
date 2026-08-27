@@ -39,6 +39,5 @@ export interface SessionKeyProvider {
   remaining(grantId: string): Promise<TokenAmount>;
 }
 
-export const supportsSessionKeys = (
-  w: WalletProvider,
-): w is WalletProvider & SessionKeyProvider => w.kind === 'altana';
+export const supportsSessionKeys = (w: WalletProvider): w is WalletProvider & SessionKeyProvider =>
+  w.kind === 'altana';

@@ -92,10 +92,7 @@ export class SpotBalanceSeeder implements PositionSeeder {
       const amount = big(t, 'tokenAmount');
       // ERC-20 balances live at keccak256(abi.encode(holder, mappingSlot)).
       const key = keccak256(
-        encodeAbiParameters(
-          [{ type: 'address' }, { type: 'uint256' }],
-          [ctx.controller, slot],
-        ),
+        encodeAbiParameters([{ type: 'address' }, { type: 'uint256' }], [ctx.controller, slot]),
       );
       await ctx.rpc('anvil_setStorageAt', [token, key, toHex(amount, { size: 32 })]);
     }
@@ -107,7 +104,7 @@ export class SpotBalanceSeeder implements PositionSeeder {
     const balHex = (await ctx.rpc('eth_getBalance', [ctx.controller, 'latest'])) as string;
     const native = BigInt(balHex);
     const nativePrice = num(t, 'nativePriceUsd');
-    const nativeUsd = Number(native) / 1e18 * nativePrice;
+    const nativeUsd = (Number(native) / 1e18) * nativePrice;
 
     const detail: Record<string, number> = { nativeUsd, nativeWei: Number(native) };
     let total = nativeUsd;

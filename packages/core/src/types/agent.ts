@@ -22,7 +22,12 @@ export type AgentCategory =
   | 'other';
 
 /** The four the main track scores on Agent Diversity. Order is presentation order. */
-export const JUDGED_CATEGORIES = ['rebalancing', 'grid', 'yield', 'health-factor'] as const satisfies readonly AgentCategory[];
+export const JUDGED_CATEGORIES = [
+  'rebalancing',
+  'grid',
+  'yield',
+  'health-factor',
+] as const satisfies readonly AgentCategory[];
 
 export type EndpointProtocol = 'a2a' | 'mcp' | 'oasf';
 

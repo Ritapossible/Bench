@@ -15,8 +15,16 @@ import { pct } from '@/lib/format';
  */
 export const revalidate = 60;
 
-
-const CHAINS = ['BNB Smart Chain', 'PancakeSwap', 'Venus', 'ERC-8004', 'ERC-8183', 'Binance x402', 'Altana', '8004scan'];
+const CHAINS = [
+  'BNB Smart Chain',
+  'PancakeSwap',
+  'Venus',
+  'ERC-8004',
+  'ERC-8183',
+  'Binance x402',
+  'Altana',
+  '8004scan',
+];
 
 const STEPS = [
   {
@@ -52,14 +60,19 @@ export default async function Home() {
           </h1>
 
           <p className="lead" style={{ maxWidth: '40rem' }}>
-            The agent registries on BNB Smart Chain are mostly dead listings and bought reviews. Bench ignores both.
-            It runs every listed agent against replayed history and against a real position, with no funds at risk,
-            and ranks on what the agent <em>would have done</em>.
+            The agent registries on BNB Smart Chain are mostly dead listings and bought reviews.
+            Bench ignores both. It runs every listed agent against replayed history and against a
+            real position, with no funds at risk, and ranks on what the agent{' '}
+            <em>would have done</em>.
           </p>
 
           <div className="row" style={{ gap: '1rem' }}>
-            <Link href="/agents" className="btn btn-primary">Browse the catalog</Link>
-            <Link href="/report" className="btn btn-ghost">Read your position’s report →</Link>
+            <Link href="/agents" className="btn btn-primary">
+              Browse the catalog
+            </Link>
+            <Link href="/report" className="btn btn-ghost">
+              Read your position’s report →
+            </Link>
           </div>
 
           <p className="small">No wallet needed. Paste any BSC address.</p>
@@ -84,12 +97,15 @@ export default async function Home() {
           <div className="statcell">
             <div className="statnum">{pct(live)}</div>
             <div className="statlabel">
-              <Link href="/registry" style={{ color: 'inherit' }}>Of the registry is real →</Link>
+              <Link href="/registry" style={{ color: 'inherit' }}>
+                Of the registry is real →
+              </Link>
             </div>
           </div>
         </div>
         <p className="tiny" style={{ marginTop: '0.85rem' }}>
-          Bench’s own measurement, recomputed daily against what it has indexed - not a figure quoted from a paper.
+          Bench’s own measurement, recomputed daily against what it has indexed - not a figure
+          quoted from a paper.
         </p>
       </section>
 
@@ -98,7 +114,8 @@ export default async function Home() {
         <div className="slab on-dark stack stack-32">
           <span className="eyebrow">The problem</span>
           <h2 className="h2" style={{ maxWidth: '30rem' }}>
-            A marketplace that sorts by star rating ships a directory of dead agents ranked by noise.
+            A marketplace that sorts by star rating ships a directory of dead agents ranked by
+            noise.
           </h2>
 
           <div className="grid grid-3">
@@ -108,7 +125,15 @@ export default async function Home() {
               ['~78%', 'of rated agents have no valid feedback once those are removed'],
             ].map(([n, t]) => (
               <div key={n} className="stack stack-8">
-                <div style={{ fontSize: 'clamp(2.2rem, 6vw, 3rem)', fontWeight: 700, letterSpacing: '-0.04em' }}>{n}</div>
+                <div
+                  style={{
+                    fontSize: 'clamp(2.2rem, 6vw, 3rem)',
+                    fontWeight: 700,
+                    letterSpacing: '-0.04em',
+                  }}
+                >
+                  {n}
+                </div>
                 <p className="small">{t}</p>
               </div>
             ))}
@@ -117,9 +142,11 @@ export default async function Home() {
           <hr className="rule" />
           <p className="small">
             Measured across the live ERC-8004 ecosystem through May 2026 -{' '}
-            <a href="https://arxiv.org/abs/2606.26028" style={{ color: 'inherit' }}>arXiv 2606.26028</a>. Reputation
-            values are not comparable across agents, feedback rarely links to a verifiable transaction, and
-            manipulation costs almost nothing.
+            <a href="https://arxiv.org/abs/2606.26028" style={{ color: 'inherit' }}>
+              arXiv 2606.26028
+            </a>
+            . Reputation values are not comparable across agents, feedback rarely links to a
+            verifiable transaction, and manipulation costs almost nothing.
           </p>
         </div>
       </section>
@@ -131,8 +158,8 @@ export default async function Home() {
             <span className="eyebrow">The mechanism</span>
             <h2 className="h2">Auditions cost compute, not users.</h2>
             <p className="lead">
-              Which means a dense, honest track record on day one with zero paying customers - and a controlled
-              comparison rather than a noisy delta over a handful of settled jobs.
+              Which means a dense, honest track record on day one with zero paying customers - and a
+              controlled comparison rather than a noisy delta over a handful of settled jobs.
             </p>
           </div>
 
@@ -153,14 +180,25 @@ export default async function Home() {
         <div className="stack stack-32">
           <div className="stack stack-16" style={{ maxWidth: '44rem' }}>
             <span className="eyebrow">What Bench refuses to do</span>
-            <h2 className="h2">The same measurement that produces the ranking produces the constraint.</h2>
+            <h2 className="h2">
+              The same measurement that produces the ranking produces the constraint.
+            </h2>
           </div>
 
           <div className="stack stack-16">
             {[
-              ['Bench cannot list an agent that has never worked.', 'Every listing carries an audition record or is shown, explicitly, as having none. There is no third state.'],
-              ['You cannot hire on a claim or a review.', 'Only on what the agent already did to a position shaped like yours, against a do-nothing baseline, over a window we name.'],
-              ['A hired agent cannot exceed your cap - or do anything it did not do in audition.', 'Every transaction is simulated and checked against the envelope it established while auditioning, before the session key will sign it.'],
+              [
+                'Bench cannot list an agent that has never worked.',
+                'Every listing carries an audition record or is shown, explicitly, as having none. There is no third state.',
+              ],
+              [
+                'You cannot hire on a claim or a review.',
+                'Only on what the agent already did to a position shaped like yours, against a do-nothing baseline, over a window we name.',
+              ],
+              [
+                'A hired agent cannot exceed your cap - or do anything it did not do in audition.',
+                'Every transaction is simulated and checked against the envelope it established while auditioning, before the session key will sign it.',
+              ],
             ].map(([h, p]) => (
               <div key={h} className="card stack stack-8">
                 <p className="quote">{h}</p>
@@ -170,8 +208,8 @@ export default async function Home() {
           </div>
 
           <p className="small">
-            A spend cap answers <em>how much</em>. The gate answers <em>what kind of thing</em> - and it is derived
-            from measured evidence rather than guessed at in a checkout form.
+            A spend cap answers <em>how much</em>. The gate answers <em>what kind of thing</em> -
+            and it is derived from measured evidence rather than guessed at in a checkout form.
           </p>
         </div>
       </section>
@@ -180,7 +218,9 @@ export default async function Home() {
       <section className="wrap section-tight">
         <div className="strip">
           {CHAINS.map((c) => (
-            <span key={c} className="chip">{c}</span>
+            <span key={c} className="chip">
+              {c}
+            </span>
           ))}
         </div>
         <p className="small" style={{ textAlign: 'center', marginTop: '1.25rem' }}>
@@ -190,15 +230,20 @@ export default async function Home() {
 
       {/* ---------- cta ---------- */}
       <section className="wrap section">
-        <div className="slab on-dark stack stack-24" style={{ textAlign: 'center', alignItems: 'center' }}>
+        <div
+          className="slab on-dark stack stack-24"
+          style={{ textAlign: 'center', alignItems: 'center' }}
+        >
           <h2 className="h2" style={{ maxWidth: '26rem' }}>
             See what an agent would have done with your money.
           </h2>
           <p className="lead" style={{ maxWidth: '32rem' }}>
-            Paste a BSC address. No connection, no signature, no listing fee - the position is public and the
-            audition is a simulation.
+            Paste a BSC address. No connection, no signature, no listing fee - the position is
+            public and the audition is a simulation.
           </p>
-          <Link href="/report" className="btn btn-primary">Read the report</Link>
+          <Link href="/report" className="btn btn-primary">
+            Read the report
+          </Link>
         </div>
       </section>
     </>

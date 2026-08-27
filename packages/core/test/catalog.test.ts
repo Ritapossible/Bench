@@ -84,8 +84,16 @@ describe('summarizeProbes', () => {
   });
 
   it('takes reachable/conformant from the newest probe regardless of input order', () => {
-    const older = probe({ at: new Date('2026-08-16T10:00:00Z'), reachable: false, conformant: false });
-    const newer = probe({ at: new Date('2026-08-16T11:00:00Z'), reachable: true, conformant: true });
+    const older = probe({
+      at: new Date('2026-08-16T10:00:00Z'),
+      reachable: false,
+      conformant: false,
+    });
+    const newer = probe({
+      at: new Date('2026-08-16T11:00:00Z'),
+      reachable: true,
+      conformant: true,
+    });
     // Fed newest-first, which is how Postgres returns it.
     const s = summarizeProbes(agent, [newer, older]);
     expect(s.reachable).toBe(true);

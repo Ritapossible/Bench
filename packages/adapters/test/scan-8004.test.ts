@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import { summarizeAgreement, type AgentId } from '@bench/core';
-import { buildCrossReference, parseAgentPayload, Scan8004CrossReference } from '../src/catalog/scan-8004.js';
+import {
+  buildCrossReference,
+  parseAgentPayload,
+  Scan8004CrossReference,
+} from '../src/catalog/scan-8004.js';
 
 const agent = (n: number): AgentId => ({ chain: 'bsc-testnet', tokenId: BigInt(n) });
 
@@ -35,9 +39,18 @@ const src = (base: string) =>
 
 describe('parseAgentPayload', () => {
   it('accepts several plausible encodings, since the schema is unverified', () => {
-    expect(parseAgentPayload({ tokenId: '7', endpoints: [1, 2] })).toEqual({ known: true, endpointCount: 2 });
-    expect(parseAgentPayload({ data: { agentId: 'a', endpointCount: 3 } })).toEqual({ known: true, endpointCount: 3 });
-    expect(parseAgentPayload({ result: { id: 'x' } })).toEqual({ known: true, endpointCount: null });
+    expect(parseAgentPayload({ tokenId: '7', endpoints: [1, 2] })).toEqual({
+      known: true,
+      endpointCount: 2,
+    });
+    expect(parseAgentPayload({ data: { agentId: 'a', endpointCount: 3 } })).toEqual({
+      known: true,
+      endpointCount: 3,
+    });
+    expect(parseAgentPayload({ result: { id: 'x' } })).toEqual({
+      known: true,
+      endpointCount: null,
+    });
   });
 
   it('treats an explicit not-found as a successful comparison', () => {
@@ -61,7 +74,9 @@ describe('buildCrossReference', () => {
   });
 
   it('treats a blank key as no key', async () => {
-    expect((await buildCrossReference({ apiKey: '   ' }).lookup([agent(1)])).status).toBe('unconfigured');
+    expect((await buildCrossReference({ apiKey: '   ' }).lookup([agent(1)])).status).toBe(
+      'unconfigured',
+    );
   });
 
   it('activates as soon as a key is present', () => {
@@ -72,7 +87,10 @@ describe('buildCrossReference', () => {
 describe('Scan8004CrossReference', () => {
   it('compares what Bench indexed against what the source knows', async () => {
     await withServer(
-      (url) => (url.pathname.endsWith('/2') ? { status: 404, body: '{}' } : { status: 200, body: JSON.stringify({ tokenId: '1', endpoints: [{}] }) }),
+      (url) =>
+        url.pathname.endsWith('/2')
+          ? { status: 404, body: '{}' }
+          : { status: 200, body: JSON.stringify({ tokenId: '1', endpoints: [{}] }) },
       async (base) => {
         const r = await src(base).lookup([agent(1), agent(2)]);
         expect(r.status).toBe('ok');
@@ -116,7 +134,10 @@ describe('Scan8004CrossReference', () => {
 
   it('omits unrecognised responses from the comparison but keeps the rest', async () => {
     await withServer(
-      (url) => (url.pathname.endsWith('/1') ? { status: 200, body: JSON.stringify({ tokenId: '1' }) } : { status: 200, body: '{"weird":true}' }),
+      (url) =>
+        url.pathname.endsWith('/1')
+          ? { status: 200, body: JSON.stringify({ tokenId: '1' }) }
+          : { status: 200, body: '{"weird":true}' },
       async (base) => {
         const r = await src(base).lookup([agent(1), agent(2)]);
         expect(r.status).toBe('ok');
@@ -127,7 +148,12 @@ describe('Scan8004CrossReference', () => {
   });
 
   it('never throws, whatever the source does', async () => {
-    const s = new Scan8004CrossReference({ apiKey: 'k', baseUrl: 'http://127.0.0.1:1', allowLoopback: true, requestsPerMinute: 60_000 });
+    const s = new Scan8004CrossReference({
+      apiKey: 'k',
+      baseUrl: 'http://127.0.0.1:1',
+      allowLoopback: true,
+      requestsPerMinute: 60_000,
+    });
     await expect(s.lookup([agent(1)])).resolves.toMatchObject({ status: 'unavailable' });
   });
 
@@ -135,7 +161,13 @@ describe('Scan8004CrossReference', () => {
     await withServer(
       () => ({ status: 200, body: JSON.stringify({ tokenId: '1' }) }),
       async (base) => {
-        const paced = new Scan8004CrossReference({ apiKey: 'k', baseUrl: base, allowLoopback: true, requestsPerMinute: 600, concurrency: 4 });
+        const paced = new Scan8004CrossReference({
+          apiKey: 'k',
+          baseUrl: base,
+          allowLoopback: true,
+          requestsPerMinute: 600,
+          concurrency: 4,
+        });
         const started = Date.now();
         await paced.lookup([agent(1), agent(2), agent(3), agent(4)]);
         // 600/min = 100ms apart; four requests span at least three intervals.

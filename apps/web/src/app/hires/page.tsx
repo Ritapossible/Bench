@@ -22,18 +22,22 @@ export default async function HiresPage() {
           <span className="eyebrow">Active hires</span>
           <h1 className="h2">What you have authorised, and what is left of it.</h1>
           <p className="lead">
-            Every hire carries the bounds you set, the headroom remaining, and a decision trace that cannot be
-            edited after the fact. Revoke is available from any live state.
+            Every hire carries the bounds you set, the headroom remaining, and a decision trace that
+            cannot be edited after the fact. Revoke is available from any live state.
           </p>
         </div>
 
         {hires.length === 0 ? (
           <div className="card stack stack-12">
             <p className="body">No hires yet.</p>
-            <div><Link href="/agents" className="btn btn-primary btn-sm">Browse the catalog</Link></div>
+            <div>
+              <Link href="/agents" className="btn btn-primary btn-sm">
+                Browse the catalog
+              </Link>
+            </div>
             <p className="tiny">
-              Hires on this deployment live in memory, so a cold start clears them. `@bench/db` implements the same
-              store interface against Postgres.
+              Hires on this deployment live in memory, so a cold start clears them. `@bench/db`
+              implements the same store interface against Postgres.
             </p>
           </div>
         ) : (

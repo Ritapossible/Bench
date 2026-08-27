@@ -41,13 +41,7 @@ export interface PaymentReceipt {
 }
 
 /** ERC-8183 optimistic settlement: silence past the window is approval. */
-export type EscrowStatus =
-  | 'open'
-  | 'funded'
-  | 'delivered'
-  | 'disputed'
-  | 'settled'
-  | 'refunded';
+export type EscrowStatus = 'open' | 'funded' | 'delivered' | 'disputed' | 'settled' | 'refunded';
 
 export interface EscrowJob {
   readonly id: string;

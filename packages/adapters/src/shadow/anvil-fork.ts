@@ -14,7 +14,12 @@ import {
 } from '@bench/core';
 import { startAnvil, type AnvilHandle } from './anvil-process.js';
 import { startInterceptor, type InterceptorHandle } from './interceptor.js';
-import { controllerFor, DEFAULT_SEEDERS, type PositionSeeder, type SeedContext } from './seeders.js';
+import {
+  controllerFor,
+  DEFAULT_SEEDERS,
+  type PositionSeeder,
+  type SeedContext,
+} from './seeders.js';
 
 /**
  * The shadow engine's fork provider — ARCHITECTURE.md 3.3, the longest pole.
@@ -86,7 +91,10 @@ class AnvilForkHandle implements ForkHandle {
   #seederFor(kind: PositionTemplate['kind']): PositionSeeder {
     const s = this.seeders.find((x) => x.kind === kind);
     if (s === undefined) {
-      throw new BenchError('NOT_SUPPORTED_BY_PROVIDER', `no seeder registered for position kind "${kind}"`);
+      throw new BenchError(
+        'NOT_SUPPORTED_BY_PROVIDER',
+        `no seeder registered for position kind "${kind}"`,
+      );
     }
     return s;
   }
@@ -130,7 +138,8 @@ class AnvilForkHandle implements ForkHandle {
   }
 
   #assertLive(): void {
-    if (this.#destroyed) throw new BenchError('FORK_UNAVAILABLE', `fork ${this.id} has been destroyed`);
+    if (this.#destroyed)
+      throw new BenchError('FORK_UNAVAILABLE', `fork ${this.id} has been destroyed`);
   }
 }
 
@@ -147,7 +156,9 @@ export class AnvilForkProvider implements ForkProvider {
         : { forkUrl: opts.archiveRpcUrl, forkBlockNumber: window.forkBlock }),
       ...(this.opts.binary === undefined ? {} : { binary: this.opts.binary }),
       ...(this.opts.chainId === undefined ? {} : { chainId: this.opts.chainId }),
-      ...(this.opts.startupTimeoutMs === undefined ? {} : { startupTimeoutMs: this.opts.startupTimeoutMs }),
+      ...(this.opts.startupTimeoutMs === undefined
+        ? {}
+        : { startupTimeoutMs: this.opts.startupTimeoutMs }),
     });
 
     let handle: AnvilForkHandle | undefined;

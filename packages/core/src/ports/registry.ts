@@ -35,7 +35,10 @@ export interface RegistryClient {
   getAgent(id: AgentId): Promise<AgentRecord | null>;
   /** Resolve an Identity NFT tokenURI to its card. Throws INVALID_AGENT_CARD. */
   resolveCard(uri: string): Promise<AgentCard>;
-  watchRegistrations(fromBlock: bigint, onAgent: (a: AgentRecord) => Promise<void>): Promise<() => void>;
+  watchRegistrations(
+    fromBlock: bigint,
+    onAgent: (a: AgentRecord) => Promise<void>,
+  ): Promise<() => void>;
   writeValidation(entry: ValidationEntry): Promise<Hex>;
   /** Rolling probe-result hash, anchored so liveness is auditable not asserted. */
   anchorProbeDigest(digest: Hex): Promise<Hex>;

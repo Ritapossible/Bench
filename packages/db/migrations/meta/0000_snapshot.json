@@ -62,12 +62,8 @@
           "name": "agent_endpoints_agent_id_agents_id_fk",
           "tableFrom": "agent_endpoints",
           "tableTo": "agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -142,12 +138,8 @@
           "name": "agent_liveness_agent_id_agents_id_fk",
           "tableFrom": "agent_liveness",
           "tableTo": "agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -438,12 +430,8 @@
           "name": "escrow_jobs_agent_id_agents_id_fk",
           "tableFrom": "escrow_jobs",
           "tableTo": "agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -515,12 +503,8 @@
           "name": "feedback_hire_id_hires_id_fk",
           "tableFrom": "feedback",
           "tableTo": "hires",
-          "columnsFrom": [
-            "hire_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["hire_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -528,12 +512,8 @@
           "name": "feedback_escrow_job_id_escrow_jobs_id_fk",
           "tableFrom": "feedback",
           "tableTo": "escrow_jobs",
-          "columnsFrom": [
-            "escrow_job_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["escrow_job_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -691,12 +671,8 @@
           "name": "hires_session_key_id_session_keys_id_fk",
           "tableFrom": "hires",
           "tableTo": "session_keys",
-          "columnsFrom": [
-            "session_key_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_key_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -804,12 +780,8 @@
           "name": "outcome_records_run_id_shadow_runs_id_fk",
           "tableFrom": "outcome_records",
           "tableTo": "shadow_runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1003,12 +975,8 @@
           "name": "probe_results_agent_id_agents_id_fk",
           "tableFrom": "probe_results",
           "tableTo": "agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1016,12 +984,8 @@
           "name": "probe_results_endpoint_id_agent_endpoints_id_fk",
           "tableFrom": "probe_results",
           "tableTo": "agent_endpoints",
-          "columnsFrom": [
-            "endpoint_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["endpoint_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1104,12 +1068,8 @@
           "name": "scores_agent_id_agents_id_fk",
           "tableFrom": "scores",
           "tableTo": "agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1117,12 +1077,7 @@
       "compositePrimaryKeys": {
         "scores_agent_id_category_basis_window_end_pk": {
           "name": "scores_agent_id_category_basis_window_end_pk",
-          "columns": [
-            "agent_id",
-            "category",
-            "basis",
-            "window_end"
-          ]
+          "columns": ["agent_id", "category", "basis", "window_end"]
         }
       },
       "uniqueConstraints": {},
@@ -1277,12 +1232,8 @@
           "name": "shadow_actions_run_id_shadow_runs_id_fk",
           "tableFrom": "shadow_actions",
           "tableTo": "shadow_runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1388,12 +1339,8 @@
           "name": "shadow_runs_agent_id_agents_id_fk",
           "tableFrom": "shadow_runs",
           "tableTo": "agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1401,12 +1348,8 @@
           "name": "shadow_runs_window_id_audition_windows_id_fk",
           "tableFrom": "shadow_runs",
           "tableTo": "audition_windows",
-          "columnsFrom": [
-            "window_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["window_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

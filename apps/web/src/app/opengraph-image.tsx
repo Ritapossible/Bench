@@ -36,11 +36,21 @@ export default function OgImage() {
               <rect x="2" y="26.5" width="27.5" height="3.5" rx="1.75" />
             </g>
           </svg>
-          <div style={{ fontSize: 40, fontWeight: 700, color: '#0b0b0b', letterSpacing: -1.5 }}>Bench</div>
+          <div style={{ fontSize: 40, fontWeight: 700, color: '#0b0b0b', letterSpacing: -1.5 }}>
+            Bench
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div style={{ fontSize: 76, fontWeight: 700, color: '#0b0b0b', letterSpacing: -3, lineHeight: 1.05 }}>
+          <div
+            style={{
+              fontSize: 76,
+              fontWeight: 700,
+              color: '#0b0b0b',
+              letterSpacing: -3,
+              lineHeight: 1.05,
+            }}
+          >
             Hire agents that have
           </div>
           <div style={{ display: 'flex' }}>
@@ -59,7 +69,15 @@ export default function OgImage() {
               already worked
             </div>
           </div>
-          <div style={{ fontSize: 76, fontWeight: 700, color: '#0b0b0b', letterSpacing: -3, lineHeight: 1.05 }}>
+          <div
+            style={{
+              fontSize: 76,
+              fontWeight: 700,
+              color: '#0b0b0b',
+              letterSpacing: -3,
+              lineHeight: 1.05,
+            }}
+          >
             your position.
           </div>
         </div>

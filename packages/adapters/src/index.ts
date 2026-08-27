@@ -56,8 +56,17 @@ export {
   type PositionSeeder,
   type SeedContext,
 } from './shadow/anvil-fork.js';
-export { startAnvil, freePort, type AnvilHandle, type AnvilOptions } from './shadow/anvil-process.js';
-export { startInterceptor, type InterceptorHandle, type InterceptorOptions } from './shadow/interceptor.js';
+export {
+  startAnvil,
+  freePort,
+  type AnvilHandle,
+  type AnvilOptions,
+} from './shadow/anvil-process.js';
+export {
+  startInterceptor,
+  type InterceptorHandle,
+  type InterceptorOptions,
+} from './shadow/interceptor.js';
 export {
   startGatedSession,
   type GatedSessionHandle,
@@ -134,7 +143,10 @@ function buildWallet(cfg: BenchConfig): WalletProvider {
       return new AltanaWalletProvider();
     default: {
       const exhaustive: never = cfg.BENCH_WALLET_PROVIDER;
-      throw new BenchError('NOT_SUPPORTED_BY_PROVIDER', `unknown wallet provider ${String(exhaustive)}`);
+      throw new BenchError(
+        'NOT_SUPPORTED_BY_PROVIDER',
+        `unknown wallet provider ${String(exhaustive)}`,
+      );
     }
   }
 }

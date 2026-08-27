@@ -164,7 +164,13 @@ export class HireOrchestrator {
     // reconcile rather than a charge with no hire attached, and it decides who
     // owns the idempotency key. Losing the claim returns the winner's hire and
     // spends nothing.
-    record = this.#trace(record, 'consent', 'ok', [], `consent complete; mandate ${mandateDigest(mandate)}`);
+    record = this.#trace(
+      record,
+      'consent',
+      'ok',
+      [],
+      `consent complete; mandate ${mandateDigest(mandate)}`,
+    );
     const claim = await this.deps.store.claim(record);
     if (!claim.claimed) return claim.record;
     record = claim.record;
@@ -175,7 +181,12 @@ export class HireOrchestrator {
         payTo: req.payTo,
         amount: req.price,
       });
-      record = this.#advance(record, 'quoted', 'quote', `quoted ${formatTokenAmount(quote.amount)}`);
+      record = this.#advance(
+        record,
+        'quoted',
+        'quote',
+        `quoted ${formatTokenAmount(quote.amount)}`,
+      );
       await this.deps.store.put(record);
 
       const auth = await this.deps.payment.authorize(quote);
@@ -199,7 +210,12 @@ export class HireOrchestrator {
       };
       await this.deps.store.put(record);
 
-      record = this.#advance(record, 'active', 'mint-session-key', `session key scoped to mandate ${mandate.id}`);
+      record = this.#advance(
+        record,
+        'active',
+        'mint-session-key',
+        `session key scoped to mandate ${mandate.id}`,
+      );
       await this.deps.store.put(record);
       return record;
     } catch (err) {
@@ -270,7 +286,9 @@ export class HireOrchestrator {
     const envelopeBlocks = !e.allowed && !e.advisory;
     const allowed = m.allowed && !envelopeBlocks;
     const rules = [...m.rules, ...(e.allowed ? [] : e.rules)];
-    const explanation = allowed ? '' : [m.explanation, envelopeBlocks ? e.explanation : ''].filter(Boolean).join(' ');
+    const explanation = allowed
+      ? ''
+      : [m.explanation, envelopeBlocks ? e.explanation : ''].filter(Boolean).join(' ');
 
     let next = this.#trace(
       record,
@@ -315,7 +333,11 @@ export class HireOrchestrator {
       next = this.#advance(next, 'settled', 'settle', `settled (${tx})`);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      next = { ...this.#trace(next, 'settle', 'failed', [], reason), state: 'failed', failureReason: reason };
+      next = {
+        ...this.#trace(next, 'settle', 'failed', [], reason),
+        state: 'failed',
+        failureReason: reason,
+      };
     }
     await this.deps.store.put(next);
     return next;
@@ -346,7 +368,12 @@ export class HireOrchestrator {
     };
   }
 
-  #advance(record: HireRecord, to: HireState, step: TraceEntry['step'], detail: string): HireRecord {
+  #advance(
+    record: HireRecord,
+    to: HireState,
+    step: TraceEntry['step'],
+    detail: string,
+  ): HireRecord {
     assertTransition(record.state, to);
     return { ...this.#trace(record, step, 'ok', [], detail), state: to };
   }

@@ -42,7 +42,9 @@ export function createPgData(connectionString: string): BenchData {
   const db = createDb(connectionString);
   const catalog = new PgCatalogRepository(db);
   const audition = new PgAuditionStore(db);
-  const crossRef = buildCrossReference({ apiKey: process.env['ALTLAYER_8004SCAN_API_KEY'] ?? undefined });
+  const crossRef = buildCrossReference({
+    apiKey: process.env['ALTLAYER_8004SCAN_API_KEY'] ?? undefined,
+  });
 
   /** Attach the newest simulated score to each entry, in one round trip. */
   const withScores = async (entries: readonly CatalogEntry[]): Promise<readonly AgentSummary[]> => {
@@ -79,13 +81,17 @@ export function createPgData(connectionString: string): BenchData {
       const page = await catalog.query({
         chain: CHAIN,
         limit: PAGE_LIMIT,
-        ...(opts?.verifiedLiveOnly === undefined ? {} : { verifiedLiveOnly: opts.verifiedLiveOnly }),
+        ...(opts?.verifiedLiveOnly === undefined
+          ? {}
+          : { verifiedLiveOnly: opts.verifiedLiveOnly }),
         ...(opts?.category === undefined ? {} : { category: opts.category }),
       });
       const summaries = await withScores(page.entries);
       // Unscored agents sort last rather than as zero: -1 is below every
       // possible normalized score, which is in [0, 1].
-      return [...summaries].sort((a, b) => (b.score?.normalized ?? -1) - (a.score?.normalized ?? -1));
+      return [...summaries].sort(
+        (a, b) => (b.score?.normalized ?? -1) - (a.score?.normalized ?? -1),
+      );
     },
 
     async getAgent(chain, tokenId): Promise<AgentDetail | null> {

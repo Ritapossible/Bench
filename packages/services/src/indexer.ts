@@ -108,16 +108,20 @@ export class Indexer {
    * it is recorded on the record and never allowed to reject the batch.
    */
   async attachCards(records: readonly AgentRecord[]): Promise<AgentRecord[]> {
-    return mapLimit(records, this.opts.cardConcurrency ?? DEFAULTS.cardConcurrency, async (record) => {
-      if (record.cardUri === '') {
-        return { ...record, card: null, cardError: 'no tokenURI' };
-      }
-      try {
-        return { ...record, card: await this.registry.resolveCard(record.cardUri) };
-      } catch (err) {
-        const reason = err instanceof BenchError ? err.message : String(err);
-        return { ...record, card: null, cardError: reason };
-      }
-    });
+    return mapLimit(
+      records,
+      this.opts.cardConcurrency ?? DEFAULTS.cardConcurrency,
+      async (record) => {
+        if (record.cardUri === '') {
+          return { ...record, card: null, cardError: 'no tokenURI' };
+        }
+        try {
+          return { ...record, card: await this.registry.resolveCard(record.cardUri) };
+        } catch (err) {
+          const reason = err instanceof BenchError ? err.message : String(err);
+          return { ...record, card: null, cardError: reason };
+        }
+      },
+    );
   }
 }

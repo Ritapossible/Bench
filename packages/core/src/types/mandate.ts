@@ -103,7 +103,10 @@ export function encodeMandate(m: HireMandate): string {
     m.bounds.totalSpendCap.token.toLowerCase(),
     m.bounds.totalSpendCap.amount.toString(),
     m.bounds.perTxCap.amount.toString(),
-    [...m.bounds.contractAllowlist].map((a) => a.toLowerCase()).sort().join(','),
+    [...m.bounds.contractAllowlist]
+      .map((a) => a.toLowerCase())
+      .sort()
+      .join(','),
     m.bounds.expiresAt.toISOString(),
     String(m.bounds.maxActions),
     m.nonce,
@@ -140,7 +143,8 @@ export function checkMandate(
     rules.push('wrong-token');
   }
   if (candidate.value > mandate.bounds.perTxCap.amount) rules.push('per-tx-cap-exceeded');
-  if (state.spent + candidate.value > mandate.bounds.totalSpendCap.amount) rules.push('total-cap-exceeded');
+  if (state.spent + candidate.value > mandate.bounds.totalSpendCap.amount)
+    rules.push('total-cap-exceeded');
   if (state.actions + 1 > mandate.bounds.maxActions) rules.push('action-limit-reached');
 
   if (
@@ -199,7 +203,10 @@ export const revoke = (state: MandateState, at: Date = new Date()): MandateState
   state.revokedAt === null ? { ...state, revokedAt: at } : state;
 
 /** Remaining headroom, for the hire dashboard. */
-export function remaining(mandate: HireMandate, state: MandateState): {
+export function remaining(
+  mandate: HireMandate,
+  state: MandateState,
+): {
   readonly spend: bigint;
   readonly actions: number;
   readonly msUntilExpiry: number;

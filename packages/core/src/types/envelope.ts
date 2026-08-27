@@ -87,7 +87,8 @@ export const DEFAULT_ENVELOPE_POLICY: EnvelopePolicy = {
  */
 export const MIN_ENVELOPE_SAMPLE = 3;
 
-export const isEnvelopeThin = (e: BehaviouralEnvelope): boolean => e.sampleSize < MIN_ENVELOPE_SAMPLE;
+export const isEnvelopeThin = (e: BehaviouralEnvelope): boolean =>
+  e.sampleSize < MIN_ENVELOPE_SAMPLE;
 
 /** A transaction the hired agent wants to send, before it is signed. */
 export interface CandidateAction {
@@ -113,7 +114,7 @@ export interface GateDecision {
 }
 
 const selectorOf = (data: Hex): Hex =>
-  (data.length >= 10 ? (data.slice(0, 10).toLowerCase() as Hex) : ('0x' as Hex));
+  data.length >= 10 ? (data.slice(0, 10).toLowerCase() as Hex) : ('0x' as Hex);
 
 const withTolerance = (v: bigint, bps: number): bigint => (v * BigInt(10_000 + bps)) / 10_000n;
 
@@ -135,7 +136,10 @@ const native = (v: bigint): string => `${formatBaseUnits(v, 18)} BNB`;
  * bound that describes neither.
  */
 export function deriveEnvelope(
-  runs: readonly { readonly actions: readonly InterceptedAction[]; readonly positionDropUsd?: number }[],
+  runs: readonly {
+    readonly actions: readonly InterceptedAction[];
+    readonly positionDropUsd?: number;
+  }[],
 ): BehaviouralEnvelope {
   const recipients = new Set<Address>();
   const selectors = new Set<Hex>();
@@ -155,9 +159,10 @@ export function deriveEnvelope(
     if (cumulative > maxCumulativeValueWei) maxCumulativeValueWei = cumulative;
     if (run.actions.length > maxActionCount) maxActionCount = run.actions.length;
     if (run.positionDropUsd !== undefined) {
-      maxPositionDropUsd = maxPositionDropUsd === null
-        ? run.positionDropUsd
-        : Math.max(maxPositionDropUsd, run.positionDropUsd);
+      maxPositionDropUsd =
+        maxPositionDropUsd === null
+          ? run.positionDropUsd
+          : Math.max(maxPositionDropUsd, run.positionDropUsd);
     }
   }
 

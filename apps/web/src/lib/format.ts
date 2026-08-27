@@ -1,5 +1,9 @@
 export const usd = (n: number, opts: { sign?: boolean } = {}): string => {
-  const s = Math.abs(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: Math.abs(n) < 100 ? 2 : 0 });
+  const s = Math.abs(n).toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: Math.abs(n) < 100 ? 2 : 0,
+  });
   if (!opts.sign) return n < 0 ? `−${s}` : s;
   return n < 0 ? `−${s}` : `+${s}`;
 };
@@ -8,9 +12,11 @@ export const pct = (bps: number, dp = 1): string => `${(bps / 100).toFixed(dp)}%
 
 export const ms = (n: number | null): string => (n === null ? '-' : `${n} ms`);
 
-export const shortAddr = (a: string): string => (a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
+export const shortAddr = (a: string): string =>
+  a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a;
 
-export const agentHref = (chain: string, tokenId: bigint): string => `/agents/${chain}/${tokenId.toString()}`;
+export const agentHref = (chain: string, tokenId: bigint): string =>
+  `/agents/${chain}/${tokenId.toString()}`;
 
 /** Order matters: the four judged categories lead. */
 export const CATEGORY_LABEL: Record<string, string> = {

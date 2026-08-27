@@ -20,7 +20,14 @@
 import { AuditionRunner, type ShadowAgent } from '@bench/services';
 import { AnvilForkProvider, controllerFor } from '@bench/adapters';
 import type { AuditionWindow, PositionTemplate } from '@bench/core';
-import { createWalletClient, defineChain, encodeFunctionData, http, parseAbi, parseEther } from 'viem';
+import {
+  createWalletClient,
+  defineChain,
+  encodeFunctionData,
+  http,
+  parseAbi,
+  parseEther,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 const anvilChain = defineChain({
@@ -123,11 +130,17 @@ async function main(): Promise<void> {
     maxConcurrentForks: 3,
   });
 
-  console.log(`${pad('AGENT', 26)}${padL('ACTIONS', 9)}${padL('TERMINAL', 13)}${padL('VS DO-NOTHING', 16)}`);
+  console.log(
+    `${pad('AGENT', 26)}${padL('ACTIONS', 9)}${padL('TERMINAL', 13)}${padL('VS DO-NOTHING', 16)}`,
+  );
   console.log('─'.repeat(64));
-  console.log(`${pad('Do nothing (baseline)', 26)}${padL('0', 9)}${padL(usd(report.doNothing.valueUsd), 13)}${padL(signed(0), 16)}`);
+  console.log(
+    `${pad('Do nothing (baseline)', 26)}${padL('0', 9)}${padL(usd(report.doNothing.valueUsd), 13)}${padL(signed(0), 16)}`,
+  );
 
-  for (const r of [...report.results].sort((a, b) => b.deltaVsDoNothingUsd - a.deltaVsDoNothingUsd)) {
+  for (const r of [...report.results].sort(
+    (a, b) => b.deltaVsDoNothingUsd - a.deltaVsDoNothingUsd,
+  )) {
     console.log(
       `${pad(r.agentName, 26)}${padL(String(r.actions.length), 9)}${padL(usd(r.terminal.valueUsd), 13)}${padL(signed(r.deltaVsDoNothingUsd), 16)}`,
     );
@@ -140,7 +153,9 @@ async function main(): Promise<void> {
   console.log(`Distinct terminal states: ${distinct.size} of ${report.results.length}`);
 
   const decoded = report.results.flatMap((r) => r.actions).filter((a) => a.decoded !== null);
-  console.log(`Intercepted actions: ${report.results.reduce((n, r) => n + r.actions.length, 0)} (${decoded.length} decoded by name)`);
+  console.log(
+    `Intercepted actions: ${report.results.reduce((n, r) => n + r.actions.length, 0)} (${decoded.length} decoded by name)`,
+  );
 
   // Replay: same window, same seed, same agent — same terminal state, or the
   // record is not reproducible and is worth nothing.
@@ -159,7 +174,9 @@ async function main(): Promise<void> {
   console.log(`  original ${usd(before)}`);
   console.log(`  replay   ${usd(after)}`);
   console.log(`  replay hash matches: ${replay.replayHash === report.replayHash}`);
-  console.log(`\n${matches ? '✓ PASS' : '✗ FAIL'} — audition is reproducible from its stored parameters.\n`);
+  console.log(
+    `\n${matches ? '✓ PASS' : '✗ FAIL'} — audition is reproducible from its stored parameters.\n`,
+  );
 
   if (!matches) process.exitCode = 1;
 }

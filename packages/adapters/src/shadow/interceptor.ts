@@ -132,12 +132,18 @@ export async function startInterceptor(opts: InterceptorOptions): Promise<Interc
   const handleSendRaw = async (req: JsonRpcRequest): Promise<JsonRpcResponse> => {
     const raw = req.params?.[0];
     if (typeof raw !== 'string') {
-      return { jsonrpc: '2.0', id: req.id, error: { code: -32602, message: 'expected a raw transaction' } };
+      return {
+        jsonrpc: '2.0',
+        id: req.id,
+        error: { code: -32602, message: 'expected a raw transaction' },
+      };
     }
 
     const serialized = raw as Hex;
     const tx = parseTransaction(serialized);
-    const from = (await recoverTransactionAddress({ serializedTransaction: serialized as never })) as Address;
+    const from = (await recoverTransactionAddress({
+      serializedTransaction: serialized as never,
+    })) as Address;
     const to = (tx.to ?? null) as Address | null;
     const data = (tx.data ?? '0x') as Hex;
     const value = tx.value ?? 0n;
@@ -203,7 +209,11 @@ export async function startInterceptor(opts: InterceptorOptions): Promise<Interc
           ...(forwarded.error ? { revertReason: forwarded.error.message } : {}),
         },
       });
-      return { jsonrpc: '2.0', id: req.id, ...(forwarded.error ? { error: forwarded.error } : { result: forwarded.result }) };
+      return {
+        jsonrpc: '2.0',
+        id: req.id,
+        ...(forwarded.error ? { error: forwarded.error } : { result: forwarded.result }),
+      };
     }
 
     const hash = forwarded.result as Hex;
@@ -254,7 +264,10 @@ export async function startInterceptor(opts: InterceptorOptions): Promise<Interc
             JSON.stringify({
               jsonrpc: '2.0',
               id: null,
-              error: { code: -32603, message: err instanceof Error ? err.message : 'interceptor failure' },
+              error: {
+                code: -32603,
+                message: err instanceof Error ? err.message : 'interceptor failure',
+              },
             }),
           );
         }

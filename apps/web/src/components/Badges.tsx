@@ -1,6 +1,12 @@
 import { isThin, type Score } from '@bench/core';
 
-export function LiveBadge({ live, conformant }: { readonly live: boolean; readonly conformant: boolean }) {
+export function LiveBadge({
+  live,
+  conformant,
+}: {
+  readonly live: boolean;
+  readonly conformant: boolean;
+}) {
   if (live) {
     return (
       <span className="badge badge-live">
@@ -8,11 +14,7 @@ export function LiveBadge({ live, conformant }: { readonly live: boolean; readon
       </span>
     );
   }
-  return (
-    <span className="badge badge-dead">
-      {conformant ? 'Not verified' : 'Non-conformant'}
-    </span>
-  );
+  return <span className="badge badge-dead">{conformant ? 'Not verified' : 'Non-conformant'}</span>;
 }
 
 /** A score is never rendered without its basis and its sample size. */
