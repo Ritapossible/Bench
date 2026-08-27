@@ -78,41 +78,42 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
       <div className="stack stack-12">
         {shown.map((r) => (
           <Link key={r.tokenId} href={r.href} className="card card-link">
-            <div className="row-between" style={{ alignItems: 'flex-start', gap: '1rem' }}>
-              <div className="stack stack-8" style={{ flex: '1 1 16rem', minWidth: 0 }}>
-                <div className="row" style={{ gap: '0.6rem' }}>
-                  <h3 className="h4">{r.name}</h3>
-                  {r.verifiedLive ? (
-                    <span className="badge badge-live"><span className="dot" /> Verified live</span>
-                  ) : (
-                    <span className="badge badge-dead">{r.conformant ? 'Not verified' : 'Non-conformant'}</span>
-                  )}
-                  {r.thin ? <span className="badge badge-thin">Thin sample</span> : null}
-                </div>
-                <p className="body" style={{ maxWidth: '44rem' }}>{r.description || 'Agent card did not resolve.'}</p>
-                <p className="tiny mono">
-                  #{r.tokenId} · {CATEGORY_LABEL[r.category] ?? r.category} · uptime {pct(r.uptimeBps)} · p95{' '}
-                  {ms(r.p95LatencyMs)} · {r.probeCount} probes
-                </p>
+            <div className="sumcard">
+              <div className="sumcard-head">
+                <h3 className="h4">{r.name}</h3>
+                {r.verifiedLive ? (
+                  <span className="badge badge-live"><span className="dot" /> Verified live</span>
+                ) : (
+                  <span className="badge badge-dead">{r.conformant ? 'Not verified' : 'Non-conformant'}</span>
+                )}
+                {r.thin ? <span className="badge badge-thin">Thin sample</span> : null}
               </div>
 
-              <div className="stack stack-4" style={{ textAlign: 'right', flex: '0 0 auto' }}>
+              <div className="sumcard-score">
                 {r.deltaUsd === null ? (
                   <>
-                    <span className="small">No auditions yet</span>
+                    <span className="small ink">No auditions yet</span>
                     <span className="tiny">Listed, probed, unranked</span>
                   </>
                 ) : (
                   <>
                     <span
-                      className="mono"
-                      style={{ fontSize: '1.35rem', fontWeight: 700, color: r.deltaUsd < 0 ? 'var(--blocked)' : 'var(--ink)' }}
+                      className="mono sumcard-value"
+                      style={{ color: r.deltaUsd < 0 ? 'var(--blocked)' : 'var(--ink)' }}
                     >
                       {usd(r.deltaUsd, { sign: true })}
                     </span>
                     <span className="tiny">vs do-nothing · simulated · n={r.sampleSize}</span>
                   </>
                 )}
+              </div>
+
+              <div className="sumcard-body">
+                <p className="body">{r.description || 'Agent card did not resolve.'}</p>
+                <p className="tiny mono">
+                  #{r.tokenId} · {CATEGORY_LABEL[r.category] ?? r.category} · uptime {pct(r.uptimeBps)} · p95{' '}
+                  {ms(r.p95LatencyMs)} · {r.probeCount} probes
+                </p>
               </div>
             </div>
           </Link>

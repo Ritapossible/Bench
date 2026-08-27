@@ -348,6 +348,37 @@ table.t tr:last-child td { border-bottom: 0; }
   .docs-nav { display: block; position: sticky; top: 6rem; }
 }
 
+/* ---------- summary cards (catalog rows, hire rows) ---------- */
+
+/*
+ * A two-column flex row cannot shrink one side unless the other agrees to,
+ * and the score column's text is effectively unbreakable - so at phone widths
+ * it held its full width and squeezed the title and description down to one
+ * word per line. No overflow, which is why a scrollWidth check never caught it.
+ *
+ * Grid areas instead: the score sits under the title on a phone and beside it
+ * from 620px up, and the body track is minmax(0, 1fr) so it can actually give.
+ */
+.sumcard {
+  display: grid;
+  gap: 0.55rem 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'head' 'score' 'body';
+}
+.sumcard-head { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; }
+.sumcard-score { grid-area: score; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.sumcard-body { grid-area: body; display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+.sumcard-value { font-size: 1.35rem; font-weight: 700; line-height: 1.1; }
+
+@media (min-width: 620px) {
+  .sumcard {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'head score' 'body score';
+    align-items: start;
+  }
+  .sumcard-score { text-align: right; align-items: flex-end; }
+}
+
 /* ---------- consent stepper ---------- */
 
 .step {

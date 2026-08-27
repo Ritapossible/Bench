@@ -42,19 +42,19 @@ export default async function HiresPage() {
               const left = remaining(h.mandate, h.mandateState);
               return (
                 <Link key={h.id} href={`/hires/${h.id}`} className="card card-link">
-                  <div className="row-between" style={{ alignItems: 'flex-start', gap: '1rem' }}>
-                    <div className="stack stack-8" style={{ minWidth: 0 }}>
-                      <div className="row" style={{ gap: '0.6rem' }}>
-                        <h2 className="h4">Agent #{h.agent.tokenId.toString()}</h2>
-                        <span className={STATE_BADGE[h.state] ?? 'badge badge-plain'}>{h.state}</span>
-                      </div>
-                      <p className="tiny mono break">{h.id}</p>
+                  <div className="sumcard">
+                    <div className="sumcard-head">
+                      <h2 className="h4">Agent #{h.agent.tokenId.toString()}</h2>
+                      <span className={STATE_BADGE[h.state] ?? 'badge badge-plain'}>{h.state}</span>
                     </div>
-                    <div className="stack stack-4" style={{ textAlign: 'right', flex: '0 0 auto' }}>
+                    <div className="sumcard-score">
                       <span className="mono ink" style={{ fontWeight: 700 }}>
                         {(Number(left.spend) / 1e18).toFixed(2)} USDT
                       </span>
                       <span className="tiny">of cap remaining</span>
+                    </div>
+                    <div className="sumcard-body">
+                      <p className="tiny mono break">{h.id}</p>
                     </div>
                   </div>
                 </Link>
