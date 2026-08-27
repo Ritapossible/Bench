@@ -24,3 +24,4 @@ export * from './ports/probe.js';
 export * from './ports/crossref.js';
 export * from './ports/hire-store.js';
 export * from './ports/audition-store.js';
+export * from './ports/position.js';

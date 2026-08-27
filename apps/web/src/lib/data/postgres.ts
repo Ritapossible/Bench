@@ -2,6 +2,7 @@ import {
   agentKey,
   isVerifiedLive,
   summarizeAgreement,
+  type Address,
   type AgentCategory,
   type AgentId,
   type AgreementSummary,
@@ -10,7 +11,7 @@ import {
   type ChainName,
   type Score,
 } from '@bench/core';
-import { buildCrossReference } from '@bench/adapters';
+import { BscPositionReader, buildCrossReference } from '@bench/adapters';
 import { createDb, PgAuditionStore, PgCatalogRepository } from '@bench/db';
 import type { AddressReportResult, AgentDetail, AgentSummary, BenchData } from './types';
 
@@ -38,10 +39,23 @@ const CHAIN: ChainName = (process.env['BENCH_CHAIN'] as ChainName | undefined) ?
 const PAGE_LIMIT = 200;
 const ADDRESS = /^0x[a-fA-F0-9]{40}$/;
 
+/**
+ * Positions are read from BSC **mainnet**, even though the agent catalog is on
+ * testnet for the contest.
+ *
+ * Those are different questions about different things. The catalog asks which
+ * agents are registered and live, and for judging that is testnet. A reader
+ * pasting their own address is asking about money they actually hold, and that
+ * is on mainnet. Reading testnet for them would return an empty position for
+ * almost everyone and look like a bug.
+ */
+const POSITION_RPC = process.env['BSC_MAINNET_RPC_URL'] ?? 'https://bsc-dataseed.bnbchain.org';
+
 export function createPgData(connectionString: string): BenchData {
   const db = createDb(connectionString);
   const catalog = new PgCatalogRepository(db);
   const audition = new PgAuditionStore(db);
+  const positions = new BscPositionReader({ chain: 'bsc-mainnet', rpcUrl: POSITION_RPC });
   const crossRef = buildCrossReference({
     apiKey: process.env['ALTLAYER_8004SCAN_API_KEY'] ?? undefined,
   });
@@ -136,11 +150,21 @@ export function createPgData(connectionString: string): BenchData {
 
     async reportForAddress(address): Promise<AddressReportResult> {
       if (!ADDRESS.test(address)) return { status: 'invalid-address' };
-      // The counterfactual is a shadow run against *this* position, seeded from
-      // its on-chain state. Until the worker serves those, saying so is the
-      // only honest answer - deriving a number from unrelated auditions would
-      // look like a result and be a guess.
-      return { status: 'not-audited', address };
+
+      // The position half is a fact, so it is read rather than simulated, and
+      // it is read even when the counterfactual half cannot be produced yet.
+      // The counterfactual is a shadow run against *this* position on a forked
+      // chain, which needs an archive node and a worker; deriving a number from
+      // unrelated auditions instead would look like a result and be a guess.
+      try {
+        const position = await positions.read(address as Address);
+        return { status: 'position-only', position };
+      } catch (err) {
+        return {
+          status: 'unavailable',
+          reason: err instanceof Error ? err.message : 'could not reach a BSC node',
+        };
+      }
     },
   };
 }

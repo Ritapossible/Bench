@@ -4,6 +4,7 @@ import type {
   AgentId,
   CatalogEntry,
   CatalogStats,
+  LivePosition,
   OutcomeRecord,
   Score,
   ShadowRun,
@@ -93,11 +94,22 @@ export interface AddressReportLine {
  * run against a position.
  */
 export type AddressReportResult =
+  /** Position read, and auditioned against it. Both halves present. */
   | { readonly status: 'ok'; readonly report: AddressReport }
+  /**
+   * The position is real and was read from chain; no agent has been auditioned
+   * against it yet. This is the honest state before the shadow engine can run
+   * on demand, and it is worth showing rather than withholding: what you hold
+   * is a fact, and it is most of what a reader came to see.
+   */
+  | { readonly status: 'position-only'; readonly position: LivePosition }
   | { readonly status: 'invalid-address' }
-  | { readonly status: 'not-audited'; readonly address: string };
+  /** A node was unreachable. Distinct from "you hold nothing". */
+  | { readonly status: 'unavailable'; readonly reason: string };
 
 export interface AddressReport {
+  /** What the address actually holds, read from chain. Never simulated. */
+  readonly position: LivePosition | null;
   readonly address: string;
   readonly positionLabel: string;
   readonly positionValueUsd: number;

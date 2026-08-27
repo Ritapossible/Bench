@@ -37,21 +37,35 @@ export interface TokenAmount {
  */
 export function formatTokenAmount(
   a: TokenAmount,
-  opts: { readonly symbol?: boolean } = {},
+  opts: { readonly symbol?: boolean; readonly maxFractionDigits?: number } = {},
 ): string {
   const negative = a.amount < 0n;
   const abs = negative ? -a.amount : a.amount;
   const base = 10n ** BigInt(a.decimals);
   const whole = (abs / base).toString();
-  const frac = (abs % base).toString().padStart(a.decimals, '0').replace(/0+$/, '');
+  const fracFull = (abs % base).toString().padStart(a.decimals, '0');
+
+  let frac = fracFull.replace(/0+$/, '');
+  const limit = opts.maxFractionDigits;
+  if (limit !== undefined && frac.length > limit) {
+    // Truncated, not rounded, and by string slicing rather than by dividing
+    // through a float - an 18-decimal balance does not survive Number().
+    const cut = frac.slice(0, limit).replace(/0+$/, '');
+    // A balance that is real but smaller than the display precision must not
+    // render as zero. Better a long number than a wrong one, so in that case
+    // the full fraction is kept and the reader sees what is actually there.
+    frac = cut === '' && whole === '0' ? frac : cut;
+  }
+
   const num = `${negative ? '-' : ''}${whole}${frac === '' ? '' : `.${frac}`}`;
   return opts.symbol === false ? num : `${num} ${a.symbol}`;
 }
 
 /** Same, for a bare base-unit value whose token is known from context. */
-export const formatBaseUnits = (v: bigint, decimals: number): string =>
+export const formatBaseUnits = (v: bigint, decimals: number, maxFractionDigits?: number): string =>
   formatTokenAmount({ token: '0x', symbol: '', decimals, amount: v } as TokenAmount, {
     symbol: false,
+    ...(maxFractionDigits === undefined ? {} : { maxFractionDigits }),
   });
 
 /** A half-open block range [from, to). */

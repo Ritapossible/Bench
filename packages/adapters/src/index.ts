@@ -80,6 +80,7 @@ export {
   VENUS_LOAN_SEEDER,
 } from './shadow/seeders.js';
 export { InMemoryEgressGuard, type EgressGuardOptions } from './shadow/egress-guard.js';
+export { BscPositionReader, type PositionReaderOptions } from './chain/position-reader.js';
 export {
   AltanaWalletProvider,
   EvmLocalWalletProvider,

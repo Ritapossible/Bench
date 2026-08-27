@@ -535,10 +535,12 @@ export const fixtureData: BenchData = {
 
   async reportForAddress(address): Promise<AddressReportResult> {
     if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return { status: 'invalid-address' };
+    // Fixtures have no chain to read, so there is no real position to attach.
     const ranked = ALL.filter((a) => a.entry.verifiedLive && a.score !== null);
     return {
       status: 'ok',
       report: {
+        position: null,
         address,
         positionLabel: 'PancakeSwap v3 · BNB/USDT 0.05% · in range',
         positionValueUsd: 12_480.55,

@@ -206,6 +206,14 @@ The conversion moment — *"this agent would have saved you $340 on your Venus p
 
 It does not need a signature. The position is public state and the audition is a simulation, so **any BSC address pasted into the box produces the report.** A wallet is required to *hire*, not to be shown what hiring would have been worth.
 
+**The report has two halves, and they are different kinds of claim.**
+
+*What the address holds* is a fact. It is on chain right now, anyone can read it, and there is no reason for it ever to be simulated. `PositionReader` reads it directly: balances from the token contracts, prices from Chainlink aggregators deployed on BSC itself rather than an off-chain quote, all at one pinned block so the reading is reproducible. Concentrated-liquidity positions are reported by pair and range rather than valued, because valuing one means reconstructing amounts from the pool's tick and a confident wrong number is worse than an honest omission.
+
+*What an agent would have done with it* is a counterfactual. That agent never managed this position, so the event does not exist and no amount of chain data retrieves it. The only way to answer is to fork BSC at a past block, mirror the position into it, and let the real agent trade against real history - which is §3.3, and which needs an archive node and a worker process. Neither runs inside a web request, so the report shows the position alone until the shadow engine is serving.
+
+Keeping the halves visually and structurally separate is deliberate. Collapsing them would let a simulated number inherit the credibility of a measured one, which is the same overclaiming this document objects to everywhere else.
+
 This also makes the artifact shareable — a link, a screenshot, a report on a well-known address — rather than something each viewer must first authenticate to see. The best marketing asset the product has is the one it currently hides behind a connect button.
 
 ## 4. Data model (sketch)

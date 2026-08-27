@@ -8,6 +8,7 @@ import {
   confirmConsent,
   consentComplete,
   encodeMandate,
+  formatBaseUnits,
   formatTokenAmount,
   mandateDigest,
   nextConsentStep,
@@ -269,6 +270,28 @@ describe('human-readable amounts', () => {
     expect(formatTokenAmount(usdt(0n))).toBe('0 USDT');
     expect(formatTokenAmount(usdt(1n))).toBe('0.000000000000000001 USDT');
     expect(formatTokenAmount(usdt(5n * 10n ** 18n), { symbol: false })).toBe('5');
+  });
+
+  it('truncates for display without ever rendering a real balance as zero', () => {
+    // The balance table shows four decimals, and an 18-decimal token means most
+    // holdings have far more. Truncating is fine; truncating a dust balance to
+    // "0" is not - it turns "you hold a little" into "you hold nothing".
+    expect(formatBaseUnits(34_978_943_289_116_195_355n, 18, 4)).toBe('34.9789');
+    expect(formatBaseUnits(1_000_000_000_000_000_000n, 18, 4)).toBe('1');
+    expect(formatBaseUnits(0n, 18, 4)).toBe('0');
+
+    // Below the display precision: the full value survives rather than
+    // collapsing to zero.
+    expect(formatBaseUnits(1n, 18, 4)).toBe('0.000000000000000001');
+    expect(formatBaseUnits(50_000_000_000_000n, 18, 4)).toBe('0.00005');
+
+    // Truncation happens on the digits, never through a float - a value this
+    // size loses precision the moment it becomes a Number.
+    expect(formatBaseUnits(123_456_789_012_345_678_901_234_567n, 18, 2)).toBe('123456789.01');
+
+    // Without a limit the exact value is preserved, which is what the decision
+    // trace needs.
+    expect(formatBaseUnits(34_978_943_289_116_195_355n, 18)).toBe('34.978943289116195355');
   });
 
   it('puts formatted amounts into refusal explanations, not base units', () => {
