@@ -46,7 +46,11 @@ export async function runMigrations(
 ): Promise<void> {
   const folder =
     migrationsFolder ?? resolve(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
-  const pool = new pg.Pool({ connectionString, max: 1 });
+  // One connection, and a bounded wait for it. Neon suspends idle compute, so
+  // the first connection after a scale-to-zero pays a cold start - and pg's
+  // default is to wait forever, which on a build machine means a deploy that
+  // hangs until the platform's timeout kills it rather than one that fails.
+  const pool = new pg.Pool({ connectionString, max: 1, connectionTimeoutMillis: 30_000 });
   try {
     await migrate(drizzle(pool), { migrationsFolder: folder });
   } finally {

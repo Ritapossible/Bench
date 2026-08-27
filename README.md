@@ -105,8 +105,33 @@ every package first and therefore cannot catch a missing one.
 ### Deploying with Neon
 
 Add the Neon integration in Vercel and it sets `DATABASE_URL` (through PgBouncer) and
-`DATABASE_URL_UNPOOLED` (straight to the compute). Then, once, from a machine with both in
-its environment:
+`DATABASE_URL_UNPOOLED` (straight to the compute). That is the whole setup - the deploy
+brings the database up itself, from `scripts/vercel-build.mjs`, which runs after a
+successful compile:
+
+| State of the database | What the deploy does |
+| --- | --- |
+| No `DATABASE_URL` | Skips, and logs that the deployment will serve fixtures |
+| Reachable, no tables | Migrates, then seeds |
+| Reachable, has agents | Migrates only - **never reseeds** |
+
+The last row is the important one. Once the indexer is pointed at a real registry,
+overwriting its work on every deploy would be the most destructive thing this script could
+do, so seeding is conditional on the catalog being empty rather than on a flag someone has
+to remember to turn off.
+
+It fails the build when it cannot do its job, which is deliberate: a deploy that ships code
+expecting tables that do not exist builds cleanly and 500s on every page, and a failed
+build leaves the previous deployment serving. That is not in tension with the
+render-per-request decision below - prerendering coupled the build to *reading* data, where
+a blip failed a deploy and bought nothing; this couples it to the schema being correct,
+which the deploy genuinely must not ship ahead of.
+
+`BENCH_SKIP_BUILD_MIGRATIONS=1` opts out. Note that preview deployments run this too, so a
+preview sharing the production database will apply that branch's migrations to it - give
+previews their own Neon branch, or set the skip variable on the preview environment.
+
+The same two steps by hand, if you would rather:
 
 ```bash
 npm run db:migrate                       # uses the direct URL, see below

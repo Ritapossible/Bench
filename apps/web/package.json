@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "tsc -b ../../packages/core ../../packages/config ../../packages/adapters ../../packages/services ../../packages/db && next build",
+    "build": "tsc -b ../../packages/core ../../packages/config ../../packages/adapters ../../packages/services ../../packages/db && next build && node ../../scripts/vercel-build.mjs",
     "start": "next start",
     "clean": "rm -rf .next"
   },
@@ -21,6 +21,7 @@
     "@types/node": "22.10.2",
     "@types/react": "19.0.2",
     "@types/react-dom": "19.0.2",
+    "tsx": "^4.19.2",
     "typescript": "5.7.2"
   }
 }
