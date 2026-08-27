@@ -12,7 +12,7 @@ import {
   type Score,
   type ShadowRun,
 } from '@bench/core';
-import type { AddressReport, AgentDetail, AgentSummary, BenchData } from './types';
+import type { AddressReportResult, AgentDetail, AgentSummary, BenchData } from './types';
 
 /**
  * Fixtures.
@@ -242,10 +242,12 @@ export const fixtureData: BenchData = {
     return { ...found, runs, outcomes, realized: null };
   },
 
-  async reportForAddress(address): Promise<AddressReport | null> {
-    if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return null;
+  async reportForAddress(address): Promise<AddressReportResult> {
+    if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return { status: 'invalid-address' };
     const ranked = ALL.filter((a) => a.entry.verifiedLive && a.score !== null);
     return {
+      status: 'ok',
+      report: {
       address,
       positionLabel: 'PancakeSwap v3 · BNB/USDT 0.05% · in range',
       positionValueUsd: 12_480.55,
@@ -260,6 +262,7 @@ export const fixtureData: BenchData = {
         verifiedLive: a.entry.verifiedLive,
       })),
       computedAt: now(),
+      },
     };
   },
 };

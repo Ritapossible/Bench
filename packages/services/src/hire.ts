@@ -84,6 +84,18 @@ export interface HireOrchestratorDeps {
   readonly ids?: () => string;
 }
 
+/**
+ * A transaction put to the gate.
+ *
+ * Deliberately a subset of `CandidateAction`: the two history fields that type
+ * carries (`cumulativeValueWei`, `priorActionCount`) are filled by the
+ * orchestrator from persisted state, so there is no way for a caller to state
+ * its own spending history and no way to forget to.
+ */
+export type ProposedAction = Omit<CandidateAction, 'cumulativeValueWei' | 'priorActionCount'> & {
+  readonly token: Address;
+};
+
 /** Combined verdict from both independent bounds. */
 export interface ActionDecision {
   readonly allowed: boolean;
@@ -209,8 +221,18 @@ export class HireOrchestrator {
    * "has this agent ever done this?". Neither subsumes the other, so both are
    * evaluated and every rule that fired is reported — a refusal should be
    * complete rather than stopping at the first reason.
+   *
+   * The candidate describes **only the transaction**. How much this agent has
+   * already moved and how many actions it has already taken come from the
+   * persisted mandate state, never from the caller, and that is a security
+   * property rather than a convenience. An envelope whose cumulative bounds are
+   * evaluated against numbers the caller supplies is not a bound at all: a
+   * caller passing zero every time — a bug, or an agent that would rather not
+   * be stopped — silently disables the cumulative-value and action-count rules
+   * while the gate keeps reporting that it enforced them. Both bounds now read
+   * the same recorded history, which is the only version either can trust.
    */
-  async authorizeAction(hireId: string, candidate: CandidateAction & { token: Address }): Promise<ActionDecision> {
+  async authorizeAction(hireId: string, candidate: ProposedAction): Promise<ActionDecision> {
     const record = await this.#require(hireId);
 
     if (record.state !== 'active') {
@@ -232,7 +254,15 @@ export class HireOrchestrator {
       record.mandateState,
       this.now(),
     );
-    const e = checkAgainstEnvelope(candidate, record.envelope, record.envelopePolicy);
+    const e = checkAgainstEnvelope(
+      {
+        ...candidate,
+        cumulativeValueWei: record.mandateState.spent,
+        priorActionCount: record.mandateState.actions,
+      },
+      record.envelope,
+      record.envelopePolicy,
+    );
 
     // An advisory envelope is recorded but does not refuse — too few auditions
     // to bound behaviour would otherwise block a good agent the first time it

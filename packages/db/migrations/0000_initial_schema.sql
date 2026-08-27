@@ -38,6 +38,15 @@ CREATE TABLE "audition_windows" (
 	"seed" text NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "catalog_stats_history" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"chain" text NOT NULL,
+	"registered" integer NOT NULL,
+	"with_resolvable_card" integer NOT NULL,
+	"verified_live" integer NOT NULL,
+	"computed_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "escrow_jobs" (
 	"id" text PRIMARY KEY NOT NULL,
 	"agent_id" uuid NOT NULL,
@@ -87,7 +96,7 @@ CREATE TABLE "indexer_checkpoints" (
 );
 --> statement-breakpoint
 CREATE TABLE "outcome_records" (
-	"run_id" uuid PRIMARY KEY NOT NULL,
+	"run_id" text PRIMARY KEY NOT NULL,
 	"terminal_value_usd" double precision NOT NULL,
 	"terminal_detail" jsonb NOT NULL,
 	"delta_vs_do_nothing_usd" double precision NOT NULL,
@@ -148,7 +157,7 @@ CREATE TABLE "session_keys" (
 --> statement-breakpoint
 CREATE TABLE "shadow_actions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"run_id" uuid NOT NULL,
+	"run_id" text NOT NULL,
 	"seq" integer NOT NULL,
 	"at" timestamp with time zone NOT NULL,
 	"to" text,
@@ -161,7 +170,7 @@ CREATE TABLE "shadow_actions" (
 );
 --> statement-breakpoint
 CREATE TABLE "shadow_runs" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"window_id" text NOT NULL,
 	"position_kind" text NOT NULL,
@@ -188,6 +197,7 @@ ALTER TABLE "shadow_runs" ADD CONSTRAINT "shadow_runs_agent_id_agents_id_fk" FOR
 ALTER TABLE "shadow_runs" ADD CONSTRAINT "shadow_runs_window_id_audition_windows_id_fk" FOREIGN KEY ("window_id") REFERENCES "public"."audition_windows"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "agent_endpoints_agent_url_idx" ON "agent_endpoints" USING btree ("agent_id","url");--> statement-breakpoint
 CREATE UNIQUE INDEX "agents_chain_token_idx" ON "agents" USING btree ("chain","token_id");--> statement-breakpoint
+CREATE INDEX "catalog_stats_chain_time_idx" ON "catalog_stats_history" USING btree ("chain","computed_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "hires_idempotency_key_uq" ON "hires" USING btree ("idempotency_key");--> statement-breakpoint
 CREATE INDEX "hires_user_idx" ON "hires" USING btree ("user_address");--> statement-breakpoint
 CREATE INDEX "probe_anchors_created_idx" ON "probe_anchors" USING btree ("created_at");--> statement-breakpoint

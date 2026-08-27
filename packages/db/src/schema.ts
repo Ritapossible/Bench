@@ -135,7 +135,7 @@ export const auditionWindows = pgTable('audition_windows', {
 export const shadowRuns = pgTable(
   'shadow_runs',
   {
-    id: uuid('id').defaultRandom().primaryKey(),
+    id: text('id').primaryKey(),
     agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
     windowId: text('window_id').notNull().references(() => auditionWindows.id),
     positionKind: text('position_kind').notNull(),
@@ -151,7 +151,7 @@ export const shadowRuns = pgTable(
 
 export const shadowActions = pgTable('shadow_actions', {
   id: uuid('id').defaultRandom().primaryKey(),
-  runId: uuid('run_id').notNull().references(() => shadowRuns.id, { onDelete: 'cascade' }),
+  runId: text('run_id').notNull().references(() => shadowRuns.id, { onDelete: 'cascade' }),
   seq: integer('seq').notNull(),
   at: timestamp('at', { withTimezone: true }).notNull(),
   to: text('to'),
@@ -164,7 +164,7 @@ export const shadowActions = pgTable('shadow_actions', {
 });
 
 export const outcomeRecords = pgTable('outcome_records', {
-  runId: uuid('run_id').primaryKey().references(() => shadowRuns.id, { onDelete: 'cascade' }),
+  runId: text('run_id').primaryKey().references(() => shadowRuns.id, { onDelete: 'cascade' }),
   terminalValueUsd: doublePrecision('terminal_value_usd').notNull(),
   terminalDetail: jsonb('terminal_detail').notNull(),
   deltaVsDoNothingUsd: doublePrecision('delta_vs_do_nothing_usd').notNull(),
@@ -191,6 +191,27 @@ export const scores = pgTable(
     computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.agentId, t.category, t.basis, t.windowEnd] })],
+);
+
+/**
+ * Catalog density over time.
+ *
+ * Appended by the indexer rather than computed on demand, because the registry
+ * health dashboard plots a trend, and a trend drawn through a number recomputed
+ * at render time is not a history - it is today's number repeated across the
+ * x-axis. One row per measurement, never updated.
+ */
+export const catalogStatsHistory = pgTable(
+  'catalog_stats_history',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    chain: text('chain').notNull(),
+    registered: integer('registered').notNull(),
+    withResolvableCard: integer('with_resolvable_card').notNull(),
+    verifiedLive: integer('verified_live').notNull(),
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('catalog_stats_chain_time_idx').on(t.chain, t.computedAt)],
 );
 
 export const sessionKeys = pgTable('session_keys', {

@@ -2,6 +2,19 @@ import { liveShareBps } from '@bench/core';
 import { data } from '@/lib/data/index';
 import { pct } from '@/lib/format';
 
+/**
+ * Revalidate on a cadence rather than prerendering once.
+ *
+ * These pages read the catalog, and the catalog is written by the indexer and
+ * prober on their own schedule. Built statically they would freeze whatever was
+ * in the database the moment the deploy ran - which during judging means a page
+ * that confidently shows a stale agent count. Sixty seconds is well under the
+ * probe interval, so the page is never meaningfully behind, and it still costs
+ * one query per minute rather than one per visitor.
+ */
+export const revalidate = 60;
+
+
 export const metadata = {
   title: 'Registry health - Bench',
   description: 'How much of the ERC-8004 agent registry on BNB Smart Chain is actually alive, recomputed daily.',

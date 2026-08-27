@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { data } from '@/lib/data/index';
+import { data, isLiveData } from '@/lib/data/index';
 import { CATEGORY_LABEL, usd, agentHref } from '@/lib/format';
 
 export const metadata = {
@@ -15,8 +15,10 @@ export default async function ReportPage({
   readonly searchParams: Promise<{ readonly address?: string }>;
 }) {
   const { address } = await searchParams;
-  const report = address ? await data.reportForAddress(address.trim()) : null;
-  const invalid = Boolean(address) && report === null;
+  const result = address ? await data.reportForAddress(address.trim()) : null;
+  const report = result?.status === 'ok' ? result.report : null;
+  const invalid = result?.status === 'invalid-address';
+  const notAudited = result?.status === 'not-audited' ? result.address : null;
 
   return (
     <section className="wrap section">
@@ -59,12 +61,27 @@ export default async function ReportPage({
           </div>
         ) : null}
 
+        {notAudited !== null ? (
+          <div className="card stack stack-8">
+            <p className="quote">No audition has been run against this position yet.</p>
+            <p className="body">
+              The comparison is a shadow run against <span className="mono break">{notAudited}</span> specifically -
+              same position, same window, every agent in parallel. Until that run exists there is no number to show,
+              and a figure derived from unrelated auditions would look like a result while being a guess.
+            </p>
+            <p className="body">
+              Browse the <Link href="/catalog">catalog</Link> for what each agent has already been auditioned on.
+            </p>
+          </div>
+        ) : null}
+
         {!address ? (
           <div className="card stack stack-12">
             <h2 className="h3">Try it on a live position</h2>
             <p className="body">
-              This deployment reads testnet fixtures while the shadow engine is being built, so any well-formed
-              address returns a sample PancakeSwap LP position.
+              {isLiveData
+                ? 'Reports are computed by replaying your position through every verified-live agent in parallel, on a fork of BSC. Nothing is signed and nothing is spent.'
+                : 'This deployment reads testnet fixtures while the shadow engine is being built, so any well-formed address returns a sample PancakeSwap LP position.'}
             </p>
             <div>
               <Link href={`/report?address=${EXAMPLE}`} className="btn btn-outline btn-sm mono break" style={{ maxWidth: '100%' }}>

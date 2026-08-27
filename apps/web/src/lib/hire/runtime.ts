@@ -2,10 +2,12 @@ import 'server-only';
 import {
   HireOrchestrator,
   InMemoryHireStore,
-  type HireRecord,
 } from '@bench/services';
+import { createDb, PgHireStore } from '@bench/db';
 import type {
   Address,
+  HireRecord,
+  HireStore,
   EscrowClient,
   EscrowJob,
   Hex,
@@ -90,27 +92,49 @@ class SimulatedEscrow implements EscrowClient {
 }
 
 /**
- * Module-level so a hire survives between requests on a warm instance.
+ * The store, chosen the same way `lib/data` chooses its catalog source.
  *
- * Not durable: a cold start loses it, which is why every read path treats a
+ * With `DATABASE_URL` set, hires are rows in Postgres: they survive a restart,
+ * they are visible to every instance, and - the part that actually matters -
+ * two concurrent requests carrying the same idempotency key contend on a unique
+ * index rather than on two copies of a Map that cannot see each other. A hire
+ * moves money, so "at most once" has to be enforced somewhere both requests can
+ * reach, and process memory is not that place.
+ *
+ * Without it, an in-memory store, so a fresh clone runs with no database. That
+ * fallback loses hires on a cold start, which is why every read path treats a
  * missing hire as an ordinary outcome and says so rather than erroring.
- * `@bench/db` implements the same `HireStore` interface against Postgres.
  */
-const globalForHire = globalThis as unknown as { __benchHire?: { store: InMemoryHireStore; orchestrator: HireOrchestrator } };
+const globalForHire = globalThis as unknown as {
+  __benchHire?: { store: HireStore; orchestrator: HireOrchestrator; durable: boolean };
+};
 
 function runtime() {
   if (globalForHire.__benchHire === undefined) {
-    const store = new InMemoryHireStore();
+    const url = process.env['DATABASE_URL'];
+    const durable = url !== undefined && url.trim() !== '';
+    const store: HireStore = durable ? new PgHireStore(createDb(url)) : new InMemoryHireStore();
+
+    if (!durable && process.env['NODE_ENV'] === 'production') {
+      console.warn(
+        '[bench] DATABASE_URL is not set - hires are IN MEMORY and will be lost on restart, ' +
+          'and idempotency cannot be enforced across instances.',
+      );
+    }
+
     globalForHire.__benchHire = {
       store,
+      durable,
       orchestrator: new HireOrchestrator({ payment: new SimulatedPayment(), escrow: new SimulatedEscrow(), store }),
     };
   }
   return globalForHire.__benchHire;
 }
 
-export const hireStore = (): InMemoryHireStore => runtime().store;
+export const hireStore = (): HireStore => runtime().store;
 export const hireOrchestrator = (): HireOrchestrator => runtime().orchestrator;
+/** True when hires are persisted. Surfaced in the UI rather than assumed. */
+export const hiresAreDurable = (): boolean => runtime().durable;
 export type { HireRecord };
 
 /** The demo owner. Replaced by the connected wallet when hiring goes on chain. */

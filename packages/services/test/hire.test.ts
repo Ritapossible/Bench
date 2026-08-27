@@ -141,8 +141,43 @@ describe('HireOrchestrator', () => {
 });
 
 describe('authorizeAction — both bounds', () => {
+  // Only the transaction. Spending history is the orchestrator's to supply,
+  // from persisted state - see ProposedAction.
   const candidate = (to: Address, value: bigint) => ({
-    to, value, data: '0x' as Hex, token: USDT, cumulativeValueWei: 0n, priorActionCount: 0,
+    to, value, data: '0x' as Hex, token: USDT,
+  });
+
+  it('counts spending against the envelope from recorded state, not from the caller', async () => {
+    // The regression this exists for: every call site used to pass
+    // cumulativeValueWei: 0n, so the envelope's cumulative bound could never
+    // fire however much the agent moved. A bound evaluated against numbers the
+    // caller supplies is not a bound - it is a report that one was checked.
+    //
+    // The envelope here was derived from auditions totalling 310 wei, so with
+    // the default 100% action tolerance and 50% value tolerance the cumulative
+    // ceiling is well under what four 100-wei actions reach.
+    const { o, store } = build();
+    const h = await o.hire(request({ bounds: { ...request().bounds, maxActions: 50, totalSpendCap: amount(100_000n) } }));
+
+    const outcomes: boolean[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      outcomes.push((await o.authorizeAction(h.id, candidate(VENUS, 100n))).allowed);
+    }
+
+    // It admits some and then stops. Under the old signature every one of these
+    // was admitted, because each claimed to be the agent's first action.
+    expect(outcomes).toContain(false);
+
+    const after = await store.get(h.id);
+    const blocked = after!.trace.filter((t) => t.outcome === 'blocked');
+    expect(blocked.length).toBeGreaterThan(0);
+    expect(
+      blocked.some((t) =>
+        t.rules.some(
+          (r) => r === 'cumulative-value-exceeds-observed' || r === 'action-count-exceeds-observed',
+        ),
+      ),
+    ).toBe(true);
   });
 
   it('admits what the owner authorised and the agent has demonstrated', async () => {
@@ -173,8 +208,16 @@ describe('authorizeAction — both bounds', () => {
   });
 
   it('accumulates spend, so a sequence inside the per-tx cap still hits the total', async () => {
+    // About the *mandate's* total cap specifically, so the envelope is widened
+    // out of the way - both bounds accumulate now, and a test that cannot say
+    // which one refused is not testing either.
     const { o } = build();
-    const h = await o.hire(request({ bounds: { ...request().bounds, totalSpendCap: amount(250n) } }));
+    const h = await o.hire(
+      request({
+        bounds: { ...request().bounds, totalSpendCap: amount(250n) },
+        envelope: { ...envelope, maxCumulativeValueWei: 10_000n, maxActionCount: 100 },
+      }),
+    );
     expect((await o.authorizeAction(h.id, candidate(VENUS, 100n))).allowed).toBe(true);
     expect((await o.authorizeAction(h.id, candidate(VENUS, 100n))).allowed).toBe(true);
     const third = await o.authorizeAction(h.id, candidate(VENUS, 100n));

@@ -20,7 +20,7 @@ import {
   type ProbeResult,
   type ProbeTarget,
 } from '@bench/core';
-import { and, asc, count, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gte, isNull, notInArray, sql } from 'drizzle-orm';
 import type { Db } from './index.js';
 import * as schema from './schema.js';
 
@@ -123,7 +123,13 @@ export class PgCatalogRepository implements CatalogRepository {
         ? eq(schema.agentEndpoints.agentId, agentId)
         : and(
             eq(schema.agentEndpoints.agentId, agentId),
-            sql`${schema.agentEndpoints.url} <> all(${keep})`,
+            // `notInArray` rather than a hand-written `<> all(...)`: drizzle
+            // expands an array inside a `sql` template into comma-separated
+            // placeholders, so `all(${keep})` passed a bare string for a
+            // single-endpoint agent and Postgres rejected it as a malformed
+            // array literal. Almost every real agent card has exactly one
+            // endpoint, so that was the common case, not the edge one.
+            notInArray(schema.agentEndpoints.url, keep),
           ),
     );
   }

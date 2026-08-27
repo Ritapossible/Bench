@@ -21,6 +21,7 @@ export {
   type HireRecord,
   type HireRequest,
   type HireStore,
+  type ProposedAction,
 } from './hire.js';
 export {
   AuditionRunner,

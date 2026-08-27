@@ -1,0 +1,399 @@
+import {
+  agentKey,
+  BenchError,
+  type AgentCategory,
+  type AgentId,
+  type AuditionStore,
+  type AuditionWindow,
+  type Baseline,
+  type CatalogStats,
+  type CategoryMetric,
+  type ChainName,
+  type InterceptedAction,
+  type OutcomeRecord,
+  type PositionTemplate,
+  type Score,
+  type ScoreBasis,
+  type ShadowRun,
+  type ShadowRunStatus,
+  type TerminalState,
+} from '@bench/core';
+import { and, desc, eq, inArray, or } from 'drizzle-orm';
+import type { Db } from './index.js';
+import * as schema from './schema.js';
+
+/**
+ * Postgres AuditionStore - ARCHITECTURE.md 3.3 and 3.4.
+ *
+ * The evidence half of the catalog: what each agent did in audition, what it
+ * came out with, and the score derived from that. Three decisions worth
+ * stating, because each is a place a simpler implementation would quietly
+ * mislead:
+ *
+ *  1. **Scores are read in one query per page, not one per row.** `latestScores`
+ *     takes the whole page's agents at once. A per-agent query is a catalog
+ *     that gets slower the more agents Bench indexes, which is the wrong
+ *     direction for a marketplace selling breadth.
+ *  2. **Unscored is not zero.** `latestScores` returns a map with entries only
+ *     for agents that have a score, so the caller can render "not audited yet"
+ *     rather than a zero that looks like a verdict.
+ *  3. **Bases are never merged.** Every read takes a `basis`, and simulated and
+ *     realized scores are separate rows by primary key. There is no query here
+ *     that can accidentally average a backtest with a settled job.
+ */
+
+type Json = Record<string, unknown>;
+
+const chainOf = (s: string): ChainName => s as ChainName;
+
+/** `numeric(78,0)` arrives as a string; every conversion back to bigint goes through here. */
+const toBigInt = (v: string | number | null): bigint => BigInt(v ?? 0);
+
+export class PgAuditionStore implements AuditionStore {
+  constructor(private readonly db: Db) {}
+
+  // ------------------------------------------------------------------- runs
+
+  async putRun(run: ShadowRun, actions: readonly InterceptedAction[]): Promise<void> {
+    const agentUuid = await this.#agentUuid(run.agent);
+
+    // One transaction: a run whose actions half-landed is worse than no run at
+    // all, because the action count feeds the score.
+    await this.db.transaction(async (tx) => {
+      await tx
+        .insert(schema.auditionWindows)
+        .values({
+          id: run.window.id,
+          label: run.window.label,
+          regime: run.window.regime,
+          forkBlock: run.window.forkBlock,
+          endBlock: run.window.endBlock,
+          seed: run.window.seed,
+        })
+        .onConflictDoNothing();
+
+      await tx
+        .insert(schema.shadowRuns)
+        .values({
+          id: run.id,
+          agentId: agentUuid,
+          windowId: run.window.id,
+          positionKind: run.position.kind,
+          positionParams: encPosition(run.position),
+          status: run.status,
+          startedAt: run.startedAt,
+          finishedAt: run.finishedAt,
+          egressSpentUsd: run.egressSpentUsd,
+          failureReason: run.failureReason ?? null,
+        })
+        .onConflictDoUpdate({
+          target: schema.shadowRuns.id,
+          set: {
+            status: run.status,
+            startedAt: run.startedAt,
+            finishedAt: run.finishedAt,
+            egressSpentUsd: run.egressSpentUsd,
+            failureReason: run.failureReason ?? null,
+          },
+        });
+
+      // Replaced wholesale rather than appended, so re-recording a run cannot
+      // double its action count.
+      await tx.delete(schema.shadowActions).where(eq(schema.shadowActions.runId, run.id));
+      if (actions.length > 0) {
+        await tx.insert(schema.shadowActions).values(
+          actions.map((a) => ({
+            runId: run.id,
+            seq: a.seq,
+            at: a.at,
+            to: a.to,
+            value: a.value.toString(),
+            data: a.data,
+            decoded: a.decoded === null ? null : (a.decoded as unknown as Json),
+            simSuccess: a.simulated.success,
+            simGasUsed: a.simulated.gasUsed.toString(),
+            revertReason: a.simulated.revertReason ?? null,
+          })),
+        );
+      }
+    });
+  }
+
+  async runsFor(agent: AgentId, limit = 20): Promise<readonly ShadowRun[]> {
+    const rows = await this.db
+      .select({ run: schema.shadowRuns, window: schema.auditionWindows })
+      .from(schema.shadowRuns)
+      .innerJoin(schema.agents, eq(schema.agents.id, schema.shadowRuns.agentId))
+      .innerJoin(schema.auditionWindows, eq(schema.auditionWindows.id, schema.shadowRuns.windowId))
+      .where(agentMatches(agent))
+      .orderBy(desc(schema.shadowRuns.startedAt))
+      .limit(limit);
+
+    return rows.map(({ run, window }) => ({
+      id: run.id,
+      agent,
+      window: {
+        id: window.id,
+        label: window.label,
+        regime: window.regime as AuditionWindow['regime'],
+        forkBlock: window.forkBlock,
+        endBlock: window.endBlock,
+        seed: window.seed,
+      },
+      position: decPosition(run.positionKind, run.positionParams as Json),
+      status: run.status as ShadowRunStatus,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+      egressSpentUsd: run.egressSpentUsd,
+      ...(run.failureReason === null ? {} : { failureReason: run.failureReason }),
+    }));
+  }
+
+  // --------------------------------------------------------------- outcomes
+
+  async putOutcome(outcome: OutcomeRecord, replayHash: string): Promise<void> {
+    await this.db
+      .insert(schema.outcomeRecords)
+      .values({
+        runId: outcome.runId,
+        terminalValueUsd: outcome.terminal.valueUsd,
+        terminalDetail: outcome.terminal.detail,
+        deltaVsDoNothingUsd: outcome.deltaVsDoNothingUsd,
+        deltaVsPeerMedianUsd: outcome.deltaVsPeerMedianUsd,
+        maxDrawdownUsd: outcome.maxDrawdownUsd,
+        actionCount: outcome.actionCount,
+        replayHash,
+      })
+      .onConflictDoUpdate({
+        target: schema.outcomeRecords.runId,
+        set: {
+          terminalValueUsd: outcome.terminal.valueUsd,
+          terminalDetail: outcome.terminal.detail,
+          deltaVsDoNothingUsd: outcome.deltaVsDoNothingUsd,
+          deltaVsPeerMedianUsd: outcome.deltaVsPeerMedianUsd,
+          maxDrawdownUsd: outcome.maxDrawdownUsd,
+          actionCount: outcome.actionCount,
+          replayHash,
+        },
+      });
+  }
+
+  async outcomesFor(agent: AgentId, limit = 20): Promise<readonly OutcomeRecord[]> {
+    const rows = await this.db
+      .select({ o: schema.outcomeRecords })
+      .from(schema.outcomeRecords)
+      .innerJoin(schema.shadowRuns, eq(schema.shadowRuns.id, schema.outcomeRecords.runId))
+      .innerJoin(schema.agents, eq(schema.agents.id, schema.shadowRuns.agentId))
+      .where(agentMatches(agent))
+      .orderBy(desc(schema.shadowRuns.finishedAt))
+      .limit(limit);
+
+    return rows.map(({ o }) => ({
+      runId: o.runId,
+      terminal: {
+        valueUsd: o.terminalValueUsd,
+        detail: o.terminalDetail as TerminalState['detail'],
+      },
+      deltaVsDoNothingUsd: o.deltaVsDoNothingUsd,
+      deltaVsPeerMedianUsd: o.deltaVsPeerMedianUsd,
+      maxDrawdownUsd: o.maxDrawdownUsd,
+      actionCount: o.actionCount,
+    }));
+  }
+
+  // ----------------------------------------------------------------- scores
+
+  async putScore(score: Score): Promise<void> {
+    const agentUuid = await this.#agentUuid(score.agent);
+    await this.db
+      .insert(schema.scores)
+      .values({
+        agentId: agentUuid,
+        category: score.category,
+        basis: score.basis,
+        windowStart: score.window.start,
+        windowEnd: score.window.end,
+        sampleSize: score.sampleSize,
+        baseline: score.baseline as unknown as Json,
+        normalized: score.normalized,
+        metric: score.metric as unknown as Json,
+      })
+      .onConflictDoUpdate({
+        target: [schema.scores.agentId, schema.scores.category, schema.scores.basis, schema.scores.windowEnd],
+        set: {
+          windowStart: score.window.start,
+          sampleSize: score.sampleSize,
+          baseline: score.baseline as unknown as Json,
+          normalized: score.normalized,
+          metric: score.metric as unknown as Json,
+          computedAt: new Date(),
+        },
+      });
+  }
+
+  /**
+   * One query for a whole page, resolved with `DISTINCT ON`.
+   *
+   * Postgres-specific and worth it: the alternative that works everywhere is a
+   * self-join against a grouped subquery, which costs a second pass over the
+   * same rows to express "the newest score per agent" - a sort the index
+   * already gives us.
+   */
+  async latestScores(agents: readonly AgentId[], basis: ScoreBasis): Promise<ReadonlyMap<string, Score>> {
+    if (agents.length === 0) return new Map();
+
+    const rows = await this.db
+      .select({ s: schema.scores, chain: schema.agents.chain, tokenId: schema.agents.tokenId })
+      .from(schema.scores)
+      .innerJoin(schema.agents, eq(schema.agents.id, schema.scores.agentId))
+      .where(and(eq(schema.scores.basis, basis), anyOfAgents(agents)))
+      .orderBy(schema.scores.agentId, desc(schema.scores.windowEnd));
+
+    const out = new Map<string, Score>();
+    for (const { s, chain, tokenId } of rows) {
+      const id: AgentId = { chain: chainOf(chain), tokenId: toBigInt(tokenId) };
+      const key = agentKey(id);
+      // Ordered newest-first per agent, so the first row wins and later ones
+      // are older windows for the same agent.
+      if (!out.has(key)) out.set(key, toScore(s, id));
+    }
+    return out;
+  }
+
+  async latestScore(agent: AgentId, basis: ScoreBasis): Promise<Score | null> {
+    return (await this.latestScores([agent], basis)).get(agentKey(agent)) ?? null;
+  }
+
+  async topByCategory(category: AgentCategory, basis: ScoreBasis, limit: number): Promise<readonly Score[]> {
+    const rows = await this.db
+      .select({ s: schema.scores, chain: schema.agents.chain, tokenId: schema.agents.tokenId })
+      .from(schema.scores)
+      .innerJoin(schema.agents, eq(schema.agents.id, schema.scores.agentId))
+      .where(and(eq(schema.scores.category, category), eq(schema.scores.basis, basis)))
+      .orderBy(desc(schema.scores.normalized))
+      .limit(limit);
+
+    return rows.map(({ s, chain, tokenId }) =>
+      toScore(s, { chain: chainOf(chain), tokenId: toBigInt(tokenId) }),
+    );
+  }
+
+  // ------------------------------------------------------------------ stats
+
+  async recordStats(stats: CatalogStats): Promise<void> {
+    await this.db.insert(schema.catalogStatsHistory).values({
+      chain: stats.chain,
+      registered: stats.registered,
+      withResolvableCard: stats.withResolvableCard,
+      verifiedLive: stats.verifiedLive,
+      computedAt: stats.computedAt,
+    });
+  }
+
+  /** Oldest first, so a caller can plot the array without reversing it. */
+  async statsHistory(chain: ChainName, limit = 90): Promise<readonly CatalogStats[]> {
+    const rows = await this.db
+      .select()
+      .from(schema.catalogStatsHistory)
+      .where(eq(schema.catalogStatsHistory.chain, chain))
+      .orderBy(desc(schema.catalogStatsHistory.computedAt))
+      .limit(limit);
+
+    return rows
+      .map((r) => ({
+        chain: chainOf(r.chain),
+        registered: r.registered,
+        withResolvableCard: r.withResolvableCard,
+        verifiedLive: r.verifiedLive,
+        computedAt: r.computedAt,
+      }))
+      .reverse();
+  }
+
+  async #agentUuid(agent: AgentId): Promise<string> {
+    const rows = await this.db
+      .select({ id: schema.agents.id })
+      .from(schema.agents)
+      .where(agentMatches(agent))
+      .limit(1);
+    const row = rows[0];
+    if (row === undefined) {
+      throw new BenchError('NOT_FOUND', `agent ${agentKey(agent)} is not indexed; index it before recording evidence`);
+    }
+    return row.id;
+  }
+}
+
+function toScore(s: typeof schema.scores.$inferSelect, agent: AgentId): Score {
+  return {
+    agent,
+    category: s.category as AgentCategory,
+    basis: s.basis as ScoreBasis,
+    window: { start: s.windowStart, end: s.windowEnd },
+    sampleSize: s.sampleSize,
+    baseline: s.baseline as unknown as Baseline,
+    normalized: s.normalized,
+    metric: s.metric as unknown as CategoryMetric,
+  };
+}
+
+/** `capital` carries a bigint, so the params blob needs an explicit codec like the mandate's. */
+const encPosition = (p: PositionTemplate): Json => ({
+  label: p.label,
+  params: Object.fromEntries(
+    Object.entries(p.params).map(([k, v]) => [k, typeof v === 'bigint' ? { $bigint: v.toString() } : v]),
+  ),
+  capital: {
+    token: p.capital.token,
+    symbol: p.capital.symbol,
+    decimals: p.capital.decimals,
+    amount: p.capital.amount.toString(),
+  },
+});
+
+const decPosition = (kind: string, j: Json): PositionTemplate => {
+  const cap = j['capital'] as Json;
+  const raw = (j['params'] ?? {}) as Record<string, unknown>;
+  return {
+    kind: kind as PositionTemplate['kind'],
+    label: j['label'] as string,
+    params: Object.fromEntries(
+      Object.entries(raw).map(([k, v]) => [
+        k,
+        typeof v === 'object' && v !== null && '$bigint' in v
+          ? BigInt((v as { $bigint: string }).$bigint)
+          : (v as string | number),
+      ]),
+    ),
+    capital: {
+      token: cap['token'] as PositionTemplate['capital']['token'],
+      symbol: cap['symbol'] as string,
+      decimals: cap['decimals'] as number,
+      amount: BigInt(cap['amount'] as string),
+    },
+  };
+};
+
+const agentMatches = (id: AgentId) =>
+  and(eq(schema.agents.chain, id.chain), eq(schema.agents.tokenId, id.tokenId.toString()));
+
+/**
+ * `(chain, token_id) IN (...)` expressed as an OR of pairs.
+ *
+ * A tuple `IN` would be tidier, but agents are keyed by two columns of
+ * different types and drizzle's `inArray` takes one. Kept explicit rather than
+ * hand-written SQL so the parameters stay bound.
+ */
+function anyOfAgents(agents: readonly AgentId[]) {
+  const chains = [...new Set(agents.map((a) => a.chain))];
+  const tokens = [...new Set(agents.map((a) => a.tokenId.toString()))];
+  // Narrow by both columns first - that is what the unique index covers - then
+  // filter to the exact pairs, so a query for (bsc, 1) and (opbnb, 2) does not
+  // also return (bsc, 2).
+  return and(
+    inArray(schema.agents.chain, chains),
+    inArray(schema.agents.tokenId, tokens),
+    or(...agents.map((a) => agentMatches(a))),
+  );
+}
+

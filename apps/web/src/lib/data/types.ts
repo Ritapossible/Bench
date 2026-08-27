@@ -38,7 +38,7 @@ export interface BenchData {
   getAgent(chain: string, tokenId: string): Promise<AgentDetail | null>;
 
   /** An audition report against one position, for §3.8's pasted address. */
-  reportForAddress(address: string): Promise<AddressReport | null>;
+  reportForAddress(address: string): Promise<AddressReportResult>;
 }
 
 /** A catalog row: the registry record, its liveness, and its best score. */
@@ -64,6 +64,21 @@ export interface AddressReportLine {
   readonly actionCount: number;
   readonly verifiedLive: boolean;
 }
+
+/**
+ * Three distinct answers, because collapsing them misleads.
+ *
+ * A malformed address and an address nobody has auditioned against are
+ * different facts about the world, and a page that renders both as "not found"
+ * tells a user their address is wrong when it is not. Same principle as
+ * `crossReference`'s `unconfigured` status: "we have not checked" is a claim in
+ * its own right, and it is the honest one to make before the shadow engine has
+ * run against a position.
+ */
+export type AddressReportResult =
+  | { readonly status: 'ok'; readonly report: AddressReport }
+  | { readonly status: 'invalid-address' }
+  | { readonly status: 'not-audited'; readonly address: string };
 
 export interface AddressReport {
   readonly address: string;

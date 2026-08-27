@@ -1,3 +1,4 @@
+import { formatBaseUnits } from './primitives.js';
 import type { InterceptedAction } from './audition.js';
 import type { Address, Hex } from './primitives.js';
 
@@ -115,6 +116,14 @@ const selectorOf = (data: Hex): Hex =>
   (data.length >= 10 ? (data.slice(0, 10).toLowerCase() as Hex) : ('0x' as Hex));
 
 const withTolerance = (v: bigint, bps: number): bigint => (v * BigInt(10_000 + bps)) / 10_000n;
+
+/**
+ * Envelope maxima are native-token base units, and a refusal is read by a
+ * person deciding whether their agent misbehaved. "170000000000000000000 wei"
+ * is not a quantity anyone can weigh against another one at a glance, which
+ * makes the most important sentence in the trace the least legible.
+ */
+const native = (v: bigint): string => `${formatBaseUnits(v, 18)} BNB`;
 
 /**
  * Fold audition activity into an envelope.
@@ -236,9 +245,9 @@ function explain(
       case 'unseen-call':
         return `calls ${selectorOf(c.data)}, a function this agent never called in audition`;
       case 'value-exceeds-observed':
-        return `moves ${c.value} wei; the most it moved in any single audition action was ${e.maxSingleValueWei}`;
+        return `moves ${native(c.value)}; the most it moved in any single audition action was ${native(e.maxSingleValueWei)}`;
       case 'cumulative-value-exceeds-observed':
-        return `would take this hire to ${c.cumulativeValueWei + c.value} wei moved; the most in any audition was ${e.maxCumulativeValueWei}`;
+        return `would take this hire to ${native(c.cumulativeValueWei + c.value)} moved; the most in any audition was ${native(e.maxCumulativeValueWei)}`;
       case 'action-count-exceeds-observed':
         return `is action ${c.priorActionCount + 1}; the most it took in any audition was ${e.maxActionCount}`;
       case 'position-drop-exceeds-observed':
