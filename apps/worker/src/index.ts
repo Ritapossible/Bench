@@ -255,13 +255,18 @@ async function main(): Promise<void> {
     await auditionQ.add('tick', {}, repeatOpts(CADENCE_MS.audition));
   }
 
-  console.log(
-    `[bench:worker] queues up — indexer/${CADENCE_MS.indexer}ms ` +
-      `prober/${CADENCE_MS.prober}ms anchor/${CADENCE_MS.anchor}ms`,
-  );
+  const registered = [
+    `indexer/${CADENCE_MS.indexer}ms`,
+    `prober/${CADENCE_MS.prober}ms`,
+    `scorer/${CADENCE_MS.scorer}ms`,
+    `crossref/${CADENCE_MS.crossref}ms`,
+    ...(auditionService === null ? [] : [`audition/${CADENCE_MS.audition}ms`]),
+    ...(anchoringConfigured ? [`anchor/${CADENCE_MS.anchor}ms`] : []),
+  ];
+  console.log(`[bench:worker] queues up - ${registered.join(' ')}`);
 
   const shutdown = async (signal: string): Promise<void> => {
-    console.log(`[bench:worker] ${signal} — draining`);
+    console.log(`[bench:worker] ${signal} - draining`);
     // Workers first: stop taking new jobs and let in-flight ticks finish
     // before the queues (and their Redis connections) go away.
     await Promise.all(workers.map((w) => w.close()));

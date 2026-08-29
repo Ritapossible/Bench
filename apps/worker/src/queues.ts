@@ -4,13 +4,21 @@ import type { RedisOptions } from 'ioredis';
  * Queue names and cadences in one place, so "how often does Bench probe?" is
  * answered by reading one file rather than by grepping for `every:`.
  */
+/**
+ * Queue names. Hyphenated, not colon-separated.
+ *
+ * BullMQ rejects a colon in a queue name outright - it uses `:` as its own Redis
+ * key separator - and it throws at construction, so the worker died on its first
+ * `new Queue` with "Queue name cannot contain :" and never reached a single
+ * tick. It had never once started.
+ */
 export const QUEUE = {
-  indexer: 'bench:indexer',
-  prober: 'bench:prober',
-  anchor: 'bench:anchor',
-  audition: 'bench:audition',
-  scorer: 'bench:scorer',
-  crossref: 'bench:crossref',
+  indexer: 'bench-indexer',
+  prober: 'bench-prober',
+  anchor: 'bench-anchor',
+  audition: 'bench-audition',
+  scorer: 'bench-scorer',
+  crossref: 'bench-crossref',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
