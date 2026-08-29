@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import {
   appendTrace,
   applySpend,
@@ -5,6 +6,7 @@ import {
   BenchError,
   checkAgainstEnvelope,
   checkMandate,
+  isMandateSignedBy,
   consentComplete,
   formatBaseUnits,
   formatTokenAmount,
@@ -25,7 +27,7 @@ import {
   type HireStore,
   type Hex,
   type MandateBounds,
-  type MandateState,
+  type SignedMandate,
   type PaymentClient,
   type TokenAmount,
   type TraceEntry,
@@ -52,6 +54,9 @@ import {
 
 export type { ClaimResult, HireRecord, HireStore } from '@bench/core';
 
+/** 32 bytes of CSPRNG. `Math.random` is not one and a nonce is replay protection. */
+const randomNonce = (): Hex => `0x${randomBytes(32).toString('hex')}` as Hex;
+
 export interface HireRequest {
   /** Same key ⇒ same hire. The client generates it; the server trusts it only for dedupe. */
   readonly idempotencyKey: string;
@@ -74,6 +79,19 @@ export interface HireRequest {
    */
   readonly envelope: BehaviouralEnvelope;
   readonly envelopePolicy?: EnvelopePolicy;
+  /** The session key the mandate authorises. Defaults to the owner. */
+  readonly sessionKey?: Address;
+  /**
+   * The owner's signature over the mandate digest, with the address that
+   * produced it.
+   *
+   * Optional because this deployment cannot yet mint a session key or prompt a
+   * wallet, and refusing every hire would be worse than proceeding with the
+   * fact recorded. When present it is verified before any money moves, and the
+   * hire records that it was; when absent the hire is marked unsigned and the
+   * UI says so rather than describing it as authorised.
+   */
+  readonly signature?: { readonly signature: Hex; readonly signer: Address };
 }
 
 export interface HireOrchestratorDeps {
@@ -111,7 +129,10 @@ export class HireOrchestrator {
 
   constructor(private readonly deps: HireOrchestratorDeps) {
     this.now = deps.clock ?? (() => new Date());
-    this.newId = deps.ids ?? (() => `h_${Math.random().toString(36).slice(2, 12)}`);
+    // CSPRNG, not Math.random. Hire ids address a mandate and its full
+    // decision trace, and V8's PRNG state is recoverable from its outputs -
+    // which made them enumerable rather than merely unguessed.
+    this.newId = deps.ids ?? (() => `h_${randomBytes(12).toString('hex')}`);
   }
 
   /**
@@ -137,11 +158,34 @@ export class HireOrchestrator {
       hireId: id,
       owner: req.owner,
       agent: req.agent,
-      sessionKey: req.owner, // replaced by the minted session key in Phase 4 wiring
+      // Until session keys are minted on chain the owner is the authorised
+      // signer, and that is stated rather than disguised: a mandate whose
+      // sessionKey is the owner authorises the owner, and the UI says so.
+      sessionKey: req.sessionKey ?? req.owner,
       bounds: req.bounds,
-      nonce: `0x${id}` as Hex,
+      // Real hex. This used to be `0x${id}` over an opaque id like `h_a1b2c3`,
+      // producing `0xh_a1b2c3` - typed Hex, not hex, and unusable anywhere a
+      // nonce actually has to be one.
+      nonce: randomNonce(),
       issuedAt: at,
     };
+
+    // Verify before anything external happens. An invalid signature is a
+    // refusal, not a warning: proceeding would let a mandate claim an
+    // authorisation it does not have.
+    if (req.signature !== undefined) {
+      const signed: SignedMandate = {
+        mandate,
+        signature: req.signature.signature,
+        signer: req.signature.signer,
+      };
+      if (!isMandateSignedBy(signed, req.signature.signer)) {
+        throw new BenchError(
+          'NOT_SUPPORTED_BY_PROVIDER',
+          'the mandate signature does not authorise this owner',
+        );
+      }
+    }
 
     let record: HireRecord = {
       id,
@@ -150,6 +194,7 @@ export class HireOrchestrator {
       owner: req.owner,
       agent: req.agent,
       mandate,
+      mandateSignature: req.signature ?? null,
       mandateState: EMPTY_MANDATE_STATE,
       envelope: req.envelope,
       envelopePolicy: req.envelopePolicy,

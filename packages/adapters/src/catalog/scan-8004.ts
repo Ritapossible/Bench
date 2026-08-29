@@ -40,8 +40,19 @@ export interface Scan8004Options {
   readonly allowLoopback?: boolean;
 }
 
+/**
+ * Chain name to EIP-155 id, for the one boundary that speaks in numbers.
+ *
+ * Kept next to the URL builder rather than in core: it is a fact about this
+ * API's path shape, not about the domain.
+ */
+const CHAIN_IDS: Readonly<Record<string, number>> = {
+  'bsc-mainnet': 56,
+  'bsc-testnet': 97,
+};
+
 const DEFAULTS = {
-  baseUrl: 'https://8004scan.io/api/v1',
+  baseUrl: 'https://api.8004scan.io/api/v1',
   requestsPerMinute: 300,
   timeoutMs: 6_000,
   concurrency: 4,
@@ -64,6 +75,37 @@ class Pacer {
     this.#next = at + this.intervalMs;
     if (at > now) await new Promise((r) => setTimeout(r, at - now));
   }
+}
+
+/**
+ * Endpoint count across the shapes this API actually returns.
+ *
+ * Checked against a live response rather than assumed: `services` comes back as
+ * an object keyed by service name - `{"web":{"endpoint":"https://…"}}` - not as
+ * an array, and the two singular fields are usually null. Reading only
+ * `endpoints[]` returned null for every real agent, so the corroboration panel
+ * could never report a count.
+ *
+ * Null still means "not stated", which is different from zero and is why the
+ * return type allows it.
+ */
+function countEndpoints(inner: Record<string, unknown>): number | null {
+  const eps = inner['endpoints'];
+  if (Array.isArray(eps)) return eps.length;
+
+  const services = inner['services'];
+  if (Array.isArray(services)) return services.length;
+  if (services !== null && typeof services === 'object') {
+    return Object.keys(services as Record<string, unknown>).length;
+  }
+
+  if (typeof inner['endpointCount'] === 'number') return inner['endpointCount'];
+
+  // Singular fields, present on some records instead of a collection.
+  const singles = ['a2a_endpoint', 'mcp_endpoint', 'agent_url'].filter(
+    (k) => typeof inner[k] === 'string' && (inner[k] as string) !== '',
+  );
+  return singles.length > 0 ? singles.length : null;
 }
 
 /** Narrow an unknown JSON body to the facts we are willing to publish. */
@@ -90,14 +132,7 @@ export function parseAgentPayload(
 
   if (!hasIdentity) return null; // unrecognised shape — refuse rather than guess
 
-  const eps = inner['endpoints'];
-  const endpointCount = Array.isArray(eps)
-    ? eps.length
-    : typeof inner['endpointCount'] === 'number'
-      ? inner['endpointCount']
-      : null;
-
-  return { known: true, endpointCount };
+  return { known: true, endpointCount: countEndpoints(inner) };
 }
 
 export class Scan8004CrossReference implements CrossReferenceSource {
@@ -111,7 +146,10 @@ export class Scan8004CrossReference implements CrossReferenceSource {
 
   #url(agent: AgentId): string {
     const base = (this.opts.baseUrl ?? DEFAULTS.baseUrl).replace(/\/$/, '');
-    return `${base}/agents/${agent.chain}/${agent.tokenId.toString()}`;
+    // Numeric chain id, not the chain name. Sending `bsc-testnet` returned 422
+    // on every request - "Input should be a valid integer" - so the whole
+    // cross-reference had never once succeeded.
+    return `${base}/agents/${CHAIN_IDS[agent.chain]}/${agent.tokenId.toString()}`;
   }
 
   async lookup(agents: readonly AgentId[]): Promise<CrossReferenceResult> {
@@ -138,7 +176,9 @@ export class Scan8004CrossReference implements CrossReferenceSource {
         try {
           const res = await safeFetch(this.#url(agent), {
             timeoutMs: this.opts.timeoutMs ?? DEFAULTS.timeoutMs,
-            headers: { authorization: `Bearer ${this.opts.apiKey}`, accept: 'application/json' },
+            // `X-API-Key`, per their OpenAPI security schemes. `Bearer` is
+            // their JWT scheme, so an API key sent that way is not read as one.
+            headers: { 'x-api-key': this.opts.apiKey, accept: 'application/json' },
             ...(this.opts.allowLoopback === true ? { allowLoopback: true } : {}),
           });
 

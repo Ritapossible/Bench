@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { remaining, verifyTrace } from '@bench/core';
 import { hireStore } from '@/lib/hire/runtime';
+import { currentOwnerReadOnly } from '@/lib/hire/owner';
 import { revokeHire } from '@/lib/hire/actions';
 
 export const metadata = { title: 'Hire - Bench' };
@@ -14,16 +15,27 @@ export default async function HireDetail({
   readonly params: Promise<{ readonly id: string }>;
 }) {
   const { id } = await params;
-  const hire = await hireStore().get(id);
+  // Scoped to the owner. This page used to serve any hire - and its mandate,
+  // bounds and full decision trace - to anyone who had the id.
+  const owner = await currentOwnerReadOnly();
+  const found = await hireStore().get(id);
+  const hire =
+    found !== null && owner !== null && found.owner.toLowerCase() === owner.toLowerCase()
+      ? found
+      : null;
 
   if (hire === null) {
+    // One message for "no such hire" and for "not yours", deliberately. Telling
+    // the two apart would confirm to a stranger that a given hire id exists,
+    // which is the thing an id-guessing attempt is trying to learn.
     return (
       <section className="wrap section">
         <div className="stack stack-16" style={{ maxWidth: '40rem' }}>
-          <h1 className="h2">That hire is not here any more.</h1>
+          <h1 className="h2">No hire here.</h1>
           <p className="lead">
-            Hires on this deployment are held in memory, so a cold start clears them. Nothing was
-            lost that had value - settlement is simulated here.
+            Either this hire does not exist, or it belongs to a different browser. Hires are scoped
+            to the browser that created them, so opening someone else&rsquo;s link shows you this
+            page.
           </p>
           <div>
             <Link href="/agents" className="btn btn-primary btn-sm">
@@ -75,6 +87,23 @@ export default async function HireDetail({
 
         <div className="card stack stack-12">
           <h2 className="h3">The mandate</h2>
+          {/*
+            Stated next to the bounds it qualifies. An unsigned mandate is a set
+            of limits the owner chose but never cryptographically authorised -
+            genuinely weaker than a signed one, and the difference is exactly
+            what the gate rests on, so it cannot be left to be assumed.
+          */}
+          {hire.mandateSignature === null ? (
+            <p className="quote" style={{ borderColor: 'var(--blocked)' }}>
+              Unsigned. These bounds were set by the owner in this session but not signed by a
+              wallet, so they are enforced by Bench rather than authorised on chain.
+            </p>
+          ) : (
+            <p className="quote">
+              Signed by <span className="mono break">{hire.mandateSignature.signer}</span> over the
+              mandate digest.
+            </p>
+          )}
           <div className="tablewrap">
             <table className="t">
               <tbody>

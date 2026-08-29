@@ -1,5 +1,6 @@
 import type { AgentCategory, AgentId } from '../types/agent.js';
 import type { CatalogStats } from '../types/catalog.js';
+import type { AgreementSummary } from './crossref.js';
 import type { InterceptedAction, OutcomeRecord, ShadowRun } from '../types/audition.js';
 import type { Score, ScoreBasis } from '../types/score.js';
 
@@ -49,6 +50,17 @@ export interface AuditionStore {
    * a claim we can stand behind.
    */
   recordStats(stats: CatalogStats): Promise<void>;
+
+  /**
+   * Store the latest corroboration result, computed on a schedule.
+   *
+   * Cross-referencing costs one upstream call per agent, so it belongs in the
+   * worker, not in a page render. `latestCrossReference` returns null before
+   * the first run - which the UI must show as "not checked yet" rather than as
+   * zero agreement, since those are different claims.
+   */
+  recordCrossReference(chain: CatalogStats['chain'], summary: AgreementSummary): Promise<void>;
+  latestCrossReference(chain: CatalogStats['chain']): Promise<AgreementSummary | null>;
   statsHistory(chain: CatalogStats['chain'], limit?: number): Promise<readonly CatalogStats[]>;
 }
 

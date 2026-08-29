@@ -8,7 +8,6 @@ import {
   type ForkHandle,
   type ForkProvider,
   type Hex,
-  type InterceptedAction,
   type PositionTemplate,
   type SeededPosition,
   type SpawnForkOptions,
@@ -63,8 +62,10 @@ class FakeForks implements ForkProvider {
     this.spawned += 1;
     this.seenWindows.push(opts.window);
 
-    let listener: ((a: InterceptedAction) => void) | null = null;
-    const self = this;
+    const values = this.values;
+    const destroyed = () => {
+      this.destroyed += 1;
+    };
 
     return {
       id: `fork_${n}`,
@@ -72,15 +73,14 @@ class FakeForks implements ForkProvider {
       async seedPosition(): Promise<SeededPosition> {
         return { controller: CONTROLLER, openedAt: { valueUsd: 10_000, detail: {} } };
       },
-      onAction(cb) {
-        listener = cb;
-      },
+      // The runner registers a listener; these fakes emit no actions, so it is
+      // accepted and dropped rather than stored.
+      onAction() {},
       async terminalState(): Promise<TerminalState> {
-        return { valueUsd: self.values[n] ?? 10_000, detail: {} };
+        return { valueUsd: values[n] ?? 10_000, detail: {} };
       },
       async destroy() {
-        self.destroyed += 1;
-        listener = null;
+        destroyed();
       },
     };
   }

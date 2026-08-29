@@ -147,6 +147,4 @@ export const hireOrchestrator = (): HireOrchestrator => runtime().orchestrator;
 export const hiresAreDurable = (): boolean => runtime().durable;
 export type { HireRecord };
 
-/** The demo owner. Replaced by the connected wallet when hiring goes on chain. */
-export const DEMO_OWNER = '0x7a16ff8270133f063aab6c9977183d9e72835428' as Address;
 export const SETTLEMENT_TOKEN = USDT;

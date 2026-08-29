@@ -25,6 +25,7 @@ jobs:
       # @bench/services while its build script still compiled only @bench/core.
       - run: npm run build:vercel
       - run: npm test
+      - run: npm run lint
       - run: npm run fmt:check
 
   # The integration tests skip themselves without TEST_DATABASE_URL, which means
@@ -58,6 +59,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Foundry, so the shadow-engine tests run instead of skipping. They cover
+      # the most intricate component in the system - a forked chain plus a
+      # JSON-RPC interceptor - and `describe.skipIf(!anvilAvailable())` meant
+      # they had never once executed in CI while reporting green.
+      - uses: foundry-rs/foundry-toolchain@v1
       # The build no longer needs a reachable database - the catalog pages
       # render per request rather than at build time, which is what this job's
       # first red run taught us. The tests and the seed do need one, so the

@@ -27,19 +27,26 @@ export const metadata = {
 };
 
 export default async function RegistryPage() {
-  const [history, agreement, provenance] = await Promise.all([
+  const [latest, history, agreement, provenance] = await Promise.all([
+    // The headline is a live count, not the newest history row. History is
+    // written on a throttle, so reading the headline from it showed an
+    // hour-old number as current - and after a run that appended rows for a
+    // different catalog, showed that catalog's numbers instead.
+    data.catalogStats(),
     data.catalogHistory(),
     data.crossReference(),
     data.catalogProvenance(),
   ]);
   const indexed = provenance === 'indexed';
-  const latest = history[history.length - 1]!;
   const live = liveShareBps(latest);
 
-  const max = Math.max(...history.map((h) => h.registered));
+  // The chart ends at the same measurement the headline states, so the two can
+  // never disagree on screen.
+  const series = [...history.filter((h) => h.computedAt < latest.computedAt), latest];
+  const max = Math.max(...series.map((h) => h.registered));
   const W = 720;
   const H = 220;
-  const step = W / Math.max(1, history.length - 1);
+  const step = W / Math.max(1, series.length - 1);
   const y = (v: number) => H - (v / max) * H;
   const path = (pick: (h: typeof latest) => number) =>
     history
@@ -107,7 +114,7 @@ export default async function RegistryPage() {
         {/* chart */}
         <div className="card stack stack-16">
           <div className="row-between">
-            <h2 className="h3">{history.length === 1 ? 'Today' : `Last ${history.length} days`}</h2>
+            <h2 className="h3">{series.length === 1 ? 'Today' : `Last ${series.length} days`}</h2>
             <div className="row" style={{ gap: '1rem' }}>
               <span className="row tiny" style={{ gap: '0.4rem' }}>
                 <svg width="18" height="8" aria-hidden="true">
@@ -145,7 +152,7 @@ export default async function RegistryPage() {
             <svg
               viewBox={`0 -8 ${W} ${H + 16}`}
               role="img"
-              aria-label={`Registry health over the last ${history.length} ${history.length === 1 ? 'day' : 'days'}`}
+              aria-label={`Registry health over the last ${series.length} ${series.length === 1 ? 'day' : 'days'}`}
               style={{ width: '100%', height: 'auto', display: 'block', minWidth: '32rem' }}
             >
               {[0.25, 0.5, 0.75, 1].map((f) => (
@@ -182,7 +189,7 @@ export default async function RegistryPage() {
           </div>
 
           <div className="row-between">
-            <span className="tiny mono">{history[0]!.computedAt.toISOString().slice(0, 10)}</span>
+            <span className="tiny mono">{series[0]!.computedAt.toISOString().slice(0, 10)}</span>
             <span className="tiny mono">{latest.computedAt.toISOString().slice(0, 10)}</span>
           </div>
 

@@ -16,12 +16,18 @@ const schema = z.object({
   BSC_TESTNET_RPC_URL: z.string().url(),
   BSC_MAINNET_RPC_URL: z.string().url().optional(),
 
-  // Shadow engine needs historical state. A pruned node cannot serve it and
-  // fails in a confusing way mid-audition, so this is required, not optional.
-  BSC_ARCHIVE_RPC_URL: z.string().url(),
+  // Shadow engine needs historical state; a pruned node cannot serve it.
+  // Optional rather than required, because it gates *auditions* and nothing
+  // else - the indexer and prober are the worker's whole job until an archive
+  // node exists, and refusing to boot without one blocked a deployment that
+  // would have worked. `requireArchiveRpc` raises it at the point of use, where
+  // the message can say which feature needs it.
+  BSC_ARCHIVE_RPC_URL: z.string().url().optional(),
 
   ERC8004_IDENTITY_REGISTRY: hexAddress,
-  ERC8004_VALIDATION_REGISTRY: hexAddress,
+  // Only `writeValidation` needs this, which nothing calls yet. Required, it
+  // stopped the worker booting for a feature it does not run.
+  ERC8004_VALIDATION_REGISTRY: hexAddress.optional(),
   ERC8004_REPUTATION_REGISTRY: hexAddress.optional(),
 
   // Block the Identity Registry was deployed at. Indexing from 0 means hours
@@ -43,9 +49,13 @@ const schema = z.object({
   REDIS_URL: z.string().url(),
 
   SHADOW_EGRESS_BUDGET_USD: z.coerce.number().positive().default(0.25),
+  // Defaults to the data hosts an agent plausibly needs, rather than to the
+  // empty string. Empty means deny-all, which is the right *failure* mode but a
+  // useless default: it silently guaranteed every audition ran with no network,
+  // and nothing said so.
   SHADOW_EGRESS_ALLOWLIST: z
     .string()
-    .default('')
+    .default('api.binance.com,api.coingecko.com,api.pancakeswap.info,api.thegraph.com')
     .transform((s) =>
       s
         .split(',')
@@ -80,3 +90,22 @@ export const rpcUrlFor = (c: BenchConfig): string =>
         throw new Error('BSC_MAINNET_RPC_URL required for bsc-mainnet');
       })())
     : c.BSC_TESTNET_RPC_URL;
+
+/**
+ * The archive RPC, or a refusal that names what needs it.
+ *
+ * Auditions replay historical state, which a pruned node cannot serve. That is
+ * a real requirement of the shadow engine and of nothing else, so it is raised
+ * where the shadow engine is constructed rather than at config load - making it
+ * a boot-time requirement grounded a worker whose indexing and probing were
+ * perfectly able to run.
+ */
+export function requireArchiveRpc(c: BenchConfig): string {
+  if (c.BSC_ARCHIVE_RPC_URL === undefined) {
+    throw new Error(
+      'BSC_ARCHIVE_RPC_URL is not set. Auditions replay historical chain state, which a ' +
+        'pruned node cannot serve. Indexing and probing run without it; auditions do not.',
+    );
+  }
+  return c.BSC_ARCHIVE_RPC_URL;
+}

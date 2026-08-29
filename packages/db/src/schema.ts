@@ -233,6 +233,31 @@ export const catalogStatsHistory = pgTable(
   (t) => [index('catalog_stats_chain_time_idx').on(t.chain, t.computedAt)],
 );
 
+/**
+ * Latest corroboration result, computed by the worker rather than per request.
+ *
+ * Cross-referencing a catalog page means one API call per agent. Doing that
+ * inside a page render made /registry take about forty seconds once an API key
+ * was configured - the pacer serialises requests, so concurrency does not help
+ * and simultaneous visitors queue behind each other - while burning the day's
+ * quota a pageview at a time. One row, written on a schedule, read instantly.
+ */
+export const crossRefSummaries = pgTable(
+  'crossref_summaries',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    chain: text('chain').notNull(),
+    source: text('source').notNull(),
+    status: text('status').notNull(),
+    checked: integer('checked').notNull(),
+    confirmed: integer('confirmed').notNull(),
+    notFound: integer('not_found').notNull(),
+    agreementBps: integer('agreement_bps').notNull(),
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('crossref_chain_time_idx').on(t.chain, t.computedAt)],
+);
+
 export const sessionKeys = pgTable('session_keys', {
   id: uuid('id').defaultRandom().primaryKey(),
   key: text('key').notNull(),
@@ -282,6 +307,8 @@ export const hires = pgTable(
     sessionKeyId: uuid('session_key_id').references(() => sessionKeys.id),
     status: text('status').notNull().default('draft'),
     mandate: jsonb('mandate').notNull(),
+    /** Owner signature over the mandate digest. Null until a wallet signs one. */
+    mandateSignature: jsonb('mandate_signature'),
     mandateState: jsonb('mandate_state').notNull(),
     envelope: jsonb('envelope').notNull(),
     envelopePolicy: jsonb('envelope_policy'),

@@ -81,6 +81,8 @@ export {
 } from './shadow/seeders.js';
 export { InMemoryEgressGuard, type EgressGuardOptions } from './shadow/egress-guard.js';
 export { BscPositionReader, type PositionReaderOptions } from './chain/position-reader.js';
+export { A2AShadowAgent, type A2AShadowAgentOptions } from './agent/a2a-shadow-agent.js';
+export { auditionWindows, type WindowSpec } from './shadow/windows.js';
 export {
   AltanaWalletProvider,
   EvmLocalWalletProvider,

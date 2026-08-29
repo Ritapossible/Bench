@@ -25,3 +25,4 @@ export * from './ports/crossref.js';
 export * from './ports/hire-store.js';
 export * from './ports/audition-store.js';
 export * from './ports/position.js';
+export * from './ports/shadow-agent.js';

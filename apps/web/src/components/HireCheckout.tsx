@@ -44,7 +44,12 @@ export function HireCheckout(props: HireCheckoutProps) {
   // Generated once per checkout. A double-submit, a refresh, or a flaky
   // connection reaches the same hire instead of paying twice.
   const idempotencyKey = useMemo(
-    () => `web_${Math.random().toString(36).slice(2)}_${Date.now()}`,
+    // crypto.randomUUID in the browser: the key is namespaced by owner on the
+    // server, but it should not be predictable to begin with.
+    () =>
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? `web_${crypto.randomUUID()}`
+        : `web_${Date.now()}_${Math.floor(Math.random() * 1e9)}`,
     [],
   );
 

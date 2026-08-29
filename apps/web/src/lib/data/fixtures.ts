@@ -456,6 +456,11 @@ export const fixtureData: BenchData = {
     return 'fixtures' as const;
   },
 
+  async probeAnchoring() {
+    // Fixtures have no chain to anchor to.
+    return { anchored: false, latestDigest: null };
+  },
+
   async crossReference(): Promise<AgreementSummary> {
     // Honest default: no 8004scan key is configured yet, so nothing has been
     // corroborated. This lights up on its own once the key is in the

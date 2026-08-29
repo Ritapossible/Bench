@@ -29,7 +29,10 @@ export default async function AgentPage({
   readonly params: Promise<{ readonly chain: string; readonly tokenId: string }>;
 }) {
   const { chain, tokenId } = await params;
-  const agent = await data.getAgent(chain, tokenId);
+  const [agent, anchoring] = await Promise.all([
+    data.getAgent(chain, tokenId),
+    data.probeAnchoring(),
+  ]);
   if (!agent) notFound();
 
   const { record, liveness, verifiedLive } = agent.entry;
@@ -130,8 +133,9 @@ export default async function AgentPage({
             ))}
           </div>
           <p className="tiny">
-            A rolling hash of these probes is anchored on-chain, so liveness is auditable rather
-            than a claim Bench makes about itself.
+            {anchoring.anchored
+              ? 'A rolling hash of these probes is anchored on-chain, so liveness is auditable rather than a claim Bench makes about itself.'
+              : 'Probe results are hash-chained and stored. On-chain anchoring - which is what would make them auditable by someone who does not trust Bench - is not live on this deployment yet.'}
           </p>
         </div>
 

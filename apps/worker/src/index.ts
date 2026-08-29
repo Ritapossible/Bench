@@ -1,5 +1,5 @@
-import { buildAdapters } from '@bench/adapters';
-import { loadConfig } from '@bench/config';
+import { A2AShadowAgent, auditionWindows, buildAdapters } from '@bench/adapters';
+import { loadConfig, requireArchiveRpc } from '@bench/config';
 import {
   PgAuditionStore,
   PgCatalogRepository,
@@ -7,7 +7,15 @@ import {
   migrationUrl,
   runMigrations,
 } from '@bench/db';
-import { Indexer, ProbeAnchor, Prober } from '@bench/services';
+import {
+  AuditionRunner,
+  AuditionService,
+  Indexer,
+  ProbeAnchor,
+  Prober,
+  Scorer,
+  summarizeAgreementFor,
+} from '@bench/services';
 import { Queue, Worker } from 'bullmq';
 import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
 
@@ -40,17 +48,85 @@ async function main(): Promise<void> {
     startBlock: BigInt(cfg.ERC8004_REGISTRY_START_BLOCK),
   });
   const prober = new Prober(adapters.probe, repo);
+  const scorer = new Scorer(audition);
+
+  /**
+   * Auditions need an archive node. Rather than refusing to boot - which used
+   * to happen, and grounded a worker whose indexing and probing were perfectly
+   * able to run - the queue is registered only when one is configured, and the
+   * absence is stated once at startup.
+   */
+  const archiveRpcUrl = (() => {
+    try {
+      return requireArchiveRpc(cfg);
+    } catch {
+      return null;
+    }
+  })();
+
+  const auditionService =
+    archiveRpcUrl === null
+      ? null
+      : new AuditionService(
+          {
+            forks: adapters.fork,
+            catalog: repo,
+            store: audition,
+            runner: new AuditionRunner({ forks: adapters.fork, egress: adapters.egress }),
+            // Only agents with a probeable A2A endpoint can be driven. Anything
+            // else returns null and is skipped rather than failed - it was never
+            // auditionable, which is a different fact from having failed.
+            agentFor: ({ agent }) => {
+              const a2a = agent.card?.endpoints.find((e) => e.protocol === 'a2a');
+              if (a2a === undefined) return null;
+              return new A2AShadowAgent({
+                id: agent.id,
+                name: agent.card?.name ?? `agent ${agent.id.tokenId}`,
+                endpoint: a2a,
+              });
+            },
+          },
+          { chain: cfg.BENCH_CHAIN, archiveRpcUrl },
+        );
   const anchor = new ProbeAnchor(adapters.registry, repo);
+
+  /**
+   * Anchoring needs a funded signer and a target contract. Without them
+   * `anchorProbeDigest` throws, and the queue was registering regardless -
+   * failing every fifteen minutes forever while two pages claimed in present
+   * tense that probes were anchored. Gated here, and the UI reads the same
+   * truth from whether an anchor row exists.
+   */
+  const anchoringConfigured =
+    cfg.BENCH_SIGNER_PRIVATE_KEY !== undefined && cfg.ERC8004_VALIDATION_REGISTRY !== undefined;
 
   console.log(
     `[bench:worker] chain=${cfg.BENCH_CHAIN} wallet=${cfg.BENCH_WALLET_PROVIDER} ` +
       `egress_budget=$${cfg.SHADOW_EGRESS_BUDGET_USD}/run forks<=${cfg.SHADOW_MAX_CONCURRENT_FORKS}`,
   );
+  // Say what is off and why, once, rather than leaving it to be inferred from
+  // a queue that never logs.
+  if (auditionService === null) {
+    console.log('[bench:worker] auditions OFF - BSC_ARCHIVE_RPC_URL is not set');
+  }
+  if (!anchoringConfigured) {
+    console.log(
+      '[bench:worker] probe anchoring OFF - needs BENCH_SIGNER_PRIVATE_KEY and ERC8004_VALIDATION_REGISTRY',
+    );
+  }
+  if (adapters.egress === undefined || cfg.SHADOW_EGRESS_ALLOWLIST.length === 0) {
+    console.log(
+      '[bench:worker] egress allowlist is empty - shadowed agents get no outbound network',
+    );
+  }
 
   const queues = [
     new Queue(QUEUE.indexer, redis),
     new Queue(QUEUE.prober, redis),
     new Queue(QUEUE.anchor, redis),
+    new Queue(QUEUE.audition, redis),
+    new Queue(QUEUE.scorer, redis),
+    new Queue(QUEUE.crossref, redis),
   ];
 
   const workers = [
@@ -93,11 +169,57 @@ async function main(): Promise<void> {
     new Worker(
       QUEUE.anchor,
       async () => {
+        if (!anchoringConfigured) return;
         const r = await anchor.tick();
         console.log(
           r.anchored
             ? `[bench:anchor] ${r.probeCount} probes → ${r.digest} tx=${r.txHash}`
             : `[bench:anchor] holding, ${r.pending} probes pending`,
+        );
+      },
+      { ...redis, concurrency: 1 },
+    ),
+    new Worker(
+      QUEUE.audition,
+      async () => {
+        if (auditionService === null) return;
+        const [spec] = auditionWindows({ forkBlock: BigInt(cfg.ERC8004_REGISTRY_START_BLOCK) });
+        if (spec === undefined) return;
+        const r = await auditionService.tick(spec.window, spec.position);
+        console.log(
+          `[bench:audition] window=${r.window} auditioned=${r.auditioned} ` +
+            `ok=${r.succeeded} failed=${r.failed} skipped=${r.skipped}`,
+        );
+      },
+      // One at a time: each audition holds a forked chain per agent.
+      { ...redis, concurrency: 1 },
+    ),
+    new Worker(
+      QUEUE.scorer,
+      async () => {
+        const page = await repo.query({ chain: cfg.BENCH_CHAIN, limit: 500 });
+        const r = await scorer.scoreAll(
+          page.entries.map((e) => ({
+            id: e.record.id,
+            category: e.record.card?.category ?? 'other',
+          })),
+        );
+        console.log(
+          `[bench:scorer] scored=${r.scored} skipped=${r.skipped} (no outcomes) thin=${r.thin}`,
+        );
+      },
+      { ...redis, concurrency: 1 },
+    ),
+    new Worker(
+      QUEUE.crossref,
+      async () => {
+        // One upstream call per agent, paced. Belongs here and never in a page
+        // render: doing it per request made /registry a forty-second page.
+        const summary = await summarizeAgreementFor(adapters.crossRef, repo, cfg.BENCH_CHAIN, 200);
+        await audition.recordCrossReference(cfg.BENCH_CHAIN, summary);
+        console.log(
+          `[bench:crossref] ${summary.status} checked=${summary.checked} ` +
+            `confirmed=${summary.confirmed} agreement=${(summary.agreementBps / 100).toFixed(1)}%`,
         );
       },
       { ...redis, concurrency: 1 },
@@ -114,10 +236,24 @@ async function main(): Promise<void> {
 
   // Repeatable jobs are idempotent by repeat key, so re-adding them on every
   // boot is the intended way to keep the schedule in sync with the code.
-  const [indexQ, probeQ, anchorQ] = queues as [Queue, Queue, Queue];
+  const [indexQ, probeQ, anchorQ, auditionQ, scorerQ, crossrefQ] = queues as [
+    Queue,
+    Queue,
+    Queue,
+    Queue,
+    Queue,
+    Queue,
+  ];
   await indexQ.add('tick', {}, repeatOpts(CADENCE_MS.indexer));
   await probeQ.add('tick', {}, repeatOpts(CADENCE_MS.prober));
-  await anchorQ.add('tick', {}, repeatOpts(CADENCE_MS.anchor));
+  if (anchoringConfigured) {
+    await anchorQ.add('tick', {}, repeatOpts(CADENCE_MS.anchor));
+  }
+  await scorerQ.add('tick', {}, repeatOpts(CADENCE_MS.scorer));
+  await crossrefQ.add('tick', {}, repeatOpts(CADENCE_MS.crossref));
+  if (auditionService !== null) {
+    await auditionQ.add('tick', {}, repeatOpts(CADENCE_MS.audition));
+  }
 
   console.log(
     `[bench:worker] queues up — indexer/${CADENCE_MS.indexer}ms ` +

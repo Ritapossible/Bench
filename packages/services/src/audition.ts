@@ -1,16 +1,21 @@
 import {
   BenchError,
   replayHash,
-  type Address,
   type AuditionWindow,
   type EgressGuard,
   type ForkProvider,
+  type MeteredFetch,
+  type ShadowAgent,
   type Hex,
   type InterceptedAction,
   type PositionTemplate,
   type TerminalState,
 } from '@bench/core';
 import { mapLimit } from './concurrency.js';
+
+// The port lives in core so the A2A adapter can implement it without adapters
+// depending on services.
+export type { MeteredFetch, ShadowAgent, ShadowAgentContext } from '@bench/core';
 
 /**
  * The audition runner — ARCHITECTURE.md 2.
@@ -24,53 +29,6 @@ import { mapLimit } from './concurrency.js';
  * Every result carries the replay hash of its window, so a third party can
  * re-run it and check the arithmetic.
  */
-
-export interface ShadowAgentContext {
-  /** The interceptor's RPC. The agent cannot tell it is not a live node. */
-  readonly rpcUrl: string;
-  /** The throwaway account holding the mirrored position. */
-  readonly controller: Address;
-  readonly window: AuditionWindow;
-  readonly position: PositionTemplate;
-  /**
-   * The only way out to the network, metered against this run's egress budget.
-   *
-   * The fork sandboxes the agent's *transactions*; it does nothing about its
-   * HTTP. A shadowed agent still makes real, billable calls - x402-paid data
-   * feeds, price oracles, LLM inference - and a hundred auditions of an agent
-   * that polls in a loop is a real invoice. Every call goes through `check`
-   * before it is made and `record` after, so an unlisted host is refused and a
-   * run that reaches its ceiling stops rather than being noticed later.
-   *
-   * Passed to the agent rather than left for it to find, because a control the
-   * agent has to opt into is not a control.
-   */
-  readonly fetch: MeteredFetch;
-}
-
-/**
- * A fetch with a price attached.
- *
- * The cost is the caller's estimate of what the request bills - an x402 data
- * feed quotes it, an unpaid endpoint is zero. Estimated before, recorded after,
- * because the two can differ and the budget has to hold against whichever is
- * larger.
- */
-export type MeteredFetch = (
-  url: string,
-  init?: { readonly estimatedCostUsd?: number } & RequestInit,
-) => Promise<Response>;
-
-/**
- * An agent under audition. In production this is a thin shim that hands the
- * RPC endpoint to a real registered agent over A2A/MCP; in tests it is a
- * function. The runner does not care which.
- */
-export interface ShadowAgent {
-  readonly id: string;
-  readonly name: string;
-  run(ctx: ShadowAgentContext): Promise<void>;
-}
 
 export interface AuditionRequest {
   readonly window: AuditionWindow;

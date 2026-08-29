@@ -15,6 +15,20 @@
       "when": 1787998665178,
       "tag": "0001_indexer_token_cursor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788001098926,
+      "tag": "0002_crossref_summaries",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788001549795,
+      "tag": "0003_mandate_signature",
+      "breakpoints": true
     }
   ]
 }

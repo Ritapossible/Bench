@@ -9,7 +9,8 @@ import {
   type InterceptedAction,
 } from '@bench/core';
 import { data } from '@/lib/data/index';
-import { DEMO_OWNER, SETTLEMENT_TOKEN, hireOrchestrator } from '@/lib/hire/runtime';
+import { SETTLEMENT_TOKEN, hireOrchestrator, hireStore } from '@/lib/hire/runtime';
+import { currentOwner } from '@/lib/hire/owner';
 
 const usdt = (whole: number) => ({
   token: SETTLEMENT_TOKEN,
@@ -32,6 +33,7 @@ const usdt = (whole: number) => ({
  * confirmation got the same hire as one who read all five.
  */
 export async function createHire(form: FormData): Promise<void> {
+  const owner = await currentOwner();
   const chain = String(form.get('chain'));
   const tokenId = String(form.get('tokenId'));
   const agent = await data.getAgent(chain, tokenId);
@@ -49,8 +51,12 @@ export async function createHire(form: FormData): Promise<void> {
     .filter((a) => /^0x[a-fA-F0-9]{40}$/.test(a)) as Address[];
 
   const record = await hireOrchestrator().hire({
-    idempotencyKey: String(form.get('idempotencyKey')),
-    owner: DEMO_OWNER,
+    // Namespaced by owner: a client-supplied key is only trusted within the
+    // browser that supplied it, so a guessed key cannot reach another owner's
+    // hire - `hire()` returns the winning record on a lost claim, which made a
+    // shared key namespace a way to read someone else's mandate and trace.
+    idempotencyKey: `${owner}:${String(form.get('idempotencyKey')).slice(0, 128)}`,
+    owner,
     agent: agent.entry.record.id,
     bounds: {
       totalSpendCap: usdt(Number(form.get('totalCap') ?? 50)),
@@ -62,7 +68,7 @@ export async function createHire(form: FormData): Promise<void> {
     consent: form.getAll('consent').map(String) as ConsentStep[],
     taskSpec: String(form.get('taskSpec') ?? '').slice(0, 500),
     price: usdt(Number(form.get('price') ?? 5)),
-    payTo: DEMO_OWNER,
+    payTo: owner,
     disputeWindowSec: 3_600,
     envelope: deriveEnvelope(runs),
   });
@@ -72,7 +78,16 @@ export async function createHire(form: FormData): Promise<void> {
 }
 
 export async function revokeHire(form: FormData): Promise<void> {
+  const owner = await currentOwner();
   const id = String(form.get('hireId'));
+
+  // Ownership check before the state change. Without it this action revoked any
+  // hire whose id was known or guessed, from any browser.
+  const existing = await hireStore().get(id);
+  if (existing === null || existing.owner.toLowerCase() !== owner.toLowerCase()) {
+    redirect('/hires');
+  }
+
   await hireOrchestrator().revoke(id, 'revoked by owner from the hire dashboard');
   revalidatePath(`/hires/${id}`);
   revalidatePath('/hires');

@@ -78,6 +78,7 @@ const record = (over: Partial<HireRecord> = {}): HireRecord => {
       nonce: `0x${id}` as Hex,
       issuedAt: new Date('2026-08-27T00:00:00.000Z'),
     },
+    mandateSignature: null,
     mandateState: EMPTY_MANDATE_STATE,
     envelope,
     envelopePolicy: undefined,
@@ -125,6 +126,26 @@ describeDb('PgHireStore', () => {
     expect(typeof read?.mandate.bounds.totalSpendCap.amount).toBe('bigint');
     expect(read?.mandate.bounds.expiresAt).toBeInstanceOf(Date);
     expect(read?.agent.tokenId).toBe(1041n);
+  });
+
+  it('round-trips a mandate signature, and keeps null distinguishable from absent', async () => {
+    // An unsigned mandate is a weaker claim than a signed one and the UI says
+    // so, which only works if null survives the round trip as null rather than
+    // arriving as undefined or an empty object.
+    const unsigned = record();
+    await store.claim(unsigned);
+    expect((await store.get(unsigned.id))?.mandateSignature).toBeNull();
+
+    const signed = record({
+      mandateSignature: {
+        signature: `0x${'ab'.repeat(65)}` as Hex,
+        signer: OWNER,
+      },
+    });
+    await store.claim(signed);
+    const read = await store.get(signed.id);
+    expect(read?.mandateSignature?.signer).toBe(OWNER);
+    expect(read?.mandateSignature?.signature).toBe(`0x${'ab'.repeat(65)}`);
   });
 
   it('preserves the trace hash chain across a write and a read', async () => {

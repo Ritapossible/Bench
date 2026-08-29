@@ -103,10 +103,19 @@ describe('Scan8004CrossReference', () => {
     );
   });
 
-  it('sends the key as a bearer token', async () => {
-    let seen: string | undefined;
+  it('sends the key in X-API-Key, and the chain as a numeric id', async () => {
+    // Both halves were wrong and both were silent. `Bearer` is 8004scan's JWT
+    // scheme, so an API key sent that way is simply not read as one; and the
+    // path takes a numeric chain id, so sending "bsc-testnet" returned 422 for
+    // every agent - the cross-reference had never once succeeded against the
+    // real API. Asserted here against a real socket so it cannot regress.
+    let seenKey: string | undefined;
+    let seenAuth: string | undefined;
+    let seenPath: string | undefined;
     const server = createServer((req, res) => {
-      seen = req.headers.authorization;
+      seenKey = req.headers['x-api-key'] as string | undefined;
+      seenAuth = req.headers.authorization;
+      seenPath = req.url;
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ tokenId: '1' }));
     });
@@ -115,7 +124,11 @@ describe('Scan8004CrossReference', () => {
     const port = typeof addr === 'object' && addr !== null ? addr.port : 0;
     await src(`http://127.0.0.1:${port}`).lookup([agent(1)]);
     await new Promise<void>((r) => server.close(() => r()));
-    expect(seen).toBe('Bearer test-key');
+
+    expect(seenKey).toBe('test-key');
+    expect(seenAuth).toBeUndefined();
+    // 97 is bsc-testnet. The agent helper builds testnet ids.
+    expect(seenPath).toBe('/agents/97/1');
   });
 
   it('reports unavailable — not zero agreement — when nothing usable comes back', async () => {

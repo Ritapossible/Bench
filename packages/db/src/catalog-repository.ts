@@ -83,6 +83,17 @@ export class PgCatalogRepository implements CatalogRepository {
               card: sql`coalesce(excluded.card, ${schema.agents.card})`,
               category: sql`case when excluded.card is not null then excluded.category else ${schema.agents.category} end`,
               cardError: sql`excluded.card_error`,
+              // Repair an unknown registration date when a source that knows it
+              // supplies one, but never overwrite a known one with the epoch.
+              // Enumeration reads current state, which carries no timestamp and
+              // passes the epoch as a placeholder; without this the first
+              // enumeration pinned `registeredAt` to 1970 permanently, and a
+              // later log scan - which does know the date - could not fix it.
+              registeredAt: sql`case
+                when ${schema.agents.registeredAt} = to_timestamp(0) then excluded.registered_at
+                when excluded.registered_at = to_timestamp(0) then ${schema.agents.registeredAt}
+                else least(${schema.agents.registeredAt}, excluded.registered_at)
+              end`,
               indexedAt: new Date(),
             },
           })

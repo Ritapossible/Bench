@@ -8,6 +8,9 @@ export const QUEUE = {
   indexer: 'bench:indexer',
   prober: 'bench:prober',
   anchor: 'bench:anchor',
+  audition: 'bench:audition',
+  scorer: 'bench:scorer',
+  crossref: 'bench:crossref',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
@@ -25,6 +28,19 @@ export const CADENCE_MS = {
   prober: 60_000,
   /** Anchoring costs gas, so it batches. */
   anchor: 15 * 60_000,
+  /**
+   * Auditions are the expensive one: a forked chain per agent, held for the
+   * length of a replayed window. Hourly, and the runner bounds concurrency
+   * inside a tick.
+   */
+  audition: 60 * 60_000,
+  /** Cheap - reads recorded outcomes. Runs shortly after auditions land. */
+  scorer: 10 * 60_000,
+  /**
+   * One upstream call per agent, so this is paced and must never sit in a page
+   * render. Twice an hour is far inside any tier's daily quota.
+   */
+  crossref: 30 * 60_000,
 } as const;
 
 /**

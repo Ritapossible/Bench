@@ -1,7 +1,6 @@
 import {
   agentKey,
   isVerifiedLive,
-  summarizeAgreement,
   type Address,
   type AgentCategory,
   type AgentId,
@@ -11,7 +10,7 @@ import {
   type ChainName,
   type Score,
 } from '@bench/core';
-import { BscPositionReader, buildCrossReference } from '@bench/adapters';
+import { BscPositionReader } from '@bench/adapters';
 import { createDb, PgAuditionStore, PgCatalogRepository } from '@bench/db';
 import type { AddressReportResult, AgentDetail, AgentSummary, BenchData } from './types';
 
@@ -56,9 +55,6 @@ export function createPgData(connectionString: string): BenchData {
   const catalog = new PgCatalogRepository(db);
   const audition = new PgAuditionStore(db);
   const positions = new BscPositionReader({ chain: 'bsc-mainnet', rpcUrl: POSITION_RPC });
-  const crossRef = buildCrossReference({
-    apiKey: process.env['ALTLAYER_8004SCAN_API_KEY'] ?? undefined,
-  });
 
   /** Attach the newest simulated score to each entry, in one round trip. */
   const withScores = async (entries: readonly CatalogEntry[]): Promise<readonly AgentSummary[]> => {
@@ -94,10 +90,30 @@ export function createPgData(connectionString: string): BenchData {
       return checkpoint === null ? ('seeded' as const) : ('indexed' as const);
     },
 
+    async probeAnchoring() {
+      const latestDigest = await catalog.lastAnchoredDigest();
+      return { anchored: latestDigest !== null, latestDigest };
+    },
+
     async crossReference(): Promise<AgreementSummary> {
-      const page = await catalog.query({ chain: CHAIN, limit: PAGE_LIMIT });
-      const result = await crossRef.lookup(page.entries.map((e) => e.record.id));
-      return summarizeAgreement(result);
+      // Read one row. Computing this here meant one upstream call per agent
+      // inside a page render - about forty seconds for a 200-agent page once an
+      // API key was set, serialised by the rate pacer so concurrent visitors
+      // queued behind each other, and a day's quota spent a pageview at a time.
+      // The worker computes it on a schedule instead.
+      const stored = await audition.latestCrossReference(CHAIN);
+      return (
+        stored ?? {
+          source: '8004scan',
+          // Nothing has been checked yet, which is a different claim from "we
+          // checked and found nothing".
+          status: 'unconfigured',
+          checked: 0,
+          confirmed: 0,
+          notFound: 0,
+          agreementBps: 0,
+        }
+      );
     },
 
     async listAgents(opts): Promise<readonly AgentSummary[]> {

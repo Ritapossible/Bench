@@ -47,9 +47,46 @@ export interface HireMandate {
   /** The session key this mandate authorises. */
   readonly sessionKey: Address;
   readonly bounds: MandateBounds;
-  /** Replay protection. */
+  /**
+   * Replay protection. Real hex - it was previously built by prefixing an
+   * opaque hire id with `0x`, producing values like `0xh_a1b2c3` that satisfy
+   * the type and are not hex at all.
+   */
   readonly nonce: Hex;
   readonly issuedAt: Date;
+}
+
+/**
+ * A mandate plus the owner's signature over its digest.
+ *
+ * Separate from `HireMandate` so the unsigned form cannot be mistaken for the
+ * signed one by anything that takes this type. The whole authority story rests
+ * on the owner having actually authorised these bounds; a mandate carried
+ * around without a signature is a suggestion.
+ */
+export interface SignedMandate {
+  readonly mandate: HireMandate;
+  /** Signature over `mandateDigest(mandate)`. */
+  readonly signature: Hex;
+  /** Recovered/declared signer. Must equal `mandate.owner` to be valid. */
+  readonly signer: Address;
+}
+
+/**
+ * Does this signature actually authorise this mandate?
+ *
+ * Verification is deliberately separated from recovery: the caller supplies the
+ * recovered address (chain-specific, and EIP-1271 contract wallets cannot be
+ * recovered locally at all), and this decides whether it is the right one. That
+ * keeps the rule - *the signer must be the owner* - in one testable place
+ * rather than repeated at every call site.
+ */
+export function isMandateSignedBy(signed: SignedMandate, recovered: Address): boolean {
+  return (
+    signed.signature.length > 2 &&
+    recovered.toLowerCase() === signed.mandate.owner.toLowerCase() &&
+    signed.signer.toLowerCase() === signed.mandate.owner.toLowerCase()
+  );
 }
 
 /** Live counters. Kept separate from the mandate because the mandate is immutable once signed. */

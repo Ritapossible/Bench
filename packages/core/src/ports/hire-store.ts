@@ -21,6 +21,14 @@ export interface HireRecord {
   readonly owner: Address;
   readonly agent: AgentId;
   readonly mandate: HireMandate;
+  /**
+   * The owner's signature over the mandate digest, when one was supplied.
+   *
+   * Null is a fact the UI must show, not hide: an unsigned mandate is bounds
+   * the owner picked but never cryptographically authorised, which is a weaker
+   * claim than "signed" and has to read as one.
+   */
+  readonly mandateSignature: { readonly signature: Hex; readonly signer: Address } | null;
   readonly mandateState: MandateState;
   readonly envelope: BehaviouralEnvelope;
   readonly envelopePolicy: EnvelopePolicy | undefined;

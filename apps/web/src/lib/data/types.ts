@@ -34,6 +34,16 @@ export interface BenchData {
    */
   catalogProvenance(): Promise<CatalogProvenance>;
   /**
+   * Whether any probe digest has actually been anchored on chain.
+   *
+   * Read from state, not asserted. Two pages claimed in present tense that
+   * probe hashes "are anchored on-chain, so liveness is auditable" while
+   * `anchorProbeDigest` threw NOT_IMPLEMENTED and nothing had ever been
+   * anchored. Overclaiming auditability is a worse failure here than anywhere
+   * else on the site, because auditability is the thing being sold.
+   */
+  probeAnchoring(): Promise<{ readonly anchored: boolean; readonly latestDigest: string | null }>;
+  /**
    * Independent corroboration of what the indexer found. Returns an
    * `unconfigured` status until an 8004scan key is granted - the panel says so
    * rather than disappearing, because "we have not checked" and "there is

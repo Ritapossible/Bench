@@ -1,3 +1,4 @@
+import { isLiveData } from '@/lib/data/index';
 import Link from 'next/link';
 import {
   DEFAULT_ENVELOPE_POLICY,
@@ -224,8 +225,9 @@ export default function DocsPage() {
             </table>
           </div>
           <p className="small">
-            A rolling hash of probe results is anchored on-chain, so liveness is auditable rather
-            than a claim Bench makes about itself.
+            Probe results are hash-chained and stored. Anchoring that chain on-chain - which is what
+            would make liveness auditable by someone who does not trust Bench - is built but not
+            live on this deployment; it needs a funded signer and an anchor target.
           </p>
         </section>
 
@@ -296,8 +298,10 @@ export default function DocsPage() {
           <p className="body">
             Two independent bounds apply to every transaction a hired agent produces, and neither
             subsumes the other. The <strong className="ink">mandate</strong> answers{' '}
-            <em>did the owner authorise this?</em> - a signed statement of how much, to whom, and
-            for how long. The <strong className="ink">envelope</strong> answers{' '}
+            <em>did the owner authorise this?</em> - an explicit statement of how much, to whom, and
+            for how long, carrying the owner&rsquo;s signature over its digest once a wallet is
+            connected. Hires made without one are shown as unsigned rather than described as
+            authorised. The <strong className="ink">envelope</strong> answers{' '}
             <em>has this agent ever done this?</em> A transaction must clear both.
           </p>
           <p className="body">
@@ -475,16 +479,25 @@ export default function DocsPage() {
                 <tr>
                   <td>Per-category scorers and the live leaderboard</td>
                   <td>
-                    <span className="badge badge-dead">In progress</span>
+                    <span className="badge badge-live">
+                      <span className="dot" />
+                      Built
+                    </span>
                   </td>
                 </tr>
                 <tr>
-                  <td>Hire lifecycle - mandate, consent, decision trace</td>
+                  <td>Hire lifecycle - bounds, consent, decision trace</td>
                   <td>
                     <span className="badge badge-live">
                       <span className="dot" />
                       Built
                     </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Wallet-signed mandates</td>
+                  <td>
+                    <span className="badge badge-thin">Needs a connected wallet</span>
                   </td>
                 </tr>
                 <tr>
@@ -497,9 +510,10 @@ export default function DocsPage() {
             </table>
           </div>
           <p className="small">
-            This deployment reads fixtures shaped exactly like the indexer&rsquo;s output while the
-            wedge positions are wired up. Figures shown across the site are labelled simulated
-            throughout, and no real value has touched it. Source:{' '}
+            {isLiveData
+              ? 'This deployment reads its own indexed catalog from Postgres. Audition figures are labelled simulated throughout, and no real value has moved through it.'
+              : 'This deployment reads fixtures shaped exactly like the indexer’s output. Figures across the site are labelled simulated throughout, and no real value has touched it.'}{' '}
+            Source:{' '}
             <a href="https://github.com/Ritapossible/Bench">github.com/Ritapossible/Bench</a>.
           </p>
         </section>

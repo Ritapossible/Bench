@@ -193,6 +193,10 @@ function toRecord(row: Row): HireRecord {
     owner: row.userAddress as Address,
     agent: decAgentId(first),
     mandate: decMandate(row.mandate as Json),
+    mandateSignature:
+      row.mandateSignature === null
+        ? null
+        : (row.mandateSignature as unknown as HireRecord['mandateSignature']),
     mandateState: decMandateState(row.mandateState as Json),
     envelope: decEnvelope(row.envelope as Json),
     envelopePolicy: policy === null ? undefined : (policy as unknown as EnvelopePolicy),
@@ -213,6 +217,7 @@ function toRow(r: HireRecord): typeof schema.hires.$inferInsert {
     escrowJobId: r.escrowJobId,
     status: r.state,
     mandate: encMandate(r.mandate),
+    mandateSignature: r.mandateSignature,
     mandateState: encMandateState(r.mandateState),
     envelope: encEnvelope(r.envelope),
     envelopePolicy: r.envelopePolicy ?? null,
@@ -293,6 +298,7 @@ export class PgHireStore implements HireStore {
         status: row.status,
         escrowJobId: row.escrowJobId,
         mandate: row.mandate,
+        mandateSignature: row.mandateSignature,
         mandateState: row.mandateState,
         envelope: row.envelope,
         envelopePolicy: row.envelopePolicy,

@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { DEMO_OWNER, hireStore } from '@/lib/hire/runtime';
+import { hireStore } from '@/lib/hire/runtime';
+import { currentOwnerReadOnly } from '@/lib/hire/owner';
 import { remaining } from '@bench/core';
 
 export const metadata = { title: 'Your hires - Bench' };
@@ -13,7 +14,9 @@ const STATE_BADGE: Record<string, string> = {
 };
 
 export default async function HiresPage() {
-  const hires = await hireStore().listByOwner(DEMO_OWNER);
+  // Null until this browser has hired: an empty list is the truth, not an error.
+  const owner = await currentOwnerReadOnly();
+  const hires = owner === null ? [] : await hireStore().listByOwner(owner);
 
   return (
     <section className="wrap section">

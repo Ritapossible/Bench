@@ -15,6 +15,21 @@ export {
   type IndexerOptions,
   type IndexerTickResult,
 } from './indexer.js';
+export { summarizeAgreementFor } from './crossref.js';
+export {
+  AuditionService,
+  type AuditionServiceDeps,
+  type AuditionServiceOptions,
+  type AuditionTickResult,
+  type ShadowAgentFactory,
+} from './audition-service.js';
+export {
+  Scorer,
+  metricFor,
+  normalizeDelta,
+  type ScorerOptions,
+  type ScoringResult,
+} from './scorer.js';
 export { Prober, type ProberOptions, type ProberTickResult } from './prober.js';
 export { ProbeAnchor, type AnchorOptions, type AnchorTickResult } from './anchor.js';
 export {

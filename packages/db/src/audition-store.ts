@@ -3,6 +3,7 @@ import {
   BenchError,
   type AgentCategory,
   type AgentId,
+  type AgreementSummary,
   type AuditionStore,
   type AuditionWindow,
   type Baseline,
@@ -18,7 +19,7 @@ import {
   type ShadowRunStatus,
   type TerminalState,
 } from '@bench/core';
-import { and, desc, eq, gt, inArray, or } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import type { Db } from './index.js';
 import * as schema from './schema.js';
 
@@ -345,6 +346,40 @@ export class PgAuditionStore implements AuditionStore {
       .reverse();
   }
 
+  async recordCrossReference(chain: ChainName, summary: AgreementSummary): Promise<void> {
+    await this.db.insert(schema.crossRefSummaries).values({
+      chain,
+      source: summary.source,
+      status: summary.status,
+      checked: summary.checked,
+      confirmed: summary.confirmed,
+      notFound: summary.notFound,
+      agreementBps: summary.agreementBps,
+      computedAt: new Date(),
+    });
+  }
+
+  /** Null before the first run: "not checked yet" is not "0% agreement". */
+  async latestCrossReference(chain: ChainName): Promise<AgreementSummary | null> {
+    const rows = await this.db
+      .select()
+      .from(schema.crossRefSummaries)
+      .where(eq(schema.crossRefSummaries.chain, chain))
+      .orderBy(desc(schema.crossRefSummaries.computedAt))
+      .limit(1);
+    const r = rows[0];
+    return r === undefined
+      ? null
+      : {
+          source: r.source,
+          status: r.status as AgreementSummary['status'],
+          checked: r.checked,
+          confirmed: r.confirmed,
+          notFound: r.notFound,
+          agreementBps: r.agreementBps,
+        };
+  }
+
   async #agentUuid(agent: AgentId): Promise<string> {
     const rows = await this.db
       .select({ id: schema.agents.id })
@@ -362,16 +397,56 @@ export class PgAuditionStore implements AuditionStore {
   }
 }
 
+/**
+ * Validate a jsonb blob before it becomes a domain value.
+ *
+ * The decision trace is verified on read because tampering with it is the
+ * attack it exists to detect. These columns were trusted instead - cast
+ * straight through - so a malformed `metric` or `baseline` row propagated into
+ * scoring and rendering silently. Anyone with write access to the database, or
+ * one bad migration, and the catalog starts publishing nonsense with a
+ * confident face.
+ */
+function validMetric(v: unknown): v is CategoryMetric {
+  if (v === null || typeof v !== 'object') return false;
+  const kind = (v as { kind?: unknown }).kind;
+  return (
+    kind === 'rebalancing' ||
+    kind === 'yield' ||
+    kind === 'grid' ||
+    kind === 'monitoring' ||
+    kind === 'health-factor'
+  );
+}
+
+function validBaseline(v: unknown): v is Baseline {
+  if (v === null || typeof v !== 'object') return false;
+  const kind = (v as { kind?: unknown }).kind;
+  return kind === 'do-nothing' || kind === 'peer-median' || kind === 'naive-threshold';
+}
+
 function toScore(s: typeof schema.scores.$inferSelect, agent: AgentId): Score {
+  if (!validMetric(s.metric)) {
+    throw new BenchError(
+      'INVALID_AGENT_CARD',
+      `score for ${agentKey(agent)} has an unrecognised metric shape; refusing to publish it`,
+    );
+  }
+  if (!validBaseline(s.baseline)) {
+    throw new BenchError(
+      'INVALID_AGENT_CARD',
+      `score for ${agentKey(agent)} has an unrecognised baseline; refusing to publish it`,
+    );
+  }
   return {
     agent,
     category: s.category as AgentCategory,
     basis: s.basis as ScoreBasis,
     window: { start: s.windowStart, end: s.windowEnd },
     sampleSize: s.sampleSize,
-    baseline: s.baseline as unknown as Baseline,
+    baseline: s.baseline,
     normalized: s.normalized,
-    metric: s.metric as unknown as CategoryMetric,
+    metric: s.metric,
   };
 }
 
@@ -428,12 +503,21 @@ const agentMatches = (id: AgentId) =>
 function anyOfAgents(agents: readonly AgentId[]) {
   const chains = [...new Set(agents.map((a) => a.chain))];
   const tokens = [...new Set(agents.map((a) => a.tokenId.toString()))];
-  // Narrow by both columns first - that is what the unique index covers - then
-  // filter to the exact pairs, so a query for (bsc, 1) and (opbnb, 2) does not
-  // also return (bsc, 2).
+
+  // A row-value IN, not an OR of pairs. The OR form worked but produced one
+  // clause per agent - two hundred on a full catalog page - which Postgres
+  // plans poorly and which grows with the catalog the product is selling the
+  // size of. The two `inArray` terms stay because together they are the unique
+  // index `(chain, token_id)`, so the planner can use it before the row-value
+  // filter narrows to the exact pairs.
+  const pairs = sql.join(
+    agents.map((a) => sql`(${a.chain}, ${a.tokenId.toString()})`),
+    sql`, `,
+  );
+
   return and(
     inArray(schema.agents.chain, chains),
     inArray(schema.agents.tokenId, tokens),
-    or(...agents.map((a) => agentMatches(a))),
+    sql`(${schema.agents.chain}, ${schema.agents.tokenId}) in (${pairs})`,
   );
 }
