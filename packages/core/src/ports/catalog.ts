@@ -17,6 +17,14 @@ export interface ProbeTarget {
 export interface IndexerCheckpoint {
   readonly chain: ChainName;
   readonly lastBlock: bigint;
+  /**
+   * Highest token id walked, for enumeration-based discovery.
+   *
+   * Separate from `lastBlock` because the two resume different things: a block
+   * cursor resumes a log scan, a token cursor resumes an id walk, and a
+   * deployment can use either. Null means no walk has run.
+   */
+  readonly lastTokenId: bigint | null;
   readonly updatedAt: Date;
 }
 
@@ -47,4 +55,6 @@ export interface CatalogRepository {
 
   checkpoint(chain: ChainName): Promise<IndexerCheckpoint | null>;
   setCheckpoint(chain: ChainName, lastBlock: bigint): Promise<void>;
+  /** Resume point for `enumerateAgents`. Independent of the block cursor. */
+  setTokenCursor(chain: ChainName, lastTokenId: bigint): Promise<void>;
 }

@@ -230,6 +230,22 @@ export class InMemoryCatalogRepository implements CatalogRepository {
   }
 
   async setCheckpoint(chain: ChainName, lastBlock: bigint): Promise<void> {
-    this.#checkpoints.set(chain, { chain, lastBlock, updatedAt: new Date() });
+    const prev = this.#checkpoints.get(chain);
+    this.#checkpoints.set(chain, {
+      chain,
+      lastBlock,
+      lastTokenId: prev?.lastTokenId ?? null,
+      updatedAt: new Date(),
+    });
+  }
+
+  async setTokenCursor(chain: ChainName, lastTokenId: bigint): Promise<void> {
+    const prev = this.#checkpoints.get(chain);
+    this.#checkpoints.set(chain, {
+      chain,
+      lastBlock: prev?.lastBlock ?? 0n,
+      lastTokenId,
+      updatedAt: new Date(),
+    });
   }
 }

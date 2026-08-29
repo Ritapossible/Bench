@@ -441,7 +441,14 @@ export class PgCatalogRepository implements CatalogRepository {
       .where(eq(schema.indexerCheckpoints.chain, chain))
       .limit(1);
     const row = rows[0];
-    return row === undefined ? null : { chain, lastBlock: row.lastBlock, updatedAt: row.updatedAt };
+    return row === undefined
+      ? null
+      : {
+          chain,
+          lastBlock: row.lastBlock,
+          lastTokenId: row.lastTokenId,
+          updatedAt: row.updatedAt,
+        };
   }
 
   async setCheckpoint(chain: ChainName, lastBlock: bigint): Promise<void> {
@@ -451,6 +458,23 @@ export class PgCatalogRepository implements CatalogRepository {
       .onConflictDoUpdate({
         target: schema.indexerCheckpoints.chain,
         set: { lastBlock: sql`excluded.last_block`, updatedAt: new Date() },
+      });
+  }
+
+  /**
+   * Advance the enumeration cursor without touching the block cursor.
+   *
+   * `lastBlock` is defaulted to 0 on insert rather than left out: the column is
+   * NOT NULL because a log-scanning deployment must always have one, and a
+   * deployment that only enumerates simply never moves it off zero.
+   */
+  async setTokenCursor(chain: ChainName, lastTokenId: bigint): Promise<void> {
+    await this.db
+      .insert(schema.indexerCheckpoints)
+      .values({ chain, lastBlock: 0n, lastTokenId, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: schema.indexerCheckpoints.chain,
+        set: { lastTokenId: sql`excluded.last_token_id`, updatedAt: new Date() },
       });
   }
 

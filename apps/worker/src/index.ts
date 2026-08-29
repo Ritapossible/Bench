@@ -57,11 +57,15 @@ async function main(): Promise<void> {
     new Worker(
       QUEUE.indexer,
       async () => {
-        const head = await adapters.registry.headBlock();
-        const r = await indexer.tick(head);
+        // Enumeration, not log scanning. Registration events are history and
+        // every free BSC endpoint prunes it, so a log scan reaches this month
+        // and nothing before it; ownerOf and tokenURI are current state and
+        // reach the whole registry. See Indexer.enumerationTick.
+        const r = await indexer.enumerationTick();
         console.log(
-          `[bench:indexer] blocks ${r.fromBlock}-${r.toBlock} discovered=${r.discovered} ` +
-            `cards ok=${r.cardsResolved} failed=${r.cardsFailed}`,
+          `[bench:indexer] tokens ${r.fromTokenId}-${r.lastTokenId} discovered=${r.discovered} ` +
+            `cards ok=${r.cardsResolved} failed=${r.cardsFailed} upserted=${r.upserted}` +
+            (r.reachedEnd ? '' : ' (more to walk)'),
         );
 
         // Append the density measurement each tick. The registry health page

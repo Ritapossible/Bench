@@ -39,6 +39,17 @@ export interface IndexerOptions {
   readonly cardConcurrency?: number;
 }
 
+export interface EnumerationTickResult {
+  readonly fromTokenId: bigint;
+  readonly lastTokenId: bigint;
+  readonly discovered: number;
+  readonly cardsResolved: number;
+  readonly cardsFailed: number;
+  readonly upserted: number;
+  /** False when the walk stopped on its own limit and more remain. */
+  readonly reachedEnd: boolean;
+}
+
 export interface IndexerTickResult {
   readonly fromBlock: bigint;
   readonly toBlock: bigint;
@@ -99,6 +110,65 @@ export class Indexer {
       cardsResolved: withCards.filter((r) => r.card !== null).length,
       cardsFailed: withCards.filter((r) => r.card === null).length,
       upserted,
+    };
+  }
+
+  /**
+   * One enumeration pass: walk token ids, resolve cards, upsert.
+   *
+   * The alternative to `tick`, not a supplement to it, and the only one that
+   * works against a public node. Registration events are history and every free
+   * BSC endpoint prunes it - about eleven hours on the best of them - so a log
+   * scan can reach this month and nothing before it. `ownerOf` and `tokenURI`
+   * are current state, which a pruned node serves for any token regardless of
+   * age, so the walk sees the whole registry.
+   *
+   * Resumes from the token cursor and stops when the registry ends. Once
+   * caught up a tick costs a couple of calls, because new registrations take
+   * the next id and there is nothing above it to find.
+   */
+  async enumerationTick(): Promise<EnumerationTickResult> {
+    const checkpoint = await this.repo.checkpoint(this.opts.chain);
+    // Re-read the last known id rather than starting past it. Enumeration is an
+    // upsert by (chain, tokenId), so re-reading one agent is free, and it means
+    // a card that failed to resolve last time gets another attempt.
+    const fromTokenId =
+      checkpoint?.lastTokenId === null || checkpoint?.lastTokenId === undefined
+        ? 0n
+        : checkpoint.lastTokenId;
+
+    const { agents, lastTokenId, reachedEnd } = await this.registry.enumerateAgents({
+      fromTokenId,
+      limit: this.opts.batchSize ?? DEFAULTS.batchSize,
+    });
+
+    if (agents.length === 0) {
+      return {
+        fromTokenId,
+        lastTokenId: fromTokenId,
+        discovered: 0,
+        cardsResolved: 0,
+        cardsFailed: 0,
+        upserted: 0,
+        reachedEnd,
+      };
+    }
+
+    const withCards = await this.attachCards(agents);
+    const upserted = await this.repo.upsertAgents(withCards);
+
+    // Only after the write lands, for the same reason as the block cursor: a
+    // cursor advanced past a failed upsert is a permanently skipped agent.
+    await this.repo.setTokenCursor(this.opts.chain, lastTokenId);
+
+    return {
+      fromTokenId,
+      lastTokenId,
+      discovered: agents.length,
+      cardsResolved: withCards.filter((r) => r.card !== null).length,
+      cardsFailed: withCards.filter((r) => r.card === null).length,
+      upserted,
+      reachedEnd,
     };
   }
 

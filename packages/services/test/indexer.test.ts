@@ -56,6 +56,12 @@ class StubRegistry implements RegistryClient {
   async getAgent(): Promise<AgentRecord | null> {
     return null;
   }
+  async enumerateAgents(opts: { fromTokenId?: bigint; limit?: number } = {}) {
+    const from = opts.fromTokenId ?? 0n;
+    const picked = this.agents.filter((a) => a.id.tokenId >= from).slice(0, opts.limit ?? 500);
+    const last = picked[picked.length - 1]?.id.tokenId ?? (from > 0n ? from - 1n : 0n);
+    return { agents: picked, lastTokenId: last, reachedEnd: true };
+  }
   async resolveCard(uri: string): Promise<AgentCard> {
     const c = this.cards.get(uri);
     if (!c) throw new BenchError('INVALID_AGENT_CARD', `no card at ${uri}`);
@@ -85,7 +91,22 @@ class StubRepo implements Partial<CatalogRepository> {
     return this.checkpoints.get(chain) ?? null;
   }
   async setCheckpoint(chain: ChainName, lastBlock: bigint): Promise<void> {
-    this.checkpoints.set(chain, { chain, lastBlock, updatedAt: new Date() });
+    const prev = this.checkpoints.get(chain);
+    this.checkpoints.set(chain, {
+      chain,
+      lastBlock,
+      lastTokenId: prev?.lastTokenId ?? null,
+      updatedAt: new Date(),
+    });
+  }
+  async setTokenCursor(chain: ChainName, lastTokenId: bigint): Promise<void> {
+    const prev = this.checkpoints.get(chain);
+    this.checkpoints.set(chain, {
+      chain,
+      lastBlock: prev?.lastBlock ?? 0n,
+      lastTokenId,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -177,5 +198,60 @@ describe('Indexer', () => {
       build(new StubRegistry([record(1n, 'ipfs://x')]), repo).tick(1_000n),
     ).rejects.toThrow(/postgres down/);
     expect(repo.checkpoints.get('bsc-testnet')).toBeUndefined();
+  });
+});
+
+describe('enumerationTick', () => {
+  const agents = [record(0n, 'ipfs://good'), record(1n, 'ipfs://dead'), record(2n, 'ipfs://good')];
+  const cards = new Map([['ipfs://good', card('Live One')]]);
+
+  it('walks token ids, resolves cards, and advances the token cursor', async () => {
+    const repo = new StubRepo();
+    const indexer = build(new StubRegistry(agents, cards), repo);
+
+    const r = await indexer.enumerationTick();
+
+    expect(r.discovered).toBe(3);
+    expect(r.upserted).toBe(3);
+    expect(r.cardsResolved).toBe(2);
+    // The agent whose card 404s is kept, exactly as in the log path: it is the
+    // denominator of the density figure.
+    expect(r.cardsFailed).toBe(1);
+    expect(repo.stored.size).toBe(3);
+    expect((await repo.checkpoint('bsc-testnet'))?.lastTokenId).toBe(2n);
+  });
+
+  it('resumes at the cursor rather than rewalking from zero', async () => {
+    const repo = new StubRepo();
+    const indexer = build(new StubRegistry(agents, cards), repo);
+
+    await indexer.enumerationTick();
+    const second = await indexer.enumerationTick();
+
+    // Resumes *at* the last id, not past it. Re-reading one agent is free
+    // under an upsert by (chain, tokenId), and it gives a card that failed to
+    // resolve last time another attempt.
+    expect(second.fromTokenId).toBe(2n);
+  });
+
+  it('leaves the block cursor alone', async () => {
+    // The two cursors resume different things. Moving the block cursor here
+    // would make a later log scan skip every block in between.
+    const repo = new StubRepo();
+    const indexer = build(new StubRegistry(agents, cards), repo);
+
+    await indexer.enumerationTick();
+
+    expect((await repo.checkpoint('bsc-testnet'))?.lastBlock).toBe(0n);
+  });
+
+  it('does not advance the cursor when the registry is empty', async () => {
+    const repo = new StubRepo();
+    const indexer = build(new StubRegistry([], cards), repo);
+
+    const r = await indexer.enumerationTick();
+
+    expect(r.discovered).toBe(0);
+    expect(await repo.checkpoint('bsc-testnet')).toBeNull();
   });
 });

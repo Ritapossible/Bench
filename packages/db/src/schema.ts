@@ -106,6 +106,9 @@ export const agentLiveness = pgTable('agent_liveness', {
 export const indexerCheckpoints = pgTable('indexer_checkpoints', {
   chain: text('chain').primaryKey(),
   lastBlock: bigint('last_block', { mode: 'bigint' }).notNull(),
+  // Enumeration resume point. Nullable: a deployment that only scans logs never
+  // sets it, and a deployment that only enumerates never advances lastBlock.
+  lastTokenId: bigint('last_token_id', { mode: 'bigint' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
