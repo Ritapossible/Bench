@@ -160,6 +160,20 @@ const asProtocol = (v: unknown): EndpointProtocol | null => {
 /**
  * Endpoints appear under at least four different keys across real cards. Order
  * matters only in that we de-duplicate by URL and keep the first protocol seen.
+ *
+ * Shapes here are not guesses. Surveyed against the 811 on-chain cards in the
+ * ERC-8004 registry on BSC testnet (0x8004a8…bd9e): `services` carries them on
+ * 581 cards and `endpoints` on 32, and the protocol sits in `name` far more
+ * often than in `protocol` or `type` - a card reads
+ * `{"name":"a2a","endpoint":"https://…"}`. Missing `name` was why every real
+ * card parsed to zero endpoints, which would have made the whole catalog
+ * unprobeable and every agent unverifiable.
+ *
+ * Names outside a2a/mcp/oasf are dropped on purpose. That survey also found
+ * `web`, `x402`, `erc-8183`, `ens` and `email` endpoints, and none of them is
+ * an agent-interaction protocol the prober can conformance-check. Admitting
+ * them would inflate "verified live" with endpoints nothing ever verified,
+ * which is the one number this project cannot afford to overstate.
  */
 function extractEndpoints(obj: Record<string, unknown>): readonly AgentEndpoint[] {
   const found: AgentEndpoint[] = [];
@@ -173,7 +187,7 @@ function extractEndpoints(obj: Record<string, unknown>): readonly AgentEndpoint[
     for (const raw of eps) {
       if (typeof raw !== 'object' || raw === null) continue;
       const rec = raw as Record<string, unknown>;
-      const protocol = asProtocol(rec['protocol'] ?? rec['type'] ?? rec['kind']);
+      const protocol = asProtocol(rec['protocol'] ?? rec['name'] ?? rec['type'] ?? rec['kind']);
       if (protocol !== null)
         push(protocol, str(rec['url']) ?? str(rec['endpoint']) ?? str(rec['uri']));
     }

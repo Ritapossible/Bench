@@ -51,6 +51,47 @@ describe('normalizeCard', () => {
     expect(card.category).toBe('yield');
   });
 
+  it('reads the services shape real ERC-8004 cards actually use', () => {
+    // Verbatim shape from token 2012 of the registry on BSC testnet. The
+    // protocol is in `name`, and the array is `services`, not `endpoints`.
+    // Reading only `protocol`/`type` parsed every real card to zero endpoints,
+    // which made the whole catalog unprobeable - nothing to probe means nothing
+    // can ever be verified live.
+    const card = normalizeCard({
+      type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
+      name: 'Venus Health Factor Monitor',
+      description: "Reads a wallet's Venus lending position and returns its health factor.",
+      category: 'health-factor-monitoring',
+      services: [
+        { name: 'a2a', endpoint: 'https://agensea-health-factor.vercel.app/a2a' },
+        { name: 'x402', endpoint: 'https://agensea-health-factor.vercel.app/x402' },
+        { name: 'erc8183', endpoint: 'onchain:AgenticCommerce.submit' },
+      ],
+      x402Support: true,
+      active: true,
+    });
+
+    // The a2a service is kept; x402 and erc8183 are not agent-interaction
+    // protocols the prober can conformance-check, so admitting them would
+    // inflate "verified live" with endpoints nothing ever verified.
+    expect(card.endpoints).toEqual([
+      { protocol: 'a2a', url: 'https://agensea-health-factor.vercel.app/a2a' },
+    ]);
+  });
+
+  it('keeps an agent with no probeable service rather than inventing one', () => {
+    // Common in the wild: a card whose only service is a website. It is a real
+    // agent and belongs in the catalog; it simply cannot be probed, and the
+    // verified-live filter is what says so.
+    const card = normalizeCard({
+      name: 'Pancake Ranger',
+      description: 'PancakeSwap V3 concentrated-liquidity manager for WBNB/USDT.',
+      services: [{ endpoint: 'https://github.com/example/suite', name: 'web' }],
+    });
+    expect(card.name).toBe('Pancake Ranger');
+    expect(card.endpoints).toEqual([]);
+  });
+
   it('accepts an endpoints array', () => {
     const card = normalizeCard({
       name: 'x',

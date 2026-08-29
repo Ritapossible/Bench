@@ -8,6 +8,8 @@ import {
   type ChainName,
   type Hex,
   type ListAgentsQuery,
+  type EnumerateOptions,
+  type EnumerationResult,
   type RegistryClient,
   type ValidationEntry,
 } from '@bench/core';
@@ -48,6 +50,13 @@ export interface RegistryClientOptions {
 }
 
 const DEFAULT_LOG_CHUNK = 2_000n;
+
+/** Token ids per multicall. Large enough to be cheap, small enough to stay under body limits. */
+const ENUMERATE_BATCH = 200;
+/** Ceiling on one enumeration call, so a tick is bounded regardless of registry size. */
+const DEFAULT_ENUMERATE_LIMIT = 5_000;
+/** Consecutive missing ids before the walk concludes the registry has ended. */
+const DEFAULT_GAP_TOLERANCE = 25;
 
 export class Erc8004RegistryClient implements RegistryClient {
   readonly #client: PublicClient;
@@ -137,6 +146,99 @@ export class Erc8004RegistryClient implements RegistryClient {
       card: null,
       registeredAt: new Date(0),
     };
+  }
+
+  /**
+   * Walk token ids, reading owner and card URI from current state.
+   *
+   * Batched with `multicall` and `allowFailure`, because a nonexistent token
+   * reverts and that revert *is* the signal the walk is looking for - it has to
+   * come back as a failed result rather than sink the whole batch.
+   *
+   * Cards are resolved after the batch rather than inside it. Almost every card
+   * on this registry is a `data:` URI, which costs nothing, but an `https:` one
+   * is a request to a third-party host and those belong outside a chain read
+   * where they can fail independently.
+   */
+  async enumerateAgents(opts: EnumerateOptions = {}): Promise<EnumerationResult> {
+    const from = opts.fromTokenId ?? 0n;
+    const limit = opts.limit ?? DEFAULT_ENUMERATE_LIMIT;
+    const gapTolerance = opts.gapTolerance ?? DEFAULT_GAP_TOLERANCE;
+
+    const agents: AgentRecord[] = [];
+    let cursor = from;
+    let lastTokenId = from > 0n ? from - 1n : 0n;
+    let consecutiveMisses = 0;
+    let read = 0;
+    let reachedEnd = false;
+
+    while (read < limit) {
+      const size = Math.min(ENUMERATE_BATCH, limit - read);
+      const ids = Array.from({ length: size }, (_, i) => cursor + BigInt(i));
+
+      const [owners, uris] = await Promise.all([
+        this.#batch(ids, 'ownerOf'),
+        this.#batch(ids, 'tokenURI'),
+      ]);
+
+      for (const [i, tokenId] of ids.entries()) {
+        const owner = owners[i];
+        if (owner === null) {
+          consecutiveMisses += 1;
+          // Enough consecutive holes that this is the end of the registry
+          // rather than a burned token in the middle of it.
+          if (consecutiveMisses > gapTolerance) {
+            reachedEnd = true;
+            break;
+          }
+          continue;
+        }
+
+        consecutiveMisses = 0;
+        lastTokenId = tokenId;
+        agents.push({
+          id: { chain: this.#opts.chain, tokenId },
+          owner: owner as Address,
+          cardUri: uris[i] ?? '',
+          card: null,
+          // Enumeration reads state, which carries no registration block or
+          // time. Left at the epoch rather than guessed at; the indexer keeps
+          // whatever it already had, and a log-based read fills it in properly.
+          registeredAt: new Date(0),
+        });
+      }
+
+      read += size;
+      cursor += BigInt(size);
+      if (reachedEnd) break;
+    }
+
+    return { agents, lastTokenId, reachedEnd };
+  }
+
+  /** One multicall per function. Null where the call reverted. */
+  async #batch(
+    ids: readonly bigint[],
+    fn: 'ownerOf' | 'tokenURI',
+  ): Promise<readonly (string | null)[]> {
+    try {
+      const results = await this.#client.multicall({
+        allowFailure: true,
+        contracts: ids.map((tokenId) => ({
+          address: this.#opts.identityRegistry,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: fn,
+          args: [tokenId] as const,
+        })),
+      });
+      return results.map((r) => (r.status === 'success' ? String(r.result) : null));
+    } catch (err) {
+      throw new BenchError(
+        'UPSTREAM_UNAVAILABLE',
+        `multicall ${fn} failed during enumeration`,
+        err,
+      );
+    }
   }
 
   /** Delegates to the resolver so URI-scheme handling has one implementation. */

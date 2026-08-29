@@ -13,6 +13,8 @@ import {
   type ChainName,
   type Hex,
   type IndexerCheckpoint,
+  type EnumerateOptions,
+  type EnumerationResult,
   type ListAgentsQuery,
   type LivenessSummary,
   type ProbeResult,
@@ -46,6 +48,16 @@ export class FakeRegistryClient implements RegistryClient {
 
   async listAgents(q?: ListAgentsQuery): Promise<readonly AgentRecord[]> {
     return this.agents.slice(0, q?.limit ?? this.agents.length);
+  }
+
+  /** Token-id order, and the same gap semantics as the real walk. */
+  async enumerateAgents(opts: EnumerateOptions = {}): Promise<EnumerationResult> {
+    const from = opts.fromTokenId ?? 0n;
+    const limit = opts.limit ?? this.agents.length;
+    const sorted = [...this.agents].sort((a, b) => (a.id.tokenId < b.id.tokenId ? -1 : 1));
+    const agents = sorted.filter((a) => a.id.tokenId >= from).slice(0, limit);
+    const last = agents[agents.length - 1]?.id.tokenId ?? (from > 0n ? from - 1n : 0n);
+    return { agents, lastTokenId: last, reachedEnd: agents.length < limit };
   }
 
   async getAgent(id: AgentId): Promise<AgentRecord | null> {

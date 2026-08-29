@@ -24,6 +24,30 @@ export interface ValidationEntry {
  * are trivially gamed. Bench's output belongs in the registry that can be
  * checked. There is deliberately no `writeReputation` on this port.
  */
+export interface EnumerateOptions {
+  /** First token id to read. Defaults to 0. */
+  readonly fromTokenId?: bigint;
+  /** Stop after this many, so one tick cannot run unbounded. */
+  readonly limit?: number;
+  /**
+   * Consecutive missing ids tolerated before the walk concludes.
+   *
+   * A burned token leaves a hole, and stopping at the first one would truncate
+   * the catalog at that hole and silently lose every agent above it. Reading a
+   * short run past a gap costs a handful of calls and is the difference
+   * between a complete catalog and a quietly incomplete one.
+   */
+  readonly gapTolerance?: number;
+}
+
+export interface EnumerationResult {
+  readonly agents: readonly AgentRecord[];
+  /** Highest id actually read, so the next walk resumes above it. */
+  readonly lastTokenId: bigint;
+  /** False when `limit` stopped the walk early rather than the registry ending. */
+  readonly reachedEnd: boolean;
+}
+
 export interface RegistryClient {
   /**
    * Chain head. On the port because the indexer needs it to decide how far it
@@ -32,6 +56,30 @@ export interface RegistryClient {
    */
   headBlock(): Promise<bigint>;
   listAgents(q?: ListAgentsQuery): Promise<readonly AgentRecord[]>;
+  /**
+   * Discover agents by walking token ids rather than registration logs.
+   *
+   * Log scanning is the obvious way to find registrations and it is the wrong
+   * one for a backfill against a public node. Registration events sit in
+   * history, and every free BSC endpoint prunes it - measured at eleven hours
+   * on the best of them - so reconstructing months of registrations needs an
+   * archive node nobody hands out for free.
+   *
+   * `ownerOf` and `tokenURI` are *current state*, not history, so a pruned node
+   * answers them for a token minted in February exactly as well as for one
+   * minted this morning. For a registry that mints sequentially, that turns
+   * discovery into a walk from zero: read until `ownerOf` reverts, and the end
+   * of the walk is the end of the registry.
+   *
+   * The chain remains the only source of truth here - this changes how agents
+   * are *found*, not what is believed about them.
+   *
+   * Returns agents in token-id order. `fromTokenId` resumes a walk, which is
+   * also how the tail works: new registrations take the next id, so probing
+   * upward from the last known one costs a call or two when nothing has
+   * happened.
+   */
+  enumerateAgents(opts?: EnumerateOptions): Promise<EnumerationResult>;
   getAgent(id: AgentId): Promise<AgentRecord | null>;
   /** Resolve an Identity NFT tokenURI to its card. Throws INVALID_AGENT_CARD. */
   resolveCard(uri: string): Promise<AgentCard>;
