@@ -42,7 +42,35 @@ if (rows === 0) throw new Error('catalog rendered no agents');
 step(`catalog lists ${rows} agent links`);
 
 // 2. Open an agent, then its hire page.
-await page.goto(`${BASE}/agents/bsc-testnet/1041/hire`, { waitUntil: 'networkidle' });
+// Find an agent that can actually be hired, rather than a hardcoded id: against
+// the real registry the ids are whatever the chain says, and Bench refuses to
+// offer a hire for an agent with no audition record - there is nothing to
+// derive a behavioural bound from. Both outcomes are correct, so the test
+// checks the refusal too rather than treating it as a failure.
+const hrefs = await page
+  .locator('a[href^="/agents/bsc-testnet/"]')
+  .evaluateAll((els) => [...new Set(els.map((e) => e.getAttribute('href')))].slice(0, 12));
+let target = null;
+let refusedForNoAudition = 0;
+for (const href of hrefs) {
+  await page.goto(`${BASE}${href}/hire`, { waitUntil: 'domcontentloaded' });
+  if ((await page.locator('button[type=submit]').count()) > 0) {
+    target = href;
+    break;
+  }
+  if (/no audition record/i.test(await page.locator('body').innerText())) refusedForNoAudition += 1;
+}
+
+if (target === null) {
+  step(`no auditioned agent among ${hrefs.length} checked`);
+  step(`hire correctly refused for ${refusedForNoAudition} agent(s) with no audition record`);
+  if (refusedForNoAudition === 0) throw new Error('no hire form and no stated reason for refusing');
+  console.log('\nPASS - catalog is live; hire is correctly withheld until an audition exists.');
+  await browser.close();
+  process.exit(0);
+}
+step(`hiring ${target}`);
+await page.goto(`${BASE}${target}/hire`, { waitUntil: 'networkidle' });
 const heading = await page.locator('h1').first().innerText();
 step(`hire page heading: "${heading}"`);
 

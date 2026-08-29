@@ -101,20 +101,40 @@ export function createPgData(connectionString: string): BenchData {
     },
 
     async listAgents(opts): Promise<readonly AgentSummary[]> {
-      const page = await catalog.query({
+      const query = {
         chain: CHAIN,
         limit: PAGE_LIMIT,
         ...(opts?.verifiedLiveOnly === undefined
           ? {}
           : { verifiedLiveOnly: opts.verifiedLiveOnly }),
         ...(opts?.category === undefined ? {} : { category: opts.category }),
-      });
-      const summaries = await withScores(page.entries);
+      };
+
+      const page = await catalog.query(query);
+      let entries = page.entries;
+
+      // The catalog filters client-side, so whatever this returns is the whole
+      // universe that filter can see. Against a real registry that is 2,013
+      // agents of which eight are verified live, and a page of the first 200 by
+      // token id contained none of them - the default view rendered "nothing
+      // matches" over a catalog whose entire point is those eight. So the
+      // verified-live set is fetched in SQL and merged in: it is small, it is
+      // the headline, and it must never be the part that gets truncated away.
+      if (opts?.verifiedLiveOnly !== true) {
+        const live = await catalog.query({ ...query, verifiedLiveOnly: true });
+        const seen = new Set(entries.map((e) => agentKey(e.record.id)));
+        entries = [...live.entries.filter((e) => !seen.has(agentKey(e.record.id))), ...entries];
+      }
+
+      const summaries = await withScores(entries);
       // Unscored agents sort last rather than as zero: -1 is below every
-      // possible normalized score, which is in [0, 1].
-      return [...summaries].sort(
-        (a, b) => (b.score?.normalized ?? -1) - (a.score?.normalized ?? -1),
-      );
+      // possible normalized score, which is in [0, 1]. Verified-live first
+      // within that, since an unaudited live agent is still more useful than an
+      // unaudited dead one.
+      return [...summaries].sort((a, b) => {
+        if (a.entry.verifiedLive !== b.entry.verifiedLive) return a.entry.verifiedLive ? -1 : 1;
+        return (b.score?.normalized ?? -1) - (a.score?.normalized ?? -1);
+      });
     },
 
     async getAgent(chain, tokenId): Promise<AgentDetail | null> {

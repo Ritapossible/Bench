@@ -55,8 +55,18 @@ export default async function AgentPage({
           </p>
           <p className="tiny mono break">
             {record.id.chain} · token #{record.id.tokenId.toString()} · owner{' '}
-            {record.owner.slice(0, 10)}… · registered{' '}
-            {record.registeredAt.toISOString().slice(0, 10)}
+            {record.owner.slice(0, 10)}…
+            {/*
+              Agents discovered by enumeration have no registration date:
+              ownerOf and tokenURI are current state and carry no timestamp, and
+              the event that would is in pruned history. The epoch is the
+              placeholder for that, and printing it as "1970-01-01" states a
+              date nobody knows. Omitted instead - a missing fact beats a wrong
+              one, and this one is missing for a reason worth not papering over.
+            */}
+            {record.registeredAt.getTime() === 0
+              ? null
+              : ` · registered ${record.registeredAt.toISOString().slice(0, 10)}`}
           </p>
         </div>
 
