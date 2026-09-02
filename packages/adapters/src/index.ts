@@ -37,6 +37,7 @@ export {
   type CardResolverOptions,
 } from './catalog/card-resolver.js';
 export { HttpProbeClient, extractSseData, type ProbeOptions } from './probe/http-probe.js';
+export { checkArchiveRpc, type ArchiveStatus } from './shadow/archive.js';
 export {
   Scan8004CrossReference,
   buildCrossReference,
@@ -82,7 +83,13 @@ export {
 export { InMemoryEgressGuard, type EgressGuardOptions } from './shadow/egress-guard.js';
 export { BscPositionReader, type PositionReaderOptions } from './chain/position-reader.js';
 export { A2AShadowAgent, type A2AShadowAgentOptions } from './agent/a2a-shadow-agent.js';
-export { auditionWindows, type WindowSpec } from './shadow/windows.js';
+export {
+  auditionWindows,
+  forkBlockFor,
+  BLOCKS_PER_DAY,
+  FORK_LAG_BLOCKS,
+  type WindowSpec,
+} from './shadow/windows.js';
 export {
   AltanaWalletProvider,
   EvmLocalWalletProvider,

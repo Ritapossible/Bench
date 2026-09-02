@@ -16,6 +16,20 @@ const schema = z.object({
   BSC_TESTNET_RPC_URL: z.string().url(),
   BSC_MAINNET_RPC_URL: z.string().url().optional(),
 
+  /**
+   * The chain auditions fork, which is not the chain agents register on.
+   *
+   * Identity lives where ERC-8004 is deployed - BSC testnet, where the mainnet
+   * proxy is an unactivated stub holding zero agents. Markets live on mainnet.
+   * An audition replays market history, so it forks mainnet and drives agents
+   * whose identity is on testnet; tying the two together forked a chain with
+   * no liquidity, no USDT and nothing to measure.
+   *
+   * BSC_ARCHIVE_RPC_URL must point at this chain. The worker checks it at boot
+   * rather than trusting it.
+   */
+  SHADOW_FORK_CHAIN: z.enum(['bsc-mainnet', 'bsc-testnet']).default('bsc-mainnet'),
+
   // Shadow engine needs historical state; a pruned node cannot serve it.
   // Optional rather than required, because it gates *auditions* and nothing
   // else - the indexer and prober are the worker's whole job until an archive

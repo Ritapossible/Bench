@@ -32,6 +32,11 @@ import { AuditionRunner } from './audition.js';
  */
 
 export interface AuditionServiceOptions {
+  /**
+   * The chain agents are *registered* on, used to select the catalog. Not the
+   * chain being forked - that is whatever `archiveRpcUrl` serves, and the two
+   * differ on purpose: identity is on testnet, market history is on mainnet.
+   */
   readonly chain: ChainName;
   readonly archiveRpcUrl: string;
   /** Agents per tick. Forks are heavy; this bounds a tick's cost. */

@@ -1,4 +1,11 @@
-import { A2AShadowAgent, auditionWindows, buildAdapters } from '@bench/adapters';
+import {
+  A2AShadowAgent,
+  auditionWindows,
+  buildAdapters,
+  checkArchiveRpc,
+  forkBlockFor,
+  FORK_LAG_BLOCKS,
+} from '@bench/adapters';
 import { loadConfig, requireArchiveRpc } from '@bench/config';
 import {
   PgAuditionStore,
@@ -74,10 +81,30 @@ async function main(): Promise<void> {
    * able to run - the queue is registered only when one is configured, and the
    * absence is stated once at startup.
    */
-  const archiveRpcUrl = (() => {
+  // Set when the archive check has already printed a specific reason, so the
+  // generic "not set" line below does not contradict it.
+  let archiveReasonReported = false;
+  const archiveRpcUrl = await (async (): Promise<string | null> => {
+    let url: string;
     try {
-      return requireArchiveRpc(cfg);
+      url = requireArchiveRpc(cfg);
     } catch {
+      return null;
+    }
+    // Configured is not the same as usable. An endpoint on the wrong chain, or
+    // one that prunes state, fails at the first fork - hours later, as an agent
+    // failure. Checked once here, where the message can name the cause.
+    try {
+      const status = await checkArchiveRpc(url, cfg.SHADOW_FORK_CHAIN, FORK_LAG_BLOCKS);
+      console.log(
+        `[bench:worker] archive ok - ${cfg.SHADOW_FORK_CHAIN} chain=${status.chainId} head=${status.head}`,
+      );
+      return url;
+    } catch (err) {
+      console.error(
+        `[bench:worker] auditions OFF - ${err instanceof Error ? err.message : String(err)}`,
+      );
+      archiveReasonReported = true;
       return null;
     }
   })();
@@ -124,7 +151,7 @@ async function main(): Promise<void> {
   );
   // Say what is off and why, once, rather than leaving it to be inferred from
   // a queue that never logs.
-  if (auditionService === null) {
+  if (auditionService === null && !archiveReasonReported) {
     console.log('[bench:worker] auditions OFF - BSC_ARCHIVE_RPC_URL is not set');
   }
   if (!anchoringConfigured) {
@@ -210,9 +237,23 @@ async function main(): Promise<void> {
     new Worker(
       QUEUE.audition,
       async () => {
-        if (auditionService === null) return;
-        const [spec] = auditionWindows({ forkBlock: BigInt(cfg.ERC8004_REGISTRY_START_BLOCK) });
-        if (spec === undefined) return;
+        if (auditionService === null || archiveRpcUrl === null) return;
+        // The fork block comes from the fork chain's head, not from
+        // ERC8004_REGISTRY_START_BLOCK. Those are unrelated facts: where the
+        // registry was deployed says nothing about which market window to
+        // replay, and using it forked ~40 million blocks back - a year of
+        // history, on a chain the registry is not even on.
+        const status = await checkArchiveRpc(archiveRpcUrl, cfg.SHADOW_FORK_CHAIN, FORK_LAG_BLOCKS);
+        const [spec] = auditionWindows({
+          forkChain: cfg.SHADOW_FORK_CHAIN,
+          forkBlock: forkBlockFor(status.head),
+        });
+        if (spec === undefined) {
+          console.log(
+            `[bench:audition] no window for ${cfg.SHADOW_FORK_CHAIN} - no seeder constants`,
+          );
+          return;
+        }
         const r = await auditionService.tick(spec.window, spec.position);
         console.log(
           `[bench:audition] window=${r.window} auditioned=${r.auditioned} ` +
