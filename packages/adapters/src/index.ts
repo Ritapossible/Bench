@@ -37,7 +37,12 @@ export {
   type CardResolverOptions,
 } from './catalog/card-resolver.js';
 export { HttpProbeClient, extractSseData, type ProbeOptions } from './probe/http-probe.js';
-export { checkArchiveRpc, type ArchiveStatus } from './shadow/archive.js';
+export {
+  checkArchiveRpc,
+  checkAuditionPreconditions,
+  type ArchiveStatus,
+  type AuditionPreflight,
+} from './shadow/archive.js';
 export {
   Scan8004CrossReference,
   buildCrossReference,

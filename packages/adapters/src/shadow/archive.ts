@@ -1,6 +1,7 @@
 import { BenchError, type ChainName } from '@bench/core';
 import { createPublicClient, http } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
+import { startAnvil } from './anvil-process.js';
 
 /**
  * Reads the archive endpoint auditions fork from, and proves it is the right
@@ -69,4 +70,44 @@ export async function checkArchiveRpc(
   }
 
   return { head, chainId };
+}
+
+/**
+ * Everything an audition needs, checked before the queue is registered.
+ *
+ * The archive check alone was not enough, and the way it was not enough is the
+ * point: a deployment reported `archive ok`, enabled the audition queue, and
+ * then failed at the first fork because Foundry was installed in CI and nowhere
+ * else. Validating the remote dependency while assuming the local one is the
+ * same mistake in a different place, so the fork binary is proven the only way
+ * that proves anything - by starting one.
+ */
+export interface AuditionPreflight extends ArchiveStatus {
+  /** The fork block a window would pin, so the caller can log what it checked. */
+  readonly probedBlock: bigint;
+}
+
+export async function checkAuditionPreconditions(
+  rpcUrl: string,
+  expected: ChainName,
+  atDepth: bigint,
+): Promise<AuditionPreflight> {
+  const status = await checkArchiveRpc(rpcUrl, expected, atDepth);
+
+  // No fork-url: this proves the binary runs and can bind a port, without
+  // spending an archive request or waiting on a remote node at boot.
+  let handle;
+  try {
+    handle = await startAnvil({});
+  } catch (err) {
+    throw new BenchError(
+      'FORK_UNAVAILABLE',
+      `auditions need Foundry's anvil on PATH and it could not be started: ` +
+        `${err instanceof Error ? err.message : String(err)}`,
+      err,
+    );
+  }
+  await handle.stop();
+
+  return { ...status, probedBlock: status.head > atDepth ? status.head - atDepth : 0n };
 }

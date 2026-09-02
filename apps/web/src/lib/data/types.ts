@@ -4,6 +4,7 @@ import type {
   AgentId,
   CatalogEntry,
   CatalogStats,
+  InterceptedAction,
   LivePosition,
   OutcomeRecord,
   Score,
@@ -79,6 +80,15 @@ export interface AgentSummary {
 export interface AgentDetail extends AgentSummary {
   readonly runs: readonly ShadowRun[];
   readonly outcomes: readonly OutcomeRecord[];
+  /**
+   * What the agent actually did in each run, keyed by run id.
+   *
+   * Carried because the behavioural envelope is derived from it. When this was
+   * absent the hire path fabricated actions instead - the same hardcoded
+   * recipient, selector and value for every agent - so every envelope came out
+   * identical and described nothing about the agent it was supposed to bound.
+   */
+  readonly actionsByRun: ReadonlyMap<string, readonly InterceptedAction[]>;
   /** Realized score, once settled hires exist. Never merged with simulated. */
   readonly realized: Score | null;
 }

@@ -16,7 +16,7 @@
     "build:vercel": "rm -rf packages/*/dist packages/*/*.tsbuildinfo apps/web/.next && npm run build -w @bench/web",
     "build:worker": "npm run build -w @bench/worker",
     "start": "npm run start -w @bench/worker",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b && tsc -p apps/web/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "node apps/web/test/hire-e2e.mjs",

@@ -173,11 +173,15 @@ export function createPgData(connectionString: string): BenchData {
         audition.latestScore(id, 'realized'),
       ]);
 
+      // One query for every run's actions rather than one per run.
+      const actionsByRun = await audition.actionsForRuns(runs.map((r) => r.id));
+
       return {
         entry: { record, liveness, verifiedLive: isVerifiedLive(liveness) },
         score: simulated,
         runs,
         outcomes,
+        actionsByRun,
         // Never merged with `score`. A backtest and a settled job are different
         // evidence and the UI labels them separately.
         realized,

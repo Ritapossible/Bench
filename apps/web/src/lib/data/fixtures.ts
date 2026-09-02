@@ -1,11 +1,14 @@
 import {
   summarizeProbes,
   isVerifiedLive,
+  type Address,
   type AgentCard,
   type AgentCategory,
   type AgentId,
   type AgentRecord,
   type CatalogStats,
+  type Hex,
+  type InterceptedAction,
   type OutcomeRecord,
   type ProbeResult,
   type AgreementSummary,
@@ -535,7 +538,34 @@ export const fixtureData: BenchData = {
       actionCount: 4 + i * 3,
     }));
 
-    return { ...found, runs, outcomes, realized: null };
+    /**
+     * Fixture actions, shaped so the envelope derived from them varies by agent.
+     *
+     * The point of a fixture is to exercise the real code path. An empty map
+     * would leave every fixture envelope empty and hide exactly the bug this
+     * field exists to prevent, so each run gets `actionCount` actions whose
+     * recipient and value are derived from the agent, not from a constant.
+     */
+    const actionsByRun = new Map<string, readonly InterceptedAction[]>(
+      runs.map((r, i) => {
+        const n = outcomes[i]?.actionCount ?? 0;
+        const tokenId = Number(found.entry.record.id.tokenId);
+        return [
+          r.id,
+          Array.from({ length: n }, (_, k) => ({
+            seq: k,
+            at: new Date((r.startedAt?.getTime() ?? Date.now()) + k * 60_000),
+            to: `0x${((tokenId + 1) * 0x1111).toString(16).padStart(40, '0')}` as Address,
+            value: BigInt(tokenId + 1) * 10n ** 16n * BigInt(k + 1),
+            data: `0x${(0xa9059cbb + tokenId).toString(16).slice(0, 8)}` as Hex,
+            decoded: null,
+            simulated: { success: true, gasUsed: 21_000n + BigInt(k) * 1_000n },
+          })),
+        ];
+      }),
+    );
+
+    return { ...found, runs, outcomes, actionsByRun, realized: null };
   },
 
   async reportForAddress(address): Promise<AddressReportResult> {

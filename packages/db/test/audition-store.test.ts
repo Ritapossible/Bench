@@ -231,4 +231,48 @@ describeDb('PgAuditionStore', () => {
     // Oldest first, so a caller can plot it without reversing.
     expect(history.map((h) => h.verifiedLive)).toEqual([3, 5, 8]);
   });
+
+  it('reads back what putRun wrote, so the envelope has a real input', async () => {
+    // putRun had no counterpart, so every recorded action was written and never
+    // read. The hire path invented actions instead - identical values for every
+    // agent - and the envelope derived from them described no agent at all.
+    await store.putRun(run('r1', agent(1n)), [
+      action(0, 5n * 10n ** 17n),
+      action(1, 3n * 10n ** 17n),
+    ]);
+
+    const got = await store.actionsForRuns(['r1']);
+
+    expect(got.get('r1')).toHaveLength(2);
+    expect(got.get('r1')?.[0]?.value).toBe(5n * 10n ** 17n);
+    expect(got.get('r1')?.[0]?.to).toBe(VENUS);
+    expect(got.get('r1')?.[0]?.simulated.gasUsed).toBe(21_000n);
+  });
+
+  it('returns actions in the order the agent took them', async () => {
+    // The envelope folds a run cumulatively; a shuffled run yields a bound the
+    // agent never established.
+    await store.putRun(run('r1', agent(1n)), [action(2, 3n), action(0, 1n), action(1, 2n)]);
+
+    expect((await store.actionsForRuns(['r1']))?.get('r1')?.map((a) => a.seq)).toEqual([0, 1, 2]);
+  });
+
+  it('groups by run and asks for all of them at once', async () => {
+    await store.putRun(run('r1', agent(1n)), [action(0, 1n)]);
+    await store.putRun(run('r2', agent(2n)), [action(0, 2n), action(1, 3n)]);
+
+    const got = await store.actionsForRuns(['r1', 'r2']);
+
+    expect(got.get('r1')).toHaveLength(1);
+    expect(got.get('r2')).toHaveLength(2);
+  });
+
+  it('is a no-op on an empty request rather than a query for everything', async () => {
+    expect((await store.actionsForRuns([])).size).toBe(0);
+  });
+
+  it('omits a run with no recorded actions instead of inventing any', async () => {
+    await store.putRun(run('r1', agent(1n)), []);
+    expect((await store.actionsForRuns(['r1'])).get('r1')).toBeUndefined();
+  });
 });

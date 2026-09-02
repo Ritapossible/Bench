@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/*.tsbuildinfo
+.git
+.env
+.env.local
+coverage
+.forks
+.audition-cache
+*.log
+*.rdb

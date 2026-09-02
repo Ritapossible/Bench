@@ -19,6 +19,20 @@ import type { Score, ScoreBasis } from '../types/score.js';
 export interface AuditionStore {
   putRun(run: ShadowRun, actions: readonly InterceptedAction[]): Promise<void>;
   runsFor(agent: AgentId, limit?: number): Promise<readonly ShadowRun[]>;
+  /**
+   * The intercepted actions of the given runs, grouped by run id.
+   *
+   * `putRun` had no counterpart, so every action an audition recorded was
+   * written and never read. That was not merely dead storage: the behavioural
+   * envelope is derived from what an agent did while auditioning, and with no
+   * way to read those actions back the hire path invented them - identical
+   * hardcoded values for every agent, which made the envelope describe no agent
+   * at all. Batched by run id for the reason stated above: a per-run query
+   * turns a hire page into one that slows down as an agent is audited more.
+   */
+  actionsForRuns(
+    runIds: readonly string[],
+  ): Promise<ReadonlyMap<string, readonly InterceptedAction[]>>;
 
   putOutcome(outcome: OutcomeRecord, replayHash: string): Promise<void>;
   outcomesFor(agent: AgentId, limit?: number): Promise<readonly OutcomeRecord[]>;

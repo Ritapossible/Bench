@@ -3,6 +3,7 @@ import {
   auditionWindows,
   buildAdapters,
   checkArchiveRpc,
+  checkAuditionPreconditions,
   forkBlockFor,
   FORK_LAG_BLOCKS,
 } from '@bench/adapters';
@@ -95,9 +96,13 @@ async function main(): Promise<void> {
     // one that prunes state, fails at the first fork - hours later, as an agent
     // failure. Checked once here, where the message can name the cause.
     try {
-      const status = await checkArchiveRpc(url, cfg.SHADOW_FORK_CHAIN, FORK_LAG_BLOCKS);
+      // Not just the archive: the fork binary too. Proving the remote
+      // dependency and assuming the local one is what let a deployment report
+      // "archive ok" and then fail every fork.
+      const status = await checkAuditionPreconditions(url, cfg.SHADOW_FORK_CHAIN, FORK_LAG_BLOCKS);
       console.log(
-        `[bench:worker] archive ok - ${cfg.SHADOW_FORK_CHAIN} chain=${status.chainId} head=${status.head}`,
+        `[bench:worker] auditions ready - ${cfg.SHADOW_FORK_CHAIN} chain=${status.chainId} ` +
+          `head=${status.head} fork@${status.probedBlock} anvil ok`,
       );
       return url;
     } catch (err) {

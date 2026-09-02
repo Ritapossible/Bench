@@ -2,12 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import {
-  deriveEnvelope,
-  type Address,
-  type ConsentStep,
-  type InterceptedAction,
-} from '@bench/core';
+import { deriveEnvelope, type Address, type ConsentStep } from '@bench/core';
 import { data } from '@/lib/data/index';
 import { SETTLEMENT_TOKEN, hireOrchestrator, hireStore } from '@/lib/hire/runtime';
 import { currentOwner } from '@/lib/hire/owner';
@@ -39,11 +34,20 @@ export async function createHire(form: FormData): Promise<void> {
   const agent = await data.getAgent(chain, tokenId);
   if (agent === null) redirect('/agents');
 
-  const runs = agent.runs.map((r, i) => ({
-    actions: (agent.outcomes[i] === undefined
-      ? []
-      : syntheticActions(agent.outcomes[i]!.actionCount)) as readonly InterceptedAction[],
-    positionDropUsd: Math.max(0, -(agent.outcomes[i]?.deltaVsDoNothingUsd ?? 0)),
+  /**
+   * The envelope's input: what this agent actually did, per audition.
+   *
+   * Previously these actions were invented from an outcome's action count -
+   * same recipient, same selector, same value for every agent in the catalog -
+   * so `deriveEnvelope` returned a bound that described no agent at all while
+   * the UI presented it as the agent's own behaviour. Runs with no recorded
+   * actions contribute an empty list rather than a fabricated one, which is
+   * what makes the envelope thin and the gate advisory: correct, and visible.
+   */
+  const byRun = new Map(agent.outcomes.map((o) => [o.runId, o]));
+  const runs = agent.runs.map((r) => ({
+    actions: agent.actionsByRun.get(r.id) ?? [],
+    positionDropUsd: Math.max(0, -(byRun.get(r.id)?.deltaVsDoNothingUsd ?? 0)),
   }));
 
   const allowlist = String(form.get('allowlist') ?? '')
@@ -91,24 +95,4 @@ export async function revokeHire(form: FormData): Promise<void> {
   await hireOrchestrator().revoke(id, 'revoked by owner from the hire dashboard');
   revalidatePath(`/hires/${id}`);
   revalidatePath('/hires');
-}
-
-/**
- * Stand-in audition actions.
- *
- * The envelope is derived from what an agent did in audition; this deployment
- * stores outcome counts rather than the raw intercepted actions, so the shape
- * is reconstructed from them. When the shadow engine writes through to
- * Postgres, the real actions replace this and the envelope tightens.
- */
-function syntheticActions(count: number): InterceptedAction[] {
-  return Array.from({ length: count }, (_, i) => ({
-    seq: i,
-    at: new Date(),
-    to: '0xfd5840cd36d94d7229439859c0112a4185bc0255' as Address,
-    value: 10n ** 18n,
-    data: '0x' as `0x${string}`,
-    decoded: null,
-    simulated: { success: true, gasUsed: 21_000n },
-  }));
 }

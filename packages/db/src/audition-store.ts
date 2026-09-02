@@ -10,6 +10,8 @@ import {
   type CatalogStats,
   type CategoryMetric,
   type ChainName,
+  type Address,
+  type Hex,
   type InterceptedAction,
   type OutcomeRecord,
   type PositionTemplate,
@@ -19,7 +21,7 @@ import {
   type ShadowRunStatus,
   type TerminalState,
 } from '@bench/core';
-import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import type { Db } from './index.js';
 import * as schema from './schema.js';
 
@@ -148,6 +150,47 @@ export class PgAuditionStore implements AuditionStore {
       egressSpentUsd: run.egressSpentUsd,
       ...(run.failureReason === null ? {} : { failureReason: run.failureReason }),
     }));
+  }
+
+  /**
+   * Actions for a set of runs, in one query, grouped by run.
+   *
+   * The counterpart `putRun` never had. See the port for why its absence was a
+   * correctness problem rather than a missing convenience.
+   */
+  async actionsForRuns(
+    runIds: readonly string[],
+  ): Promise<ReadonlyMap<string, readonly InterceptedAction[]>> {
+    const out = new Map<string, InterceptedAction[]>();
+    if (runIds.length === 0) return out;
+
+    const rows = await this.db
+      .select()
+      .from(schema.shadowActions)
+      .where(inArray(schema.shadowActions.runId, [...runIds]))
+      // seq, not insertion order: the envelope folds a run's actions in the
+      // order the agent took them, and a cumulative bound over a shuffled run
+      // is not the bound the agent established.
+      .orderBy(asc(schema.shadowActions.runId), asc(schema.shadowActions.seq));
+
+    for (const r of rows) {
+      const list = out.get(r.runId) ?? [];
+      list.push({
+        seq: r.seq,
+        at: r.at,
+        to: r.to === null ? null : (r.to as Address),
+        value: BigInt(r.value),
+        data: r.data as Hex,
+        decoded: r.decoded as InterceptedAction['decoded'],
+        simulated: {
+          success: r.simSuccess,
+          gasUsed: BigInt(r.simGasUsed),
+          ...(r.revertReason === null ? {} : { revertReason: r.revertReason }),
+        },
+      });
+      out.set(r.runId, list);
+    }
+    return out;
   }
 
   // --------------------------------------------------------------- outcomes
