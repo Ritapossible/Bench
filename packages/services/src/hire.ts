@@ -144,8 +144,11 @@ export class HireOrchestrator {
    */
   async hire(req: HireRequest): Promise<HireRecord> {
     if (!consentComplete(req.consent)) {
+      // Not NOT_SUPPORTED_BY_PROVIDER, which said the provider could not do
+      // this. An incomplete checklist is the caller's, and the difference
+      // decides whether the UI shows "try again" or "this cannot be done".
       throw new BenchError(
-        'NOT_SUPPORTED_BY_PROVIDER',
+        'INVALID_REQUEST',
         'consent is incomplete; every bound must be confirmed before a hire is created',
       );
     }

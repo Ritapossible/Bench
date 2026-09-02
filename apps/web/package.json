@@ -15,7 +15,8 @@
     "@bench/services": "*",
     "next": "^15.5.23",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "zod": "3.24.1"
   },
   "devDependencies": {
     "@types/node": "22.10.2",

@@ -964,3 +964,20 @@ textarea.field {
   white-space: nowrap;
   border: 0;
 }
+
+/*
+ * A refusal the product made on purpose, shown where the user can act on it.
+ * Domain refusals used to escape the Server Action and render as a 500, which
+ * tells someone who missed a checkbox nothing.
+ */
+.notice {
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.notice-warn {
+  border-color: color-mix(in srgb, #b45309 45%, transparent);
+  background: color-mix(in srgb, #b45309 10%, transparent);
+}

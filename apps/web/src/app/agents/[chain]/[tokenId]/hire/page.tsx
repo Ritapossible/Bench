@@ -25,12 +25,35 @@ const STEPS = CONSENT_STEPS.map((id) => ({
 const VENUS = '0xfd5840cd36d94d7229439859c0112a4185bc0255';
 const PCS = '0x46a15b0b27311cedf172ab29e4f4766fbe7f4364';
 
+/**
+ * What a refused hire is told.
+ *
+ * A refusal the domain makes on purpose used to escape the Server Action and
+ * render as a 500 with a stack trace, which tells a user who missed a checkbox
+ * nothing they can act on.
+ */
+const REFUSAL: Record<string, string> = {
+  INVALID_REQUEST:
+    'Every bound has to be confirmed before a hire is created. Work down the list below - the last step only unlocks once the others are ticked.',
+  SPEND_CAP_EXCEEDED:
+    'That ceiling is outside what this deployment allows. Lower it and try again.',
+  SESSION_KEY_REVOKED: 'The session key backing this hire has been revoked. Start a new hire.',
+  NOT_FOUND: 'That agent is no longer in the catalog.',
+};
+
 export default async function HirePage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ readonly chain: string; readonly tokenId: string }>;
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { chain, tokenId } = await params;
+  const errorCode = (await searchParams)['error'];
+  const refusal =
+    typeof errorCode === 'string'
+      ? (REFUSAL[errorCode] ?? 'That hire was refused. Check the bounds below and try again.')
+      : null;
   const agent = await data.getAgent(chain, tokenId);
   if (agent === null) notFound();
 
@@ -56,6 +79,11 @@ export default async function HirePage({
           </Link>
           <span className="eyebrow">Hire</span>
           <h1 className="h2">Set the bounds before anything is signed.</h1>
+          {refusal === null ? null : (
+            <p className="notice notice-warn" role="alert">
+              {refusal}
+            </p>
+          )}
           <p className="lead">
             Five confirmations, in order, and the last one shows all of them together. Nothing moves
             until the final step - and a hired agent is still held to what it did in audition.

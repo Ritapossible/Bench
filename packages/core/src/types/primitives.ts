@@ -83,6 +83,8 @@ export interface TimeRange {
 export type BenchErrorCode =
   | 'NOT_IMPLEMENTED'
   | 'NOT_FOUND'
+  /** The request is malformed or incomplete - the caller's fault, not ours. */
+  | 'INVALID_REQUEST'
   | 'UPSTREAM_UNAVAILABLE'
   | 'INVALID_AGENT_CARD'
   | 'ENDPOINT_UNREACHABLE'

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { deriveEnvelope, type Address, type ConsentStep } from '@bench/core';
+import { z } from 'zod';
+import { BenchError, deriveEnvelope, type Address, type ConsentStep } from '@bench/core';
 import { data } from '@/lib/data/index';
 import { SETTLEMENT_TOKEN, hireOrchestrator, hireStore } from '@/lib/hire/runtime';
 import { currentOwner } from '@/lib/hire/owner';
@@ -13,6 +14,51 @@ const usdt = (whole: number) => ({
   decimals: 18,
   amount: BigInt(Math.round(whole * 1e6)) * 10n ** 12n,
 });
+
+/**
+ * The form, validated.
+ *
+ * A Server Action is a public HTTP endpoint, and every numeric field here used
+ * to reach `Number()` unchecked. `Number('abc')` is NaN, and `BigInt(NaN)`
+ * throws a RangeError, so a hand-rolled POST returned a 500; a negative value
+ * passed straight through to become a negative spend cap, which is a bound that
+ * cannot be exceeded because it was never a bound.
+ *
+ * Bounded above as well as below. A cap is a safety limit, and one large enough
+ * to overflow the display or to mean nothing in practice is not one - so the
+ * numbers are held inside ranges a person could plausibly have meant.
+ */
+const hireForm = z.object({
+  chain: z.string().min(1).max(32),
+  tokenId: z.string().regex(/^\d{1,78}$/, 'token id must be a number'),
+  idempotencyKey: z.string().min(1).max(128),
+  totalCap: z.coerce.number().finite().positive().max(1_000_000).default(50),
+  perTxCap: z.coerce.number().finite().positive().max(1_000_000).default(10),
+  price: z.coerce.number().finite().nonnegative().max(1_000_000).default(5),
+  expiryHours: z.coerce
+    .number()
+    .finite()
+    .positive()
+    .max(24 * 365)
+    .default(24),
+  maxActions: z.coerce.number().int().positive().max(10_000).default(20),
+  taskSpec: z.string().max(500).default(''),
+  allowlist: z.string().max(4_096).default(''),
+});
+
+/**
+ * `formData.get` returns null for an absent field, and `z.coerce.number()`
+ * turns null into 0 rather than letting the default apply - so absent fields
+ * are dropped before parsing instead of being passed as null.
+ */
+function formObject(form: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of hireForm.keyof().options) {
+    const v = form.get(key);
+    if (typeof v === 'string' && v !== '') out[key] = v;
+  }
+  return out;
+}
 
 /**
  * Create a hire from the checkout form.
@@ -29,9 +75,17 @@ const usdt = (whole: number) => ({
  */
 export async function createHire(form: FormData): Promise<void> {
   const owner = await currentOwner();
-  const chain = String(form.get('chain'));
-  const tokenId = String(form.get('tokenId'));
-  const agent = await data.getAgent(chain, tokenId);
+
+  const parsed = hireForm.safeParse(formObject(form));
+  if (!parsed.success) {
+    // A malformed submission is a bad request, not a server fault. Returning to
+    // the catalog is the same outcome as an unknown agent below, and says as
+    // little to someone probing the endpoint.
+    redirect('/agents');
+  }
+  const input = parsed.data;
+
+  const agent = await data.getAgent(input.chain, input.tokenId);
   if (agent === null) redirect('/agents');
 
   /**
@@ -50,35 +104,41 @@ export async function createHire(form: FormData): Promise<void> {
     positionDropUsd: Math.max(0, -(byRun.get(r.id)?.deltaVsDoNothingUsd ?? 0)),
   }));
 
-  const allowlist = String(form.get('allowlist') ?? '')
+  const allowlist = input.allowlist
     .split(/[\s,]+/)
     .filter((a) => /^0x[a-fA-F0-9]{40}$/.test(a)) as Address[];
 
-  const record = await hireOrchestrator().hire({
+  const attempt = await tryHire({
     // Namespaced by owner: a client-supplied key is only trusted within the
     // browser that supplied it, so a guessed key cannot reach another owner's
     // hire - `hire()` returns the winning record on a lost claim, which made a
     // shared key namespace a way to read someone else's mandate and trace.
-    idempotencyKey: `${owner}:${String(form.get('idempotencyKey')).slice(0, 128)}`,
+    idempotencyKey: `${owner}:${input.idempotencyKey}`,
     owner,
     agent: agent.entry.record.id,
     bounds: {
-      totalSpendCap: usdt(Number(form.get('totalCap') ?? 50)),
-      perTxCap: usdt(Number(form.get('perTxCap') ?? 10)),
+      totalSpendCap: usdt(input.totalCap),
+      perTxCap: usdt(input.perTxCap),
       contractAllowlist: allowlist,
-      expiresAt: new Date(Date.now() + Number(form.get('expiryHours') ?? 24) * 3_600_000),
-      maxActions: Number(form.get('maxActions') ?? 20),
+      expiresAt: new Date(Date.now() + input.expiryHours * 3_600_000),
+      maxActions: input.maxActions,
     },
     consent: form.getAll('consent').map(String) as ConsentStep[],
-    taskSpec: String(form.get('taskSpec') ?? '').slice(0, 500),
-    price: usdt(Number(form.get('price') ?? 5)),
+    taskSpec: input.taskSpec,
+    price: usdt(input.price),
     payTo: owner,
     disputeWindowSec: 3_600,
     envelope: deriveEnvelope(runs),
   });
 
+  // `redirect` throws a control-flow signal that a catch would swallow, so both
+  // outcomes are decided first and redirected to afterwards.
+  if (attempt.ok === false) {
+    redirect(`/agents/${input.chain}/${input.tokenId}/hire?error=${attempt.code}`);
+  }
+
   revalidatePath('/hires');
-  redirect(`/hires/${record.id}`);
+  redirect(`/hires/${attempt.record.id}`);
 }
 
 export async function revokeHire(form: FormData): Promise<void> {
@@ -95,4 +155,28 @@ export async function revokeHire(form: FormData): Promise<void> {
   await hireOrchestrator().revoke(id, 'revoked by owner from the hire dashboard');
   revalidatePath(`/hires/${id}`);
   revalidatePath('/hires');
+}
+
+/**
+ * Run the hire, turning a domain refusal into a value.
+ *
+ * Without this an incomplete consent list - which the domain refuses on
+ * purpose, and which the checkout can produce - left `BenchError` to escape the
+ * Server Action, and Next rendered a 500 with a stack trace. A refusal the
+ * product makes deliberately should not reach the user as a server fault, and a
+ * user who is told "something went wrong" cannot fix a checkbox they missed.
+ */
+async function tryHire(
+  req: Parameters<ReturnType<typeof hireOrchestrator>['hire']>[0],
+): Promise<
+  | { ok: true; record: Awaited<ReturnType<ReturnType<typeof hireOrchestrator>['hire']>> }
+  | { ok: false; code: string }
+> {
+  try {
+    return { ok: true, record: await hireOrchestrator().hire(req) };
+  } catch (err) {
+    if (err instanceof BenchError) return { ok: false, code: err.code };
+    // Not a refusal: a genuine fault, which belongs in the logs and in a 500.
+    throw err;
+  }
 }
