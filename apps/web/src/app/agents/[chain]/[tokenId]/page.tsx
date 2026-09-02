@@ -208,10 +208,11 @@ export default async function AgentPage({
           <span className="eyebrow">Hiring</span>
           <h2 className="h3">Bounded by what it just did.</h2>
           <p className="body" style={{ maxWidth: '44rem' }}>
-            Payment through Binance x402, escrow through ERC-8183, authority through a revocable
-            Altana session key scoped to a spend cap and a contract allowlist - and every
-            transaction this agent produces simulated against the envelope it established above
-            before that key will sign it.
+            Authority is bounded by a mandate - a spend cap, a contract allowlist and an expiry -
+            and every action the agent proposes is checked against it and against the envelope it
+            established above. Both bounds are real and enforced on this deployment. Payment, escrow
+            and the session key that would sign a cleared action are simulated, and labelled as such
+            wherever they appear.
           </p>
           <div className="row">
             <button

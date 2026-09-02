@@ -203,7 +203,7 @@ export default async function Home() {
               ],
               [
                 'A hired agent cannot exceed your cap - or do anything it did not do in audition.',
-                'Every transaction is simulated and checked against the envelope it established while auditioning, before the session key will sign it.',
+                'Every action the agent proposes is checked against the envelope it established while auditioning, and against what the hire has already spent. Both bounds are enforced and the verdict is recorded; signing is not wired on this deployment, and no key exists to sign with.',
               ],
             ].map(([h, p]) => (
               <div key={h} className="card stack stack-8">

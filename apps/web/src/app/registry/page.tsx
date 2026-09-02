@@ -1,5 +1,5 @@
 import { liveShareBps } from '@bench/core';
-import { data } from '@/lib/data/index';
+import { data, isLiveData } from '@/lib/data/index';
 import { pct } from '@/lib/format';
 
 /**
@@ -59,6 +59,12 @@ export default async function RegistryPage() {
         <div className="stack stack-16" style={{ maxWidth: '46rem' }}>
           <span className="eyebrow">Public good · free · no wallet</span>
           <h1 className="h2">The paper measured the problem once. Bench measures it every day.</h1>
+          {isLiveData ? null : (
+            <p className="notice notice-warn" role="status">
+              This deployment has no database configured, so these figures are fixtures, not indexed
+              data.
+            </p>
+          )}
           <p className="lead">
             <a href="https://arxiv.org/abs/2606.26028">arXiv 2606.26028</a> found that ~4% of
             ERC-8004 agents registered on BSC had a live service endpoint, using data through May

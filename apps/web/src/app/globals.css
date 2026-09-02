@@ -981,3 +981,35 @@ textarea.field {
   border-color: color-mix(in srgb, #b45309 45%, transparent);
   background: color-mix(in srgb, #b45309 10%, transparent);
 }
+
+.notice-ok {
+  border-color: color-mix(in srgb, #047857 45%, transparent);
+  background: color-mix(in srgb, #047857 10%, transparent);
+}
+/* The gate form: three fields and a verdict, laid out to stay readable on a phone. */
+.propose {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 40rem) {
+  .propose {
+    grid-template-columns: 2fr 1fr 2fr auto;
+    align-items: end;
+  }
+}
+.propose .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.propose .input {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: transparent;
+  color: inherit;
+  font-size: 0.9rem;
+}

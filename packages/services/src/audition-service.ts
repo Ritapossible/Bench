@@ -11,6 +11,10 @@ import {
 } from '@bench/core';
 import { AuditionRunner } from './audition.js';
 
+/** Stable map key for an agent id, which is a pair rather than a scalar. */
+const agentKeyOf = (id: { chain: string; tokenId: bigint }): string =>
+  `${id.chain}:${id.tokenId.toString()}`;
+
 /**
  * Runs auditions and writes down what happened - ARCHITECTURE.md 3.3.
  *
@@ -109,6 +113,22 @@ export class AuditionService {
     const candidates: { agent: (typeof page.entries)[number]['record']; shim: ShadowAgent }[] = [];
     let skipped = 0;
 
+    /**
+     * Last audition per candidate, in one round rather than one query each.
+     *
+     * The loop below asked the store per agent, so a tick cost a query per
+     * considered agent and got slower as the catalog grew - the wrong
+     * direction for the same reason the catalog's own reads are batched.
+     */
+    const lastRunAt = new Map<string, number>();
+    await Promise.all(
+      page.entries.map(async (entry) => {
+        const recent = await this.deps.store.runsFor(entry.record.id, 1);
+        const at = recent[0]?.finishedAt ?? recent[0]?.startedAt ?? null;
+        if (at !== null) lastRunAt.set(agentKeyOf(entry.record.id), at.getTime());
+      }),
+    );
+
     for (const entry of page.entries) {
       if (candidates.length >= budget) break;
       // The filter already applied this in SQL; re-checking keeps the two
@@ -117,9 +137,8 @@ export class AuditionService {
         skipped += 1;
         continue;
       }
-      const recent = await this.deps.store.runsFor(entry.record.id, 1);
-      const last = recent[0]?.finishedAt ?? recent[0]?.startedAt ?? null;
-      if (last !== null && last.getTime() >= cutoff) {
+      const last = lastRunAt.get(agentKeyOf(entry.record.id)) ?? null;
+      if (last !== null && last >= cutoff) {
         skipped += 1;
         continue;
       }

@@ -1,6 +1,7 @@
 import 'server-only';
 import { HireOrchestrator, InMemoryHireStore } from '@bench/services';
 import { createDb, PgHireStore } from '@bench/db';
+import { BenchError } from '@bench/core';
 import type {
   Address,
   HireRecord,
@@ -28,6 +29,16 @@ import type {
 const USDT = '0x55d398326f99059ff775485246999027b3197955' as Address;
 
 class SimulatedPayment implements PaymentClient {
+  /**
+   * What this simulation has "settled", per payee.
+   *
+   * `spentAgainst` returned a hardcoded zero, so any cumulative-spend check
+   * reading it could never trip - a cap that is structurally unreachable reads
+   * as a cap that is never exceeded. Tracking it keeps the simulation's own
+   * arithmetic honest even though no real money moves.
+   */
+  #settled = new Map<string, bigint>();
+
   async quote(req: { readonly payTo: Address; readonly amount: TokenAmount }) {
     return {
       payTo: req.payTo,
@@ -41,14 +52,21 @@ class SimulatedPayment implements PaymentClient {
     return { quote, signature: '0xsimulated' as Hex, ceiling: quote.amount };
   }
   async settle(auth: Awaited<ReturnType<SimulatedPayment['authorize']>>) {
+    const key = auth.quote.payTo.toLowerCase();
+    this.#settled.set(key, (this.#settled.get(key) ?? 0n) + auth.quote.amount.amount);
     return {
       txHash: `0xsim${Math.random().toString(16).slice(2, 10)}` as Hex,
       settled: auth.quote.amount,
       at: new Date(),
     };
   }
-  async spentAgainst() {
-    return { token: USDT, symbol: 'USDT', decimals: 18, amount: 0n };
+  async spentAgainst(auth: Awaited<ReturnType<SimulatedPayment['authorize']>>) {
+    return {
+      token: USDT,
+      symbol: 'USDT',
+      decimals: 18,
+      amount: this.#settled.get(auth.quote.payTo.toLowerCase()) ?? 0n,
+    };
   }
 }
 
@@ -72,24 +90,39 @@ class SimulatedEscrow implements EscrowClient {
     this.#jobs.set(job.id, job);
     return job;
   }
-  async fund(jobId: string) {
+  /**
+   * Jobs live in this instance's memory while `escrowJobId` is persisted, so a
+   * request served by a different instance - or after a restart - reaches a job
+   * this map has never seen. Returning a transaction hash for it reported a
+   * state change that did not happen, which is worse than failing: the hire
+   * record would say "funded" on the strength of a receipt for nothing.
+   */
+  #require(jobId: string): EscrowJob {
     const j = this.#jobs.get(jobId);
-    if (j !== undefined) this.#jobs.set(jobId, { ...j, status: 'funded' });
+    if (j === undefined) {
+      throw new BenchError(
+        'NOT_FOUND',
+        `escrow job ${jobId} is not held by this instance. Simulated escrow is per-process; ` +
+          `a real EscrowClient reads it from the chain.`,
+      );
+    }
+    return j;
+  }
+
+  async fund(jobId: string) {
+    this.#jobs.set(jobId, { ...this.#require(jobId), status: 'funded' });
     return `0xfund${jobId.slice(-6)}` as Hex;
   }
   async deliver(jobId: string, proof: Hex) {
-    const j = this.#jobs.get(jobId);
-    if (j !== undefined) this.#jobs.set(jobId, { ...j, status: 'delivered', deliveryProof: proof });
+    this.#jobs.set(jobId, { ...this.#require(jobId), status: 'delivered', deliveryProof: proof });
     return `0xdel${jobId.slice(-6)}` as Hex;
   }
   async settle(jobId: string) {
-    const j = this.#jobs.get(jobId);
-    if (j !== undefined) this.#jobs.set(jobId, { ...j, status: 'settled' });
+    this.#jobs.set(jobId, { ...this.#require(jobId), status: 'settled' });
     return `0xset${jobId.slice(-6)}` as Hex;
   }
   async dispute(jobId: string) {
-    const j = this.#jobs.get(jobId);
-    if (j !== undefined) this.#jobs.set(jobId, { ...j, status: 'disputed' });
+    this.#jobs.set(jobId, { ...this.#require(jobId), status: 'disputed' });
     return `0xdis${jobId.slice(-6)}` as Hex;
   }
   async get(jobId: string) {
@@ -143,7 +176,7 @@ function runtime() {
 
 export const hireStore = (): HireStore => runtime().store;
 export const hireOrchestrator = (): HireOrchestrator => runtime().orchestrator;
-/** True when hires are persisted. Surfaced in the UI rather than assumed. */
+/** True when hires are persisted. Read by /hires, which says so on the page. */
 export const hiresAreDurable = (): boolean => runtime().durable;
 export type { HireRecord };
 

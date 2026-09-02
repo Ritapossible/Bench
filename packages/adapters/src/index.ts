@@ -113,7 +113,17 @@ export interface Adapters {
   readonly probe: ProbeClient;
   readonly payment: PaymentClient;
   readonly escrow: EscrowClient;
-  readonly wallet: WalletProvider;
+  /**
+   * Built on demand, not at boot.
+   *
+   * Signing needs a key, and the worker - which indexes, probes and auditions,
+   * none of which sign anything - has no reason to hold one. Constructing this
+   * eagerly would turn "this deployment does not sign" into a process that
+   * refuses to start. A caller that does need a signature gets the
+   * configuration error at the moment it needs one, which is where it can be
+   * acted on.
+   */
+  readonly wallet: () => WalletProvider;
   readonly fork: AnvilForkProvider;
   readonly egress: InMemoryEgressGuard;
   /** No-op until ALTLAYER_8004SCAN_API_KEY is set. Never gates the catalog. */
@@ -140,7 +150,7 @@ export function buildAdapters(cfg: BenchConfig): Adapters {
     probe: new HttpProbeClient({ timeoutMs: 10_000, dnsTimeoutMs: 3_000, allowLoopback: false }),
     payment: new X402PaymentClient(),
     escrow: new Erc8183EscrowClient(),
-    wallet: buildWallet(cfg),
+    wallet: () => buildWallet(cfg),
     fork: new AnvilForkProvider(),
     egress: new InMemoryEgressGuard({
       budgetUsd: cfg.SHADOW_EGRESS_BUDGET_USD,
@@ -154,8 +164,23 @@ export function buildAdapters(cfg: BenchConfig): Adapters {
 
 function buildWallet(cfg: BenchConfig): WalletProvider {
   switch (cfg.BENCH_WALLET_PROVIDER) {
-    case 'evm-local':
-      return new EvmLocalWalletProvider();
+    case 'evm-local': {
+      // The only provider whose custody model this build implements. Without a
+      // key it refuses at boot rather than at the first signature: a wallet
+      // that cannot sign is a configuration error, and discovering it hours
+      // later during a settlement is the worst time to find out.
+      if (cfg.BENCH_SIGNER_PRIVATE_KEY === undefined) {
+        throw new BenchError(
+          'INVALID_REQUEST',
+          'BENCH_WALLET_PROVIDER=evm-local needs BENCH_SIGNER_PRIVATE_KEY',
+        );
+      }
+      return new EvmLocalWalletProvider({
+        privateKey: cfg.BENCH_SIGNER_PRIVATE_KEY as `0x${string}`,
+        chain: cfg.BENCH_CHAIN,
+        rpcUrl: rpcUrlFor(cfg),
+      });
+    }
     case 'twak':
       return new TwakWalletProvider();
     case 'altana':

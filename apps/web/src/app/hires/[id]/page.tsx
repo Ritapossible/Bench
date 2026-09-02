@@ -2,19 +2,44 @@ import Link from 'next/link';
 import { remaining, verifyTrace } from '@bench/core';
 import { hireStore } from '@/lib/hire/runtime';
 import { currentOwnerReadOnly } from '@/lib/hire/owner';
-import { revokeHire } from '@/lib/hire/actions';
+import { proposeAction, revokeHire } from '@/lib/hire/actions';
 
 export const metadata = { title: 'Hire - Bench' };
 export const dynamic = 'force-dynamic';
 
 const tokens = (n: bigint) => `${(Number(n) / 1e18).toFixed(2)} USDT`;
 
+/** What the last gate decision, or a refusal to reach one, is called. */
+const OUTCOME: Record<string, { readonly kind: 'ok' | 'warn'; readonly text: string }> = {
+  allowed: {
+    kind: 'ok',
+    text: 'Allowed. Both bounds cleared, and the decision is the newest entry in the trace below.',
+  },
+  blocked: {
+    kind: 'warn',
+    text: 'Blocked. One of the bounds refused it - the trace below names every rule that fired.',
+  },
+  'malformed-action': {
+    kind: 'warn',
+    text: 'That proposal was not a valid action. A recipient address and 0x-prefixed calldata are required.',
+  },
+  'action-failed': {
+    kind: 'warn',
+    text: 'The gate could not reach a decision - this hire may no longer be active.',
+  },
+};
+
 export default async function HireDetail({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ readonly id: string }>;
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
+  const flag = typeof sp['decided'] === 'string' ? sp['decided'] : sp['error'];
+  const outcome = typeof flag === 'string' ? (OUTCOME[flag] ?? null) : null;
   // Scoped to the owner. This page used to serve any hire - and its mandate,
   // bounds and full decision trace - to anyone who had the id.
   const owner = await currentOwnerReadOnly();
@@ -135,9 +160,61 @@ export default async function HireDetail({
             </table>
           </div>
           <p className="tiny">
-            The agent carries this, not your key. Every transaction it produces is checked against
-            these bounds and against what it did in audition, and must clear both.
+            The agent carries this, not your key. Every action it proposes is checked against these
+            bounds and against what it did in audition, and must clear both. Nothing is signed or
+            broadcast here - the decision is what is real, and it is appended to the trace below.
           </p>
+        </div>
+
+        <div className="card stack stack-12">
+          <div className="stack stack-8">
+            <h2 className="h3">Put an action through the gate</h2>
+            <p className="small">
+              Both bounds, evaluated against this agent&rsquo;s own audition behaviour and against
+              what this hire has already spent. Nothing is signed or broadcast - this deployment
+              holds no key - but the decision is real and is appended to the trace below.
+            </p>
+          </div>
+          {outcome === null ? null : (
+            <p
+              className={outcome.kind === 'ok' ? 'notice notice-ok' : 'notice notice-warn'}
+              role="status"
+            >
+              {outcome.text}
+            </p>
+          )}
+          <form action={proposeAction} className="propose">
+            <input type="hidden" name="hireId" value={hire.id} />
+            <label className="field">
+              <span className="tiny">Recipient</span>
+              <input
+                name="to"
+                required
+                pattern="0x[a-fA-F0-9]{40}"
+                placeholder="0x…"
+                className="input mono"
+                defaultValue={hire.mandate.bounds.contractAllowlist[0] ?? ''}
+              />
+            </label>
+            <label className="field">
+              <span className="tiny">Value (BNB)</span>
+              <input
+                name="valueEth"
+                type="number"
+                min="0"
+                step="0.01"
+                defaultValue="0"
+                className="input mono"
+              />
+            </label>
+            <label className="field">
+              <span className="tiny">Calldata</span>
+              <input name="data" placeholder="0x" defaultValue="0x" className="input mono" />
+            </label>
+            <button type="submit" className="btn btn-outline btn-sm" disabled={!live}>
+              {live ? 'Check against the bounds' : 'Hire is not active'}
+            </button>
+          </form>
         </div>
 
         <div className="card stack stack-12">

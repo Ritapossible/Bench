@@ -18,6 +18,18 @@ import {
 } from '../src/wallet/providers.js';
 
 /**
+ * A throwaway key. EvmLocalWalletProvider now takes one because it actually
+ * signs - every method used to throw, so the constructor needed nothing and
+ * the wallet could do nothing.
+ */
+const localWallet = () =>
+  new EvmLocalWalletProvider({
+    privateKey: `0x${'11'.repeat(32)}`,
+    chain: 'bsc-testnet',
+    rpcUrl: 'http://127.0.0.1:1',
+  });
+
+/**
  * Phase 0's real deliverable is the seam. These assertions are mostly
  * compile-time: if an adapter drifts from its port, `tsc` fails before vitest
  * ever runs. The runtime cases below cover the parts types cannot express.
@@ -34,7 +46,7 @@ describe('port conformance', () => {
     const registry: RegistryClient = new Erc8004RegistryClient(registryOpts);
     const payment: PaymentClient = new X402PaymentClient();
     const escrow: EscrowClient = new Erc8183EscrowClient();
-    const wallet: WalletProvider = new EvmLocalWalletProvider();
+    const wallet: WalletProvider = localWallet();
     expect([registry, payment, escrow, wallet].every(Boolean)).toBe(true);
   });
 
@@ -46,7 +58,7 @@ describe('port conformance', () => {
 
   it('narrows session-key support to Altana only', () => {
     expect(supportsSessionKeys(new AltanaWalletProvider())).toBe(true);
-    expect(supportsSessionKeys(new EvmLocalWalletProvider())).toBe(false);
+    expect(supportsSessionKeys(localWallet())).toBe(false);
     expect(supportsSessionKeys(new TwakWalletProvider())).toBe(false);
   });
 });

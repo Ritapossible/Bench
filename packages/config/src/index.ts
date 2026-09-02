@@ -48,6 +48,14 @@ const schema = z.object({
   // of getLogs over empty ranges before the first agent appears.
   ERC8004_REGISTRY_START_BLOCK: z.coerce.number().int().nonnegative().default(0),
 
+  /**
+   * Read by `Erc8183EscrowClient`, whose methods are stubs on this build. Kept
+   * validated rather than removed so a deployment that sets them is told
+   * immediately that they are not addresses, instead of finding out when the
+   * escrow client is implemented - but they configure nothing today, and the
+   * README says so rather than leaving the presence of the variable to imply
+   * a wired integration.
+   */
   ERC8183_AGENTIC_COMMERCE: hexAddress.optional(),
   ERC8183_EVALUATOR_ROUTER: hexAddress.optional(),
 

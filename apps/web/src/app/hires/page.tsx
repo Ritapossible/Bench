@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { hireStore } from '@/lib/hire/runtime';
+import { hireStore, hiresAreDurable } from '@/lib/hire/runtime';
 import { currentOwnerReadOnly } from '@/lib/hire/owner';
 import { remaining } from '@bench/core';
 
@@ -17,6 +17,10 @@ export default async function HiresPage() {
   // Null until this browser has hired: an empty list is the truth, not an error.
   const owner = await currentOwnerReadOnly();
   const hires = owner === null ? [] : await hireStore().listByOwner(owner);
+  // Said, not assumed. This was exported as "surfaced in the UI" and read by
+  // nothing, so a deployment holding hires in memory looked identical to one
+  // that persists them right up until a restart lost them.
+  const durable = hiresAreDurable();
 
   return (
     <section className="wrap section">
@@ -28,6 +32,12 @@ export default async function HiresPage() {
             Every hire carries the bounds you set, the headroom remaining, and a decision trace that
             cannot be edited after the fact. Revoke is available from any live state.
           </p>
+          {durable ? null : (
+            <p className="notice notice-warn" role="status">
+              This deployment has no database configured, so hires are held in memory and will be
+              lost when the server restarts.
+            </p>
+          )}
         </div>
 
         {hires.length === 0 ? (

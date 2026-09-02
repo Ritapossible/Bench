@@ -1,5 +1,5 @@
 import { isThin } from '@bench/core';
-import { data } from '@/lib/data/index';
+import { data, isLiveData } from '@/lib/data/index';
 import { CatalogFilter, type AgentRow } from '@/components/CatalogFilter';
 import { agentHref } from '@/lib/format';
 
@@ -51,6 +51,12 @@ export default async function AgentsPage() {
         <div className="stack stack-16" style={{ maxWidth: '44rem' }}>
           <span className="eyebrow">Catalog</span>
           <h1 className="h2">Every agent, with its record attached.</h1>
+          {isLiveData ? null : (
+            <p className="notice notice-warn" role="status">
+              This deployment has no database configured, so these figures are fixtures, not indexed
+              data.
+            </p>
+          )}
           <p className="lead">
             Ranked on what each agent did in audition against a do-nothing baseline. Agents with no
             completed auditions are listed and probed, and say so - they are never given a

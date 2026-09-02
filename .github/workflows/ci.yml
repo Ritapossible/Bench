@@ -85,14 +85,23 @@ jobs:
         env:
           E2E_BASE_URL: http://127.0.0.1:3000
 
-  contracts:
+  # The `contracts` job used to run `forge build` and `forge test` against a
+  # directory holding nothing but foundry.toml. Both exit 0 on an empty project,
+  # so it was permanently green and certified nothing - a signal that looks like
+  # coverage and is not. Replaced with the check that actually protects a
+  # deployment: the worker image builds, and anvil is in it. Auditions failed in
+  # production for exactly this reason while every other job was green.
+  worker-image:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: foundry-rs/foundry-toolchain@v1
-      - run: forge build
-        working-directory: contracts
-      - run: forge test
-        working-directory: contracts
+      - run: docker build -t bench-worker:ci .
+      - name: anvil is on PATH in the image
+        run: docker run --rm bench-worker:ci anvil --version
+      - name: the worker starts and refuses cleanly without config
+        run: |
+          set +e
+          out=$(docker run --rm bench-worker:ci 2>&1)
+          echo "$out"
+          echo "$out" | grep -q "Invalid Bench configuration" || {
+            echo "expected a named configuration refusal, got the above"; exit 1; }

@@ -38,10 +38,17 @@ export const CADENCE_MS = {
   anchor: 15 * 60_000,
   /**
    * Auditions are the expensive one: a forked chain per agent, held for the
-   * length of a replayed window. Hourly, and the runner bounds concurrency
-   * inside a tick.
+   * length of a replayed window. The runner bounds concurrency inside a tick,
+   * and the service skips any agent auditioned in the last 24 hours, so the
+   * cadence controls latency to a *first* audition rather than total load.
+   *
+   * Fifteen minutes, not sixty. At hourly, a worker that redeploys on every
+   * push - which is every deployment during a build week - almost never lived
+   * long enough to reach its first fire, so the feature was unobservable
+   * without being broken. Nothing re-auditions four times an hour as a result:
+   * reauditionAfterMs still holds the floor.
    */
-  audition: 60 * 60_000,
+  audition: 15 * 60_000,
   /** Cheap - reads recorded outcomes. Runs shortly after auditions land. */
   scorer: 10 * 60_000,
   /**
