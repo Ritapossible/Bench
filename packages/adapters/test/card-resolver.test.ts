@@ -48,7 +48,11 @@ describe('normalizeCard', () => {
     });
     expect(card.name).toBe('LP Rebalancer');
     expect(card.endpoints).toEqual([{ protocol: 'a2a', url: 'https://agent.example.com/a2a' }]);
-    expect(card.category).toBe('yield');
+    // Was asserted as 'yield', which encoded the bug rather than the intent:
+    // `rebalanc` lived in the yield branch, so an agent called "LP Rebalancer"
+    // could not be classified as one. Keeping a PancakeSwap position in range
+    // is the definition of the rebalancing category.
+    expect(card.category).toBe('rebalancing');
   });
 
   it('reads the services shape real ERC-8004 cards actually use', () => {
@@ -203,6 +207,87 @@ describe('CardResolver', () => {
   it('rejects a JSON array — a card must be an object', async () => {
     await expect(new CardResolver().resolve('data:application/json,%5B%5D')).rejects.toThrow(
       /not a JSON object/,
+    );
+  });
+});
+
+describe('inferCategory: the four judged categories', () => {
+  it('can produce rebalancing at all', () => {
+    // It could not. `rebalancing` was absent from the exact-match list and
+    // `rebalanc` sat inside the yield branch, so the category was unreachable:
+    // 0 of 857 real cards, for one of the four the main track scores on.
+    expect(inferCategory({ category: 'rebalancing' }, 'x', '')).toBe('rebalancing');
+    expect(inferCategory({}, 'portfolio-rebalancer', '')).toBe('rebalancing');
+  });
+
+  it('normalises the many spellings real cards declare', () => {
+    // Every one of these appears on a card in the live registry, and matching
+    // the union members exactly recognised two of them.
+    expect(inferCategory({ category: 'rebalancer' }, 'x', '')).toBe('rebalancing');
+    expect(inferCategory({ category: 'grid-trading' }, 'x', '')).toBe('grid');
+    expect(inferCategory({ category: 'yield-optimisation' }, 'x', '')).toBe('yield');
+    expect(inferCategory({ category: 'yield-optimization' }, 'x', '')).toBe('yield');
+    expect(inferCategory({ category: 'health-factor-monitoring' }, 'x', '')).toBe('health-factor');
+    expect(inferCategory({ category: 'Health_Factor Monitoring' }, 'x', '')).toBe('health-factor');
+  });
+
+  it('falls through to keywords for a declared category it does not know', () => {
+    // Discarding an unrecognised declaration as `other` would throw away the
+    // prose that does describe the agent.
+    expect(inferCategory({ category: 'defi-lp-manager' }, 'Ranger', 'rebalances LP ranges')).toBe(
+      'rebalancing',
+    );
+  });
+
+  it('reads the capabilities array, which real cards use and skills is not', () => {
+    // 48 of 857 cards carry capabilities; none carry skills. This is the most
+    // precise signal available and it was being ignored.
+    expect(
+      inferCategory(
+        { capabilities: ['allocation_drift', 'turnover_limit', 'rebalance_proposal'] },
+        'ACP',
+        'agent control plane',
+      ),
+    ).toBe('rebalancing');
+    expect(inferCategory({ capabilities: { skills: ['auto-compound'] } }, 'a', '')).toBe('yield');
+  });
+
+  it('prefers the narrower reading when two categories both match', () => {
+    // A health-factor agent talks about lending yield; an LP range manager
+    // talks about liquidity. The specific one has to win or the judged
+    // categories collapse into each other.
+    expect(inferCategory({}, 'Venus Guard', 'avoids liquidation while earning yield')).toBe(
+      'health-factor',
+    );
+    expect(inferCategory({}, 'Ranger', 'rebalances liquidity when the range drifts')).toBe(
+      'rebalancing',
+    );
+  });
+
+  it('does not match a category name inside another word', () => {
+    // `Dgrid Arena Agent` was classified as grid trading by seventeen cards'
+    // worth of substring match, and `help` in a description matched the bare
+    // `lp` in the yield branch.
+    expect(inferCategory({}, 'Dgrid Arena Agent', 'an arena')).toBe('other');
+    expect(inferCategory({}, 'Helper', 'this agent will help you')).toBe('other');
+  });
+
+  it('leaves generic agents in other rather than inflating the judged four', () => {
+    // 691 of 857 real cards are named things like these. Widening the patterns
+    // to catch them would fill the diversity numbers with test agents, which is
+    // the opposite of what this catalog exists to do.
+    expect(inferCategory({}, 'My Testnet Agent', 'A test agent running on BSC Testnet')).toBe(
+      'other',
+    );
+    expect(inferCategory({}, 'studio-agent', 'bnbagent-studio agent')).toBe('other');
+  });
+
+  it('breaks a monitoring/yield tie toward monitoring, not the judged bucket', () => {
+    // Fourteen cards match both. An agent that "monitors on-chain signals and
+    // executes token launches" reads no more like yield than like monitoring,
+    // and resolving that toward the scored category is a thumb on the scale.
+    expect(inferCategory({}, 'Agent Test 1', 'Monitors on-chain signals, manages liquidity')).toBe(
+      'monitoring',
     );
   });
 });

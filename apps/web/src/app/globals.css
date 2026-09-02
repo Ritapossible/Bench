@@ -873,6 +873,23 @@ textarea.field {
 .filter-chips::-webkit-scrollbar {
   display: none;
 }
+
+/*
+ * The count beside a category chip. Dimmed rather than hidden at zero: an
+ * empty category is a fact about the registry, and this catalog exists to
+ * report those rather than tidy them away.
+ */
+.chip-count {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 0 0.35em;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+  line-height: 1.5;
+  text-align: center;
+}
 .filter-chips .btn {
   flex: none;
 }

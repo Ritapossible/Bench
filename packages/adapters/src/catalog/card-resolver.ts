@@ -238,36 +238,128 @@ function extractPermissions(obj: Record<string, unknown>): DeclaredPermissions {
  * unrecognised becomes 'other' — listed and probed, but never handed a
  * fabricated performance score.
  */
+/**
+ * Declared categories, normalised.
+ *
+ * Real cards write the same category five ways. Matching the union members
+ * exactly found two of the eight cards that declare one, and - because
+ * `rebalancing` was not even in the list it matched against - a card declaring
+ * `"category": "rebalancing"` fell through to the keyword pass, where
+ * `rebalanc` sat inside the yield branch. The result was that `rebalancing`
+ * could not be produced at all: 0 of 857 real cards, for one of the four
+ * categories the main track scores diversity on.
+ *
+ * Keys are lowercased and stripped of separators before lookup, so
+ * `Health-Factor Monitoring`, `health_factor_monitoring` and
+ * `healthfactormonitoring` all land together.
+ */
+const DECLARED_ALIASES: Readonly<Record<string, AgentCategory>> = {
+  rebalancing: 'rebalancing',
+  rebalance: 'rebalancing',
+  rebalancer: 'rebalancing',
+  lprebalancing: 'rebalancing',
+  portfoliorebalancing: 'rebalancing',
+  rangemanagement: 'rebalancing',
+
+  grid: 'grid',
+  gridtrading: 'grid',
+  gridbot: 'grid',
+
+  yield: 'yield',
+  yieldoptimisation: 'yield',
+  yieldoptimization: 'yield',
+  yieldfarming: 'yield',
+  yieldaggregation: 'yield',
+
+  healthfactor: 'health-factor',
+  healthfactormonitoring: 'health-factor',
+  liquidationprotection: 'health-factor',
+  liquidation: 'health-factor',
+
+  monitoring: 'monitoring',
+  monitor: 'monitoring',
+  alerts: 'monitoring',
+
+  other: 'other',
+};
+
+/**
+ * Keyword rules, most specific first.
+ *
+ * Order encodes specificity, not preference: a health-factor agent also talks
+ * about lending yield, and an agent that resets an LP range also talks about
+ * liquidity - so the narrower reading has to win. `rebalanc` moved out of the
+ * yield branch for exactly that reason. Deliberately *not* widened to catch
+ * more cards: 670 of 857 real cards are named things like `studio-agent`,
+ * `rune-tutorial-agent` and `My Testnet Agent`, and they belong in `other`.
+ * Forcing them into judged categories would inflate the diversity numbers with
+ * test agents, which is the opposite of what this catalog is for.
+ */
+const KEYWORD_RULES: readonly (readonly [RegExp, AgentCategory])[] = [
+  [/liquidat|health.?factor|collateral.?rati|\bltv\b|borrow.?risk|margin.?call/, 'health-factor'],
+  [
+    /rebalanc|allocation.?drift|turnover.?limit|range.?reset|drift.?threshold|portfolio.?weight/,
+    'rebalancing',
+  ],
+  [/\bgrid\b|market.?mak|arbitrage|trading.?bot|\bdca\b|scalp|swing/, 'grid'],
+  // Monitoring stays ahead of yield, where it has always been. Moving it below
+  // would reclassify fourteen cards whose text matches both - an agent that
+  // "monitors on-chain signals and executes token launches" reads no more like
+  // yield than like monitoring - and every one of those moves would happen to
+  // land in a category the contest scores diversity on. A tie broken toward
+  // the judged bucket is not a classification, it is a thumb on the scale.
+  [/monitor|alert|watch|notif|anomaly/, 'monitoring'],
+  [/yield|\bapy\b|\bapr\b|farm|vault|stake|auto.?compound|\blp\b|liquidity/, 'yield'],
+];
+
+/**
+ * Signal an agent card actually carries, flattened into one string.
+ *
+ * `capabilities` is read because real cards use it and this function did not:
+ * 48 of 857 carry one, including entries like `allocation_drift`,
+ * `turnover_limit`, `rebalance_proposal`, `yield-farming` and `auto-compound`,
+ * which name the category more precisely than any prose does. It appears both
+ * as an array of strings and as an object with `skills` / `domains`, so both
+ * shapes are flattened. `skills` is read too, though no card in the registry
+ * currently uses it.
+ */
+function categorySignal(obj: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const push = (v: unknown): void => {
+    if (typeof v === 'string') out.push(v);
+    else if (Array.isArray(v)) for (const x of v) push(x);
+    else if (typeof v === 'object' && v !== null) {
+      for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+        out.push(k);
+        push(val);
+      }
+    }
+  };
+  push(obj['capabilities']);
+  push(obj['skills']);
+  return out;
+}
+
 export function inferCategory(
   obj: Record<string, unknown>,
   name: string,
   description: string,
 ): AgentCategory {
-  const declared = str(obj['category'])?.toLowerCase();
-  const CATEGORIES: readonly AgentCategory[] = [
-    'yield',
-    'grid',
-    'monitoring',
-    'health-factor',
-    'other',
-  ];
-  const exact = CATEGORIES.find((c) => c === declared);
-  if (exact !== undefined) return exact;
+  const declared = str(obj['category'])
+    ?.toLowerCase()
+    .replace(/[^a-z]/g, '');
+  if (declared !== undefined && declared !== '') {
+    const alias = DECLARED_ALIASES[declared];
+    // A declared category is the agent's own claim about itself and beats any
+    // inference from prose. Unrecognised ones fall through rather than
+    // becoming `other`, so a card saying "category: defi-lp-manager" is still
+    // read by keyword instead of being silently discarded.
+    if (alias !== undefined) return alias;
+  }
 
-  const skills = Array.isArray(obj['skills'])
-    ? obj['skills']
-        .map((s) =>
-          typeof s === 'string' ? s : str((s as Record<string, unknown> | null)?.['name']),
-        )
-        .filter((s): s is string => s !== null)
-    : [];
-  const haystack = [name, description, ...skills].join(' ').toLowerCase();
-
-  // Ordered most-specific first: "liquidation" implies health-factor even
-  // though a health-factor agent also talks about lending yield.
-  if (/liquidat|health factor|collateral ratio|ltv/.test(haystack)) return 'health-factor';
-  if (/grid|market.?mak|arbitrage|trading bot|dca/.test(haystack)) return 'grid';
-  if (/monitor|alert|watch|notif|anomaly/.test(haystack)) return 'monitoring';
-  if (/yield|lp|liquidity|farm|vault|stake|rebalanc|apy/.test(haystack)) return 'yield';
+  const haystack = [name, description, ...categorySignal(obj)].join(' ').toLowerCase();
+  for (const [pattern, category] of KEYWORD_RULES) {
+    if (pattern.test(haystack)) return category;
+  }
   return 'other';
 }

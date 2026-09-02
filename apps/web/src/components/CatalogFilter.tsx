@@ -54,6 +54,25 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
     [rows, liveOnly, category],
   );
 
+  /**
+   * How many agents each chip would show, under the live-only toggle as it
+   * stands.
+   *
+   * Agent Diversity is scored on all four categories being surfaced with equal
+   * depth, and a row of chips alone cannot show whether that is true - four
+   * equal-looking buttons over 40, 0, 0 and 3 agents look exactly like four
+   * over a balanced catalog. The count is what makes the claim checkable, and
+   * it is deliberately shown even when it is zero: an empty category is a fact
+   * about the registry, and hiding it would be the one thing this catalog is
+   * built not to do.
+   */
+  const counts = useMemo(() => {
+    const eligible = rows.filter((r) => !liveOnly || r.verifiedLive);
+    const by = new Map<string, number>([['all', eligible.length]]);
+    for (const r of eligible) by.set(r.category, (by.get(r.category) ?? 0) + 1);
+    return by;
+  }, [rows, liveOnly]);
+
   return (
     <div className="stack stack-24">
       <div className="filters">
@@ -65,7 +84,8 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
               aria-pressed={category === c}
               className={category === c ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'}
             >
-              {c === 'all' ? 'All' : CATEGORY_LABEL[c]}
+              {c === 'all' ? 'All' : CATEGORY_LABEL[c]}{' '}
+              <span className="chip-count">{counts.get(c) ?? 0}</span>
             </button>
           ))}
         </div>
