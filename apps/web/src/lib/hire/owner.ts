@@ -1,5 +1,5 @@
 import 'server-only';
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import type { Address } from '@bench/core';
 
@@ -25,8 +25,70 @@ const COOKIE = 'bench_owner';
 /** A year: a hire outliving the session that created it is the point. */
 const MAX_AGE_SEC = 365 * 24 * 60 * 60;
 
-/** 16 bytes of CSPRNG, hex, address-shaped so it satisfies `Address`. */
+/** 20 bytes of CSPRNG, hex, address-shaped so it satisfies `Address`. */
 const mint = (): Address => `0x${randomBytes(20).toString('hex')}` as Address;
+
+/**
+ * The cookie is signed, and the signature is what is checked.
+ *
+ * Without it the value was a bare bearer token: whoever holds the string is
+ * the owner, so a single leak - a screenshot, a support paste, a log line -
+ * hands over every hire that browser created, and there is no way to tell a
+ * minted id from an invented one. An HMAC makes an id this server did not mint
+ * unusable, which turns a leak into a smaller problem and a guess into no
+ * problem at all.
+ *
+ * Keyed by BENCH_COOKIE_SECRET where one is set. Where none is, a per-process
+ * key is generated: restarts then invalidate existing cookies, which loses
+ * hire ownership on redeploy - so the secret is required in production and the
+ * absence is loud rather than silent.
+ */
+const globalForCookie = globalThis as unknown as { __benchCookieSecret?: string };
+
+const secret = (() => {
+  const configured = process.env['BENCH_COOKIE_SECRET'];
+  if (configured !== undefined && configured.length >= 16) return configured;
+
+  /**
+   * Cached on globalThis, not held in a module constant.
+   *
+   * Next bundles a Server Action and the page that reads its result into
+   * separate module instances, so a module-level `randomBytes` produced two
+   * different keys in one process: the action signed with one and the page
+   * verified with the other, and every owner was locked out of the hire they
+   * had just created. The same reason `lib/data` and the hire runtime cache
+   * theirs there.
+   */
+  if (globalForCookie.__benchCookieSecret === undefined) {
+    globalForCookie.__benchCookieSecret = randomBytes(32).toString('hex');
+    if (process.env['NODE_ENV'] === 'production') {
+      console.warn(
+        '[bench] BENCH_COOKIE_SECRET is not set - hire ownership cookies are signed with a ' +
+          'per-process key and will stop being recognised on the next restart.',
+      );
+    }
+  }
+  return globalForCookie.__benchCookieSecret;
+})();
+
+const sign = (value: string): string =>
+  createHmac('sha256', secret).update(value).digest('hex').slice(0, 32);
+
+/** Constant-time, so a wrong signature cannot be narrowed by timing it. */
+function valid(value: string, mac: string): boolean {
+  const expected = Buffer.from(sign(value));
+  const given = Buffer.from(mac);
+  return expected.length === given.length && timingSafeEqual(expected, given);
+}
+
+/** `<owner>.<mac>`, or null if it was not minted here. */
+function parse(raw: string | undefined): Address | null {
+  if (raw === undefined) return null;
+  const [value, mac] = raw.split('.');
+  if (value === undefined || mac === undefined) return null;
+  if (!/^0x[0-9a-f]{40}$/.test(value)) return null;
+  return valid(value, mac) ? (value as Address) : null;
+}
 
 /**
  * The current owner, minting one if this browser has none.
@@ -36,11 +98,11 @@ const mint = (): Address => `0x${randomBytes(20).toString('hex')}` as Address;
  */
 export async function currentOwner(): Promise<Address> {
   const jar = await cookies();
-  const existing = jar.get(COOKIE)?.value;
-  if (existing !== undefined && /^0x[0-9a-f]{40}$/.test(existing)) return existing as Address;
+  const existing = parse(jar.get(COOKIE)?.value);
+  if (existing !== null) return existing;
 
   const owner = mint();
-  jar.set(COOKIE, owner, {
+  jar.set(COOKIE, `${owner}.${sign(owner)}`, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env['NODE_ENV'] === 'production',
@@ -57,6 +119,5 @@ export async function currentOwner(): Promise<Address> {
  * null and the page shows an empty list - which is true - rather than throwing.
  */
 export async function currentOwnerReadOnly(): Promise<Address | null> {
-  const value = (await cookies()).get(COOKIE)?.value;
-  return value !== undefined && /^0x[0-9a-f]{40}$/.test(value) ? (value as Address) : null;
+  return parse((await cookies()).get(COOKIE)?.value);
 }

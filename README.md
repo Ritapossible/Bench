@@ -168,24 +168,29 @@ request handlers.
 ### Deploying the worker on Railway
 
 The web app is the only Vercel deployable. The worker is a long-lived process holding six
-BullMQ timers, so it goes somewhere that keeps a process alive - Railway, in this case.
-`railway.json` pins the build and start commands; without it Nixpacks would run the root
-`npm run build` (which also builds the Next.js app, on a service that does not serve it)
-and then `npm start` against a root package that had no start script, so the deploy
-crash-looped on a missing script rather than on anything real.
+BullMQ timers, so it goes somewhere that keeps a process alive.
+
+**It builds from the `Dockerfile`, not Nixpacks.** That is not a preference: auditions fork a
+chain with Foundry's `anvil`, the Nixpacks Node image does not carry it, and CI installed it
+explicitly - so the deploy reported `archive ok`, enabled the audition queue, and failed at
+the first fork, hourly, while every test was green. The image installs a pinned Foundry and
+`anvil --version` runs during the build, so a broken image fails the build rather than the
+first audition. The worker then proves it again at boot by starting an anvil before it
+registers the queue.
 
 Provision Redis in the same project and set:
 
 | Variable | Where it comes from |
 | --- | --- |
 | `DATABASE_URL` | the same Neon connection string the web app uses |
-| `DATABASE_URL_UNPOOLED` | Neon's direct URL - the worker migrates on boot, see below |
+| `DATABASE_URL_UNPOOLED` | Neon's direct URL - the worker migrates on boot |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` as a Railway reference variable |
 | `BSC_TESTNET_RPC_URL` | `https://bsc-testnet-dataseed.bnbchain.org` |
 | `ERC8004_IDENTITY_REGISTRY` | `0x8004a818bfb912233c491871b3d84c89a494bd9e` |
 | `ERC8004_REGISTRY_START_BLOCK` | `88400902` |
 | `ALTLAYER_8004SCAN_API_KEY` | optional, enables the cross-reference queue |
-| `BSC_ARCHIVE_RPC_URL` | optional, and the only thing that turns auditions on |
+| `SHADOW_FORK_CHAIN` | `bsc-mainnet` - the chain auditions fork, not the one agents register on |
+| `BSC_ARCHIVE_RPC_URL` | an archive node **for `SHADOW_FORK_CHAIN`**; the only thing that turns auditions on |
 
 `PORT` is set by Railway. Two things about the private network are worth knowing before the
 first deploy, because both fail in ways that look like the service is down rather than
@@ -195,32 +200,52 @@ misconfigured:
   and ioredis defaults to `family: 4` - so the connection resolves nothing and the worker
   dies at boot against a Redis that is plainly up. `redisOptionsFrom` sets `family: 0`.
 - **`rediss://` means TLS.** Reading host and port off the URL and ignoring the scheme
-  downgrades the connection silently, which resets mid-handshake rather than erroring
-  cleanly.
+  downgrades the connection silently, which resets mid-handshake rather than erroring.
 
-The worker runs migrations itself, before it opens a pool, under the advisory lock - so it
-is the process that brings the schema forward whichever of the two deploys lands first.
-It answers on `/health` (any path, in fact) with per-queue tick counts and the age of each
-queue's last success. That endpoint reports and never judges: the cadences run from 30
-seconds to an hour, so any single staleness threshold either never fires or restarts a
-healthy worker between two audition runs, and a restart loop is worse than a slow queue.
+Test an archive candidate with `eth_getStorageAt` at a block ~200k back, never
+`eth_getCode` - a pruned node answers the second from its code store without the state trie,
+which is how dRPC's public pool passes a depth check and then fails every fork.
 
-Auditions stay off until `BSC_ARCHIVE_RPC_URL` is set, and the worker says so at startup
-rather than registering a queue that fails forever. Indexing, probing, scoring and
-cross-referencing all run without it.
+The worker runs migrations itself, before it opens a pool, under the advisory lock. It
+answers on `/health` with per-queue tick counts and the age of each queue's last success.
+That endpoint reports and never judges: the cadences run from 30 seconds to fifteen minutes,
+so any single staleness threshold either never fires or restarts a healthy worker between
+two audition runs.
+
+### The web app's environment
+
+`DATABASE_URL` is the only variable it needs to serve real data; without it the catalog,
+registry and hire pages say on the page that they are serving fixtures.
+
+Set **`BENCH_COOKIE_SECRET`** in production. Hire ownership is a signed cookie, and without a
+configured secret the signing key is generated per process - so a redeploy stops recognising
+every cookie it previously issued, and each visitor silently loses the hires they created.
 
 ## Status
 
-Built and covered by tests: the ERC-8004 indexer, the prober and its verified-live
-definition, the agent-card resolver, the shadow engine (forked-chain interception with a
-signing gate), the behavioural envelope, the signed mandate, the ordered consent checklist,
-the hash-chained decision trace, the hire pipeline, and the full front end. All of it runs
-against Postgres, not fixtures.
+Real, running against Postgres and covered by tests: the ERC-8004 indexer and its periodic
+re-sweep, the prober and its verified-live definition, the agent-card resolver and category
+classifier, the cross-reference against 8004scan, the shadow engine, the behavioural
+envelope derived from recorded audition actions, the signed mandate, the ordered consent
+checklist, the hash-chained decision trace, the action gate, the hire pipeline, and the
+front end.
 
-Still stubbed: the x402 payment client and the ERC-8183 escrow client are simulated
-adapters behind their real interfaces, labelled as such everywhere they surface in the UI.
-The catalog is seeded rather than indexed from a live registry until the registry address is
-confirmed.
+Simulated, and labelled as such wherever it surfaces:
+
+| Piece | State | What it would take |
+| --- | --- | --- |
+| x402 payment | `SimulatedPayment` in `apps/web/src/lib/hire/runtime.ts` | A facilitator URL and `X402PaymentClient` |
+| ERC-8183 escrow | `SimulatedEscrow`, per-process and refusing a job it does not hold | Deployed contracts and `Erc8183EscrowClient` |
+| Twak / Altana wallets | Refuse by name | Their SDKs; `EvmLocalWalletProvider` is real and signs |
+| `pcs-lp`, `venus-loan` positions | Decline with what they need | Minting a real LP position and a real Venus loan on the fork |
+
+`ERC8183_AGENTIC_COMMERCE` and `ERC8183_EVALUATOR_ROUTER` are validated if set but configure
+nothing today - they exist so a deployment is told immediately that a value is not an
+address, rather than finding out when the escrow client is implemented.
+
+Nothing signs or broadcasts a hired agent's action on this deployment. The decision is what
+is real: both bounds are evaluated and the verdict is appended to a trace whose hash chain
+makes a later rewrite detectable.
 
 See [plan.md](./plan.md) for the phase state and cut lines, and [memory.md](./memory.md) for
 what is currently blocking.
