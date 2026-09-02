@@ -55,15 +55,31 @@ export const CADENCE_MS = {
  * BullMQ requires `maxRetriesPerRequest: null` on the connection its workers
  * use — with a retry limit, a blocking command that outlives a Redis blip
  * throws and kills the worker instead of reconnecting.
+ *
+ * Two details exist for the hosted case and are not cosmetic:
+ *
+ * `family: 0`. ioredis defaults to `family: 4`, so it asks DNS for an A record
+ * and nothing else. Railway's private network is IPv6-only - `redis.railway.internal`
+ * publishes an AAAA record and no A record - so the default resolves nothing and
+ * the worker dies at boot with ENOTFOUND against a host that is plainly up.
+ * `0` lets Node try both families.
+ *
+ * `rediss://` means TLS. Parsing the URL for host and port and then ignoring
+ * the scheme quietly downgrades a TLS connection string to a plaintext
+ * connection, which does not fail cleanly - it hangs or resets mid-handshake,
+ * looking like a network fault rather than a configuration one.
  */
 export function redisOptionsFrom(url: string): { connection: RedisOptions } {
   const parsed = new URL(url);
+  const secure = parsed.protocol === 'rediss:';
   return {
     connection: {
       host: parsed.hostname,
       port: Number(parsed.port === '' ? 6379 : parsed.port),
-      ...(parsed.password === '' ? {} : { password: parsed.password }),
-      ...(parsed.username === '' ? {} : { username: parsed.username }),
+      ...(parsed.password === '' ? {} : { password: decodeURIComponent(parsed.password) }),
+      ...(parsed.username === '' ? {} : { username: decodeURIComponent(parsed.username) }),
+      ...(secure ? { tls: { servername: parsed.hostname } } : {}),
+      family: 0,
       maxRetriesPerRequest: null,
     },
   };

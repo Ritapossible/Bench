@@ -14,6 +14,8 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "build:vercel": "rm -rf packages/*/dist packages/*/*.tsbuildinfo apps/web/.next && npm run build -w @bench/web",
+    "build:worker": "npm run build -w @bench/worker",
+    "start": "npm run start -w @bench/worker",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -165,6 +165,50 @@ bare `next build` cannot resolve it. The web app is the only Vercel deployable; 
 and shadow engine run separately, because both are long-lived processes rather than
 request handlers.
 
+### Deploying the worker on Railway
+
+The web app is the only Vercel deployable. The worker is a long-lived process holding six
+BullMQ timers, so it goes somewhere that keeps a process alive - Railway, in this case.
+`railway.json` pins the build and start commands; without it Nixpacks would run the root
+`npm run build` (which also builds the Next.js app, on a service that does not serve it)
+and then `npm start` against a root package that had no start script, so the deploy
+crash-looped on a missing script rather than on anything real.
+
+Provision Redis in the same project and set:
+
+| Variable | Where it comes from |
+| --- | --- |
+| `DATABASE_URL` | the same Neon connection string the web app uses |
+| `DATABASE_URL_UNPOOLED` | Neon's direct URL - the worker migrates on boot, see below |
+| `REDIS_URL` | `${{Redis.REDIS_URL}}` as a Railway reference variable |
+| `BSC_TESTNET_RPC_URL` | `https://bsc-testnet-dataseed.bnbchain.org` |
+| `ERC8004_IDENTITY_REGISTRY` | `0x8004a818bfb912233c491871b3d84c89a494bd9e` |
+| `ERC8004_REGISTRY_START_BLOCK` | `88400902` |
+| `ALTLAYER_8004SCAN_API_KEY` | optional, enables the cross-reference queue |
+| `BSC_ARCHIVE_RPC_URL` | optional, and the only thing that turns auditions on |
+
+`PORT` is set by Railway. Two things about the private network are worth knowing before the
+first deploy, because both fail in ways that look like the service is down rather than
+misconfigured:
+
+- **It is IPv6-only.** `redis.railway.internal` publishes an AAAA record and no A record,
+  and ioredis defaults to `family: 4` - so the connection resolves nothing and the worker
+  dies at boot against a Redis that is plainly up. `redisOptionsFrom` sets `family: 0`.
+- **`rediss://` means TLS.** Reading host and port off the URL and ignoring the scheme
+  downgrades the connection silently, which resets mid-handshake rather than erroring
+  cleanly.
+
+The worker runs migrations itself, before it opens a pool, under the advisory lock - so it
+is the process that brings the schema forward whichever of the two deploys lands first.
+It answers on `/health` (any path, in fact) with per-queue tick counts and the age of each
+queue's last success. That endpoint reports and never judges: the cadences run from 30
+seconds to an hour, so any single staleness threshold either never fires or restarts a
+healthy worker between two audition runs, and a restart loop is worse than a slow queue.
+
+Auditions stay off until `BSC_ARCHIVE_RPC_URL` is set, and the worker says so at startup
+rather than registering a queue that fails forever. Indexing, probing, scoring and
+cross-referencing all run without it.
+
 ## Status
 
 Built and covered by tests: the ERC-8004 indexer, the prober and its verified-live

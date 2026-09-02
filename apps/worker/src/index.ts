@@ -17,6 +17,7 @@ import {
   summarizeAgreementFor,
 } from '@bench/services';
 import { Queue, Worker } from 'bullmq';
+import { startHealthServer } from './health.js';
 import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
 
 /**
@@ -29,6 +30,11 @@ import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
  */
 async function main(): Promise<void> {
   const cfg = loadConfig();
+
+  // Before the first network call, so a worker that then hangs on a bad
+  // DATABASE_URL still answers "the process is up, no queue has ticked"
+  // rather than nothing at all.
+  const { heartbeat, server: health } = startHealthServer(Number(process.env['PORT'] ?? 8080));
 
   // Migrations before anything opens a pool. The worker boots ahead of the web
   // app in every deployment ordering worth having, so this is the one process
@@ -230,7 +236,11 @@ async function main(): Promise<void> {
     // Without this, a throwing job prints an unhandled rejection and the
     // process keeps running as though the tick had succeeded.
     w.on('failed', (job, err) => {
+      heartbeat.fail(w.name);
       console.error(`[bench:worker] ${w.name} job ${job?.id ?? '?'} failed:`, err);
+    });
+    w.on('completed', () => {
+      heartbeat.mark(w.name);
     });
   }
 
@@ -271,6 +281,7 @@ async function main(): Promise<void> {
     // before the queues (and their Redis connections) go away.
     await Promise.all(workers.map((w) => w.close()));
     await Promise.all(queues.map((q) => q.close()));
+    health.close();
     process.exit(0);
   };
   process.on('SIGTERM', () => void shutdown('SIGTERM'));

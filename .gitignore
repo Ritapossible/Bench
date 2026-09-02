@@ -23,3 +23,6 @@ coverage/
 
 # Next generates this on build; it should not be tracked.
 next-env.d.ts
+
+# Redis snapshots, written wherever redis-server was started from.
+*.rdb

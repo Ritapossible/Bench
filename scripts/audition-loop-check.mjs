@@ -3,7 +3,7 @@ import { PgAuditionStore, PgCatalogRepository, createDb } from '@bench/db';
 import { AuditionRunner, AuditionService, Scorer } from '@bench/services';
 import { createServer } from 'node:http';
 
-const db = createDb('postgresql://bench@127.0.0.1:5433/bench');
+const db = createDb(process.env.DATABASE_URL ?? 'postgresql://bench@127.0.0.1:5433/bench');
 const repo = new PgCatalogRepository(db);
 const store = new PgAuditionStore(db);
 
