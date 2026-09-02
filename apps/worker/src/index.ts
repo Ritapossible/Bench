@@ -168,6 +168,16 @@ async function main(): Promise<void> {
             `[bench:prober] probed=${r.probed} reachable=${r.reachable} ` +
               `conformant=${r.conformant} errors=${r.failed}`,
           );
+          // The counts say how bad it is; only the causes say what to do about
+          // it. Printed whenever anything failed to reach a verdict, capped so
+          // a fully dead catalog cannot flood the log.
+          if (r.reasons.length > 0) {
+            const top = r.reasons
+              .slice(0, 5)
+              .map(([reason, count]) => `${count}x ${reason}`)
+              .join(' | ');
+            console.log(`[bench:prober] unreachable because: ${top}`);
+          }
         }
       },
       { ...redis, concurrency: 1 },

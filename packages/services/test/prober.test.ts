@@ -105,7 +105,7 @@ describe('Prober', () => {
       },
     };
     const r = await build(client, new StubRepo()).tick();
-    expect(r).toEqual({ probed: 0, reachable: 0, conformant: 0, failed: 0 });
+    expect(r).toEqual({ probed: 0, reachable: 0, conformant: 0, failed: 0, reasons: [] });
   });
 
   it('respects the batch size so one tick cannot run away', async () => {
@@ -121,5 +121,73 @@ describe('Prober', () => {
     const r = await prober.tick();
 
     expect(r.probed).toBe(10);
+  });
+});
+
+describe('Prober failure reasons', () => {
+  const dead = (agent: AgentId, error: string): ProbeResult => ({
+    agent,
+    endpoint,
+    at: new Date(),
+    reachable: false,
+    latencyMs: null,
+    conformant: false,
+    error,
+  });
+
+  it('groups unreachable causes and orders them most-common first', async () => {
+    // The whole point: two hundred failures for one reason must read as one
+    // line, not two hundred distinct URLs.
+    const repo = new StubRepo();
+    const errors = new Map<bigint, string>([
+      [1n, 'https://a.example/x: timeout after 5000ms'],
+      [2n, 'https://b.example/y: timeout after 5000ms'],
+      [3n, 'c.example resolves to blocked 10.0.0.4'],
+    ]);
+    repo.targets = [...errors.keys()].map((id) => ({
+      agent: agentN(id),
+      endpoint,
+      lastProbedAt: null,
+    }));
+    const client: ProbeClient = {
+      probe: async (a) => dead(a, errors.get(a.tokenId) ?? ''),
+    };
+
+    const r = await build(client, repo).tick();
+
+    expect(r.reachable).toBe(0);
+    expect(r.reasons).toEqual([
+      ['timeout', 2],
+      ['blocked: resolves to a private address', 1],
+    ]);
+  });
+
+  it('reports a probe that never reached a verdict, not just a dead endpoint', async () => {
+    // A rejection is the pipeline breaking - a database write, say - and is a
+    // different fact from an endpoint being down. Counting it as "unreachable"
+    // would blame the agent for our own outage.
+    const repo = new StubRepo();
+    repo.targets = [{ agent: agentN(1n), endpoint, lastProbedAt: null }];
+    const client: ProbeClient = {
+      probe: async () => {
+        throw new Error('connection terminated unexpectedly');
+      },
+    };
+
+    const r = await build(client, repo).tick();
+
+    expect(r.failed).toBe(1);
+    expect(r.probed).toBe(0);
+    expect(r.reasons[0]?.[0]).toContain('probe pipeline');
+  });
+
+  it('keeps an unrecognised cause rather than bucketing it as other', async () => {
+    const repo = new StubRepo();
+    repo.targets = [{ agent: agentN(1n), endpoint, lastProbedAt: null }];
+    const client: ProbeClient = { probe: async (a) => dead(a, 'something entirely new') };
+
+    const r = await build(client, repo).tick();
+
+    expect(r.reasons).toEqual([['something entirely new', 1]]);
   });
 });
