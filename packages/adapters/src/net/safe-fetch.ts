@@ -30,7 +30,20 @@ import { BenchError } from '@bench/core';
  */
 
 export interface SafeFetchOptions {
+  /** Budget for the HTTP exchange itself. Does not include name resolution. */
   readonly timeoutMs?: number;
+  /**
+   * Budget for name resolution, kept separate from `timeoutMs` on purpose.
+   *
+   * Folding DNS into the request budget made every slow lookup report itself
+   * as `timeout after 5000ms`, which reads as "the endpoint is slow" and sent
+   * a deployment hunting a network fault that did not exist. Measured on a
+   * quiet machine at the prober's concurrency, `dns.lookup` runs p50 395ms and
+   * p99 2426ms - so on a busy host a lookup alone could spend the entire
+   * request budget before a packet left, and the message would blame the
+   * endpoint for it.
+   */
+  readonly dnsTimeoutMs?: number;
   readonly maxBytes?: number;
   readonly maxRedirects?: number;
   /** Tests point at 127.0.0.1. Never enable in the worker. */
@@ -42,9 +55,75 @@ export interface SafeFetchOptions {
 
 const DEFAULTS = {
   timeoutMs: 5_000,
+  dnsTimeoutMs: 3_000,
   maxBytes: 512 * 1024,
   maxRedirects: 3,
 } as const;
+
+/**
+ * Resolutions are cached briefly, because a single A2A probe resolves the same
+ * host three times - two well-known card paths and the declared endpoint - and
+ * `dns.lookup` is bound by the libuv threadpool, which is four threads by
+ * default. Two hundred agents a tick therefore queued six hundred lookups
+ * behind four threads, and the queue, not any endpoint, is what exhausted the
+ * timeout.
+ *
+ * The TTL is deliberately short. This cache decides whether an address is
+ * allowed, so holding a resolution for long enough to matter would widen the
+ * DNS-rebinding window already recorded above.
+ */
+const DNS_TTL_MS = 60_000;
+const DNS_CACHE_MAX = 4_096;
+const dnsCache = new Map<
+  string,
+  { readonly addresses: readonly string[]; readonly expires: number }
+>();
+
+async function resolveCached(host: string, timeoutMs: number): Promise<readonly string[]> {
+  const now = Date.now();
+  const hit = dnsCache.get(host);
+  if (hit !== undefined && hit.expires > now) return hit.addresses;
+
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const resolved = await Promise.race([
+      lookup(host, { all: true }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new BenchError(
+                'ENDPOINT_UNREACHABLE',
+                `DNS lookup timed out after ${timeoutMs}ms for ${host}`,
+              ),
+            ),
+          timeoutMs,
+        );
+      }),
+    ]);
+    const addresses = resolved.map((r) => r.address);
+    // Bounded, and oldest-first: Map preserves insertion order, so deleting
+    // the first key evicts the least recently added rather than at random.
+    if (dnsCache.size >= DNS_CACHE_MAX) {
+      const oldest = dnsCache.keys().next();
+      if (!oldest.done) dnsCache.delete(oldest.value);
+    }
+    dnsCache.set(host, { addresses, expires: now + DNS_TTL_MS });
+    return addresses;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+/** Test seam: the cache is process-wide and would leak between test cases. */
+export function clearDnsCache(): void {
+  dnsCache.clear();
+}
+
+/** Test seam: how many hosts are currently cached. */
+export function dnsCacheSize(): number {
+  return dnsCache.size;
+}
 
 export interface SafeResponse {
   readonly status: number;
@@ -156,7 +235,11 @@ const isBlockedAddress = (ip: string, allowLoopback: boolean): boolean =>
  * label an agent's endpoint as unreachable-by-policy without paying for a
  * request, and the catalog wants to explain *why* an endpoint was refused.
  */
-export async function assertPublicUrl(raw: string, allowLoopback = false): Promise<URL> {
+export async function assertPublicUrl(
+  raw: string,
+  allowLoopback = false,
+  dnsTimeoutMs: number = DEFAULTS.dnsTimeoutMs,
+): Promise<URL> {
   let url: URL;
   try {
     url = new URL(raw);
@@ -178,10 +261,13 @@ export async function assertPublicUrl(raw: string, allowLoopback = false): Promi
     return url;
   }
 
-  let resolved: readonly { address: string }[];
+  let resolved: readonly string[];
   try {
-    resolved = await lookup(host, { all: true });
-  } catch {
+    resolved = await resolveCached(host, dnsTimeoutMs);
+  } catch (err) {
+    // A timeout already says what happened and to whom; only a genuine
+    // resolution failure needs the generic message.
+    if (err instanceof BenchError) throw err;
     throw new BenchError('ENDPOINT_UNREACHABLE', `DNS lookup failed for ${host}`);
   }
   if (resolved.length === 0) {
@@ -189,7 +275,7 @@ export async function assertPublicUrl(raw: string, allowLoopback = false): Promi
   }
   // Every resolved address must be public: one internal A record is enough to
   // make the request dangerous, since we do not control which one is dialled.
-  for (const { address } of resolved) {
+  for (const address of resolved) {
     if (isBlockedAddress(address, allowLoopback)) {
       throw new BenchError('ENDPOINT_UNREACHABLE', `${host} resolves to blocked ${address}`);
     }
@@ -207,21 +293,32 @@ export async function safeFetch(
   opts: SafeFetchOptions = {},
 ): Promise<SafeResponse> {
   const timeoutMs = opts.timeoutMs ?? DEFAULTS.timeoutMs;
+  const dnsTimeoutMs = opts.dnsTimeoutMs ?? DEFAULTS.dnsTimeoutMs;
   const maxBytes = opts.maxBytes ?? DEFAULTS.maxBytes;
   const maxRedirects = opts.maxRedirects ?? DEFAULTS.maxRedirects;
   const allowLoopback = opts.allowLoopback ?? false;
 
   const started = Date.now();
+  // Time spent resolving names, summed across hops and excluded from the
+  // request budget. Reported in the timeout message so a slow resolver is
+  // visible as a slow resolver rather than as a slow endpoint.
+  let dnsMs = 0;
   let current = rawUrl;
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
-    const url = await assertPublicUrl(current, allowLoopback);
+    const dnsStarted = Date.now();
+    const url = await assertPublicUrl(current, allowLoopback, dnsTimeoutMs);
+    dnsMs += Date.now() - dnsStarted;
+
     const controller = new AbortController();
     // The budget is for the whole call, not per hop, so a redirect chain
     // cannot multiply the time a single probe is allowed to take.
-    const remaining = timeoutMs - (Date.now() - started);
+    const remaining = timeoutMs - (Date.now() - started - dnsMs);
     if (remaining <= 0) {
-      throw new BenchError('ENDPOINT_UNREACHABLE', `timeout after ${timeoutMs}ms: ${rawUrl}`);
+      throw new BenchError(
+        'ENDPOINT_UNREACHABLE',
+        `request timed out after ${timeoutMs}ms (dns ${dnsMs}ms): ${rawUrl}`,
+      );
     }
     const timer = setTimeout(() => controller.abort(), remaining);
 
@@ -259,7 +356,7 @@ export async function safeFetch(
       if (err instanceof BenchError) throw err;
       const reason =
         err instanceof Error && err.name === 'AbortError'
-          ? `timeout after ${timeoutMs}ms`
+          ? `request timed out after ${timeoutMs}ms (dns ${dnsMs}ms)`
           : String(err);
       throw new BenchError('ENDPOINT_UNREACHABLE', `${rawUrl}: ${reason}`, err);
     } finally {

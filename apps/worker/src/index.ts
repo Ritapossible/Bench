@@ -31,6 +31,18 @@ import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
 async function main(): Promise<void> {
   const cfg = loadConfig();
 
+  // `dns.lookup` is not async in the way the rest of Node is: it runs
+  // getaddrinfo on the libuv threadpool, which is four threads by default. The
+  // prober resolves hundreds of distinct hosts a tick, so those four threads
+  // were the queue that exhausted every probe's timeout - reported, wrongly, as
+  // the endpoints being slow. Raised in the start script because libuv reads
+  // the variable when the pool is first used, which can precede this line.
+  if (process.env['UV_THREADPOOL_SIZE'] === undefined) {
+    console.warn(
+      '[bench:worker] UV_THREADPOOL_SIZE is unset - DNS resolution will queue behind 4 threads',
+    );
+  }
+
   // Before the first network call, so a worker that then hangs on a bad
   // DATABASE_URL still answers "the process is up, no queue has ticked"
   // rather than nothing at all.
@@ -242,7 +254,37 @@ async function main(): Promise<void> {
     ),
   ];
 
+  /**
+   * Connection errors are throttled, and say which component and why.
+   *
+   * ioredis retries forever by design, and with six queues and six workers a
+   * Redis that is briefly away produced twelve raw ECONNREFUSED stack traces
+   * per retry - forty kilobytes of log in forty-five seconds, none of it
+   * naming Redis, the queue, or what to do. Retrying is right; reprinting the
+   * same fact hundreds of times is not, and it buries the line that matters.
+   */
+  const lastConnectionLog = new Map<string, number>();
+  const CONNECTION_LOG_EVERY_MS = 30_000;
+  const noteConnectionError = (component: string, err: Error): void => {
+    const now = Date.now();
+    const last = lastConnectionLog.get(component) ?? 0;
+    if (now - last < CONNECTION_LOG_EVERY_MS) return;
+    lastConnectionLog.set(component, now);
+    console.error(
+      `[bench:worker] ${component}: redis connection error (retrying) - ${err.message}`,
+    );
+  };
+
+  for (const q of queues) {
+    q.on('error', (err) => {
+      noteConnectionError(`queue ${q.name}`, err);
+    });
+  }
+
   for (const w of workers) {
+    w.on('error', (err) => {
+      noteConnectionError(`worker ${w.name}`, err);
+    });
     // Without this, a throwing job prints an unhandled rejection and the
     // process keeps running as though the tick had succeeded.
     w.on('failed', (job, err) => {

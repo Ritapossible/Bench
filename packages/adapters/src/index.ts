@@ -121,7 +121,11 @@ export function buildAdapters(cfg: BenchConfig): Adapters {
     // Loopback stays off: the prober fetches URLs declared by strangers, and
     // registration is gas-free, so an endpoint of http://localhost:5432 is a
     // free probe of our own infrastructure. See net/safe-fetch.ts.
-    probe: new HttpProbeClient({ timeoutMs: 5_000, allowLoopback: false }),
+    // 10s, not 5s. Most registered agents sit on free serverless tiers that
+    // cold-start, so five seconds measured how warm a host happened to be as
+    // much as whether it was alive. DNS gets its own budget on top - see
+    // SafeFetchOptions.dnsTimeoutMs.
+    probe: new HttpProbeClient({ timeoutMs: 10_000, dnsTimeoutMs: 3_000, allowLoopback: false }),
     payment: new X402PaymentClient(),
     escrow: new Erc8183EscrowClient(),
     wallet: buildWallet(cfg),

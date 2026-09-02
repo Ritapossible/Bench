@@ -24,6 +24,8 @@ import { safeFetch, type SafeResponse } from '../net/safe-fetch.js';
 
 export interface ProbeOptions {
   readonly timeoutMs?: number;
+  /** Name resolution budget, separate from the request. See SafeFetchOptions. */
+  readonly dnsTimeoutMs?: number;
   /** Tests only — allows 127.0.0.1 targets. Never enable in the worker. */
   readonly allowLoopback?: boolean;
 }
@@ -40,6 +42,7 @@ export class HttpProbeClient implements ProbeClient {
     const at = new Date();
     const base = {
       timeoutMs: this.opts.timeoutMs ?? 5_000,
+      dnsTimeoutMs: this.opts.dnsTimeoutMs ?? 3_000,
       allowLoopback: this.opts.allowLoopback ?? false,
     } as const;
 
@@ -73,7 +76,7 @@ export class HttpProbeClient implements ProbeClient {
 
   private async checkProtocol(
     endpoint: AgentEndpoint,
-    base: { timeoutMs: number; allowLoopback: boolean },
+    base: { timeoutMs: number; dnsTimeoutMs: number; allowLoopback: boolean },
   ): Promise<Conformance & { latencyMs: number }> {
     switch (endpoint.protocol) {
       case 'a2a':
@@ -96,7 +99,7 @@ export class HttpProbeClient implements ProbeClient {
    */
   private async checkA2A(
     url: string,
-    base: { timeoutMs: number; allowLoopback: boolean },
+    base: { timeoutMs: number; dnsTimeoutMs: number; allowLoopback: boolean },
   ): Promise<Conformance & { latencyMs: number }> {
     const origin = originOf(url);
     const candidates = [
@@ -145,7 +148,7 @@ export class HttpProbeClient implements ProbeClient {
    */
   private async checkMcp(
     url: string,
-    base: { timeoutMs: number; allowLoopback: boolean },
+    base: { timeoutMs: number; dnsTimeoutMs: number; allowLoopback: boolean },
   ): Promise<Conformance & { latencyMs: number }> {
     const res = await safeFetch(url, {
       ...base,
@@ -213,7 +216,7 @@ export class HttpProbeClient implements ProbeClient {
    */
   private async checkOasf(
     url: string,
-    base: { timeoutMs: number; allowLoopback: boolean },
+    base: { timeoutMs: number; dnsTimeoutMs: number; allowLoopback: boolean },
   ): Promise<Conformance & { latencyMs: number }> {
     const res = await safeFetch(url, base);
     if (res.status !== 200) {

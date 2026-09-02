@@ -1,7 +1,8 @@
 import { BenchError } from '@bench/core';
 import { createServer, type Server } from 'node:http';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { assertPublicUrl, safeFetch } from '../src/net/safe-fetch.js';
+import type { AddressInfo } from 'node:net';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { assertPublicUrl, clearDnsCache, dnsCacheSize, safeFetch } from '../src/net/safe-fetch.js';
 
 /**
  * Every URL Bench fetches in Phase 1 is written by whoever registered the
@@ -152,5 +153,69 @@ describe('IPv4-mapped IPv6 normalisation', () => {
 
   it('blocks an unparseable IPv6 literal rather than letting it through', async () => {
     await expect(assertPublicUrl('http://[::ffff:zzzz:1]/')).rejects.toBeInstanceOf(BenchError);
+  });
+});
+
+describe('name resolution', () => {
+  beforeEach(() => {
+    clearDnsCache();
+  });
+
+  it('resolves a host once however many times it is fetched', async () => {
+    // An A2A probe fetches three URLs on one host. Resolving three times put
+    // three jobs on a four-thread pool per agent, and that queue - not any
+    // endpoint - is what spent the probe's timeout.
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{}');
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+    const port = (server.address() as AddressInfo).port;
+    try {
+      // A name, not a literal address - a literal skips the resolver entirely.
+      const url = `http://localhost:${port}/`;
+      expect(dnsCacheSize()).toBe(0);
+      await safeFetch(url, { allowLoopback: true });
+      await safeFetch(url, { allowLoopback: true });
+      await safeFetch(url, { allowLoopback: true });
+      expect(dnsCacheSize()).toBe(1);
+    } finally {
+      server.close();
+    }
+  });
+
+  it('reports a slow resolver as a slow resolver, not a slow endpoint', async () => {
+    // The whole point of splitting the budgets. Folding DNS into the request
+    // timeout made every slow lookup read as `timeout after 5000ms`, which
+    // blames the endpoint and sends you hunting a network fault.
+    await expect(
+      safeFetch('http://a-host-that-does-not-resolve.invalid/', { dnsTimeoutMs: 1 }),
+    ).rejects.toThrow(/DNS lookup (timed out|failed)/);
+  });
+
+  it('does not spend the request budget on resolution', async () => {
+    // A host that resolves must still get its full request budget afterwards.
+    const server = createServer((_req, res) => {
+      setTimeout(() => {
+        res.writeHead(200);
+        res.end('ok');
+      }, 150);
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+    const port = (server.address() as AddressInfo).port;
+    try {
+      const res = await safeFetch(`http://localhost:${port}/`, {
+        allowLoopback: true,
+        timeoutMs: 400,
+      });
+      expect(res.status).toBe(200);
+    } finally {
+      server.close();
+    }
+  });
+
+  it('still refuses a name that resolves to a private address', async () => {
+    // Caching must not become a way past the address filter.
+    await expect(assertPublicUrl('http://localhost:1/')).rejects.toThrow(/blocked/);
   });
 });

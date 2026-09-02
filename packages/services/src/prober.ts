@@ -49,6 +49,8 @@ export interface ProberTickResult {
  */
 export function classifyProbeError(message: string): string {
   const m = message.toLowerCase();
+  if (m.includes('dns lookup timed out')) return 'DNS lookup timed out';
+  if (m.includes('request timed out')) return 'request timed out';
   if (m.includes('timeout after')) return 'timeout';
   if (m.includes('resolves to blocked')) return 'blocked: resolves to a private address';
   if (m.includes('blocked address')) return 'blocked: literal private address';
@@ -70,7 +72,13 @@ export function classifyProbeError(message: string): string {
 
 const DEFAULTS = {
   batchSize: 200,
-  concurrency: 16,
+  /**
+   * Raised from 16 once name resolution stopped being the bottleneck. Probes
+   * are almost entirely waiting, so the limit exists to bound open sockets and
+   * to keep Bench from looking like a burst of traffic to a stranger's host -
+   * not to bound CPU.
+   */
+  concurrency: 32,
   staleAfterMs: 60 * 60 * 1000,
 } as const;
 
