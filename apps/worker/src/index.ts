@@ -186,7 +186,10 @@ async function main(): Promise<void> {
         console.log(
           `[bench:indexer] tokens ${r.fromTokenId}-${r.lastTokenId} discovered=${r.discovered} ` +
             `cards ok=${r.cardsResolved} failed=${r.cardsFailed} upserted=${r.upserted}` +
-            (r.reachedEnd ? '' : ' (more to walk)'),
+            (r.reachedEnd ? '' : ' (more to walk)') +
+            // Otherwise the jump back to token 0 on the next tick reads as the
+            // indexer having lost its place.
+            (r.resweeping ? ' - re-sweeping from 0' : ''),
         );
 
         // Append the density measurement each tick. The registry health page

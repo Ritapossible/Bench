@@ -24,6 +24,17 @@ import { mapLimit } from './concurrency.js';
  */
 
 export interface IndexerOptions {
+  /**
+   * How long after finishing a pass before the walk starts over.
+   *
+   * Enumeration resumes from a cursor and stops at the end of the registry, so
+   * an agent indexed once was never looked at again. Cards are mutable and the
+   * parser is not final - when `inferCategory` was fixed so `rebalancing`
+   * could be produced at all, every one of the 2,060 already-indexed agents
+   * would have kept its old category forever. A parser fix that does not reach
+   * the existing catalog is not a fix in production.
+   */
+  readonly resweepAfterMs?: number;
   readonly chain: ChainName;
   /** Registry deployment block. Starting at 0 wastes hours on empty ranges. */
   readonly startBlock: bigint;
@@ -40,6 +51,8 @@ export interface IndexerOptions {
 }
 
 export interface EnumerationTickResult {
+  /** True when this tick rewound the cursor to start a fresh pass. */
+  readonly resweeping: boolean;
   readonly fromTokenId: bigint;
   readonly lastTokenId: bigint;
   readonly discovered: number;
@@ -59,9 +72,29 @@ export interface IndexerTickResult {
   readonly upserted: number;
 }
 
-const DEFAULTS = { confirmations: 15n, batchSize: 500, cardConcurrency: 8 } as const;
+const DEFAULTS = {
+  /**
+   * Six hours. Long enough that Bench is not re-fetching strangers' cards on a
+   * loop - a full pass costs about 700 HTTP fetches, the rest being inline
+   * data: URIs - and short enough that a mutated card is not stale for a day.
+   */
+  resweepAfterMs: 6 * 60 * 60 * 1000,
+  confirmations: 15n,
+  batchSize: 500,
+  cardConcurrency: 8,
+} as const;
 
 export class Indexer {
+  /**
+   * When the last full pass began, in this process.
+   *
+   * Held in memory rather than persisted, and that is the useful part: a
+   * restart forgets it, so the first pass after a deploy always re-sweeps.
+   * A deploy is exactly when the parser may have changed, which is exactly
+   * when every existing card needs reading again.
+   */
+  #lastSweepAt: number | null = null;
+
   constructor(
     private readonly registry: RegistryClient,
     private readonly repo: CatalogRepository,
@@ -114,6 +147,33 @@ export class Indexer {
   }
 
   /**
+   * Rewind the cursor to zero when a pass has finished and enough time has
+   * passed, so the next tick re-reads the whole registry.
+   *
+   * Only when the walk is idle - it reached the end and advanced nothing.
+   * Rewinding mid-pass would re-read the front of the registry forever and
+   * never reach the back. Note that "idle" is not "found no agents": the walk
+   * deliberately re-reads the token it starts on, so a caught-up tick returns
+   * one agent every time and the empty case only happens on an empty registry.
+   * Returns whether it rewound, so the caller can say so rather than leaving a
+   * sudden jump back to token 0 looking like the indexer lost its place.
+   */
+  private async maybeRewind(idle: boolean, fromTokenId: bigint): Promise<boolean> {
+    if (!idle) return false;
+    // Nothing behind the cursor means nothing to re-read - an empty registry,
+    // or a first boot. Writing a checkpoint out of that would invent state.
+    if (fromTokenId === 0n) return false;
+    const now = Date.now();
+    const due =
+      this.#lastSweepAt === null ||
+      now - this.#lastSweepAt >= (this.opts.resweepAfterMs ?? DEFAULTS.resweepAfterMs);
+    if (!due) return false;
+    await this.repo.setTokenCursor(this.opts.chain, 0n);
+    this.#lastSweepAt = now;
+    return true;
+  }
+
+  /**
    * One enumeration pass: walk token ids, resolve cards, upsert.
    *
    * The alternative to `tick`, not a supplement to it, and the only one that
@@ -143,7 +203,11 @@ export class Indexer {
     });
 
     if (agents.length === 0) {
+      // The steady state once caught up: nothing above the cursor. This is
+      // where a re-sweep gets armed, so the walk starts over instead of
+      // idling on a catalog it will never look at again.
       return {
+        resweeping: await this.maybeRewind(reachedEnd, fromTokenId),
         fromTokenId,
         lastTokenId: fromTokenId,
         discovered: 0,
@@ -162,6 +226,12 @@ export class Indexer {
     await this.repo.setTokenCursor(this.opts.chain, lastTokenId);
 
     return {
+      // Only when the walk made no forward progress - it re-read the token it
+      // started on and found nothing above it. That is the idle steady state,
+      // and it is the only safe moment to rewind: on a tick that did advance,
+      // resetting the cursor in the same breath would make "advances the
+      // cursor" untrue and could strand the tail of the registry.
+      resweeping: await this.maybeRewind(reachedEnd && lastTokenId === fromTokenId, fromTokenId),
       fromTokenId,
       lastTokenId,
       discovered: agents.length,

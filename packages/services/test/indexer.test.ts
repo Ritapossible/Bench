@@ -255,3 +255,91 @@ describe('enumerationTick', () => {
     expect(await repo.checkpoint('bsc-testnet')).toBeNull();
   });
 });
+
+describe('Indexer re-sweep', () => {
+  /**
+   * Enumeration resumed from a cursor and stopped at the end of the registry,
+   * so an agent indexed once was never read again. When `inferCategory` was
+   * fixed so `rebalancing` could be produced at all, all 2,060 already-indexed
+   * agents would have kept their old category forever.
+   */
+  class SweepRepo implements Partial<CatalogRepository> {
+    cursor: bigint | null = null;
+    readonly cursorWrites: bigint[] = [];
+    async checkpoint(): Promise<{ lastBlock: bigint; lastTokenId: bigint | null } | null> {
+      return { lastBlock: 0n, lastTokenId: this.cursor };
+    }
+    async setTokenCursor(_chain: string, id: bigint): Promise<void> {
+      this.cursor = id;
+      this.cursorWrites.push(id);
+    }
+    async upsertAgents(): Promise<number> {
+      return 0;
+    }
+  }
+
+  /**
+   * A caught-up registry. Note it returns one agent, not zero: enumeration
+   * deliberately re-reads the token it starts on, so the empty case only
+   * happens on an empty registry - which is why an earlier version of the
+   * re-sweep, keyed on finding no agents, never once fired in production.
+   */
+  const registryAtEnd = {
+    enumerateAgents: async ({ fromTokenId }: { fromTokenId: bigint }) => ({
+      agents: [
+        {
+          id: { chain: 'bsc-testnet' as const, tokenId: fromTokenId },
+          owner: '0x1111111111111111111111111111111111111111' as const,
+          cardUri: 'data:application/json,{}',
+          card: null,
+          registeredAt: new Date(0),
+        },
+      ],
+      lastTokenId: fromTokenId,
+      reachedEnd: true,
+    }),
+  } as unknown as RegistryClient;
+
+  const build = (repo: SweepRepo, opts = {}) =>
+    new Indexer(registryAtEnd, repo as unknown as CatalogRepository, {
+      chain: 'bsc-testnet',
+      startBlock: 0n,
+      ...opts,
+    });
+
+  it('rewinds on the first pass after start, when the parser may have changed', async () => {
+    // A restart is exactly when new parsing code is running, which is exactly
+    // when every existing card needs reading again.
+    const repo = new SweepRepo();
+    repo.cursor = 100n;
+    const r = await build(repo).enumerationTick();
+    expect(r.resweeping).toBe(true);
+    expect(repo.cursor).toBe(0n);
+  });
+
+  it('does not rewind again before the interval is up', async () => {
+    // Re-reading the whole registry on a loop would mean ~700 HTTP fetches
+    // against strangers' hosts every couple of minutes.
+    const repo = new SweepRepo();
+    repo.cursor = 100n;
+    const indexer = build(repo, { resweepAfterMs: 60_000 });
+    expect((await indexer.enumerationTick()).resweeping).toBe(true);
+    expect((await indexer.enumerationTick()).resweeping).toBe(false);
+    expect((await indexer.enumerationTick()).resweeping).toBe(false);
+  });
+
+  it('never rewinds mid-pass', async () => {
+    // Rewinding before the end would re-read the front of the registry forever
+    // and never reach the back.
+    const repo = new SweepRepo();
+    const midPass = {
+      enumerateAgents: async () => ({ agents: [], lastTokenId: 50n, reachedEnd: false }),
+    } as unknown as RegistryClient;
+    const indexer = new Indexer(midPass, repo as unknown as CatalogRepository, {
+      chain: 'bsc-testnet',
+      startBlock: 0n,
+    });
+    expect((await indexer.enumerationTick()).resweeping).toBe(false);
+    expect(repo.cursorWrites).toEqual([]);
+  });
+});
