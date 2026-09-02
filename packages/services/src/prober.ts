@@ -1,4 +1,9 @@
-import type { CatalogRepository, ProbeClient, ProbeResult } from '@bench/core';
+import {
+  VERIFIED_LIVE,
+  type CatalogRepository,
+  type ProbeClient,
+  type ProbeResult,
+} from '@bench/core';
 import { mapLimitSettled } from './concurrency.js';
 
 /**
@@ -18,6 +23,12 @@ export interface ProberOptions {
   readonly concurrency?: number;
   /** How stale a probe must be before the endpoint is due again. */
   readonly staleAfterMs?: number;
+  /**
+   * How soon to re-probe an endpoint that does not yet have enough probes for
+   * a verdict. See `bootstrapAfterMs` in DEFAULTS for why this is not the same
+   * number as `staleAfterMs`.
+   */
+  readonly bootstrapAfterMs?: number;
 }
 
 export interface ProberTickResult {
@@ -80,6 +91,18 @@ const DEFAULTS = {
    */
   concurrency: 32,
   staleAfterMs: 60 * 60 * 1000,
+  /**
+   * Two minutes, against an hour for the steady state.
+   *
+   * `isVerifiedLive` needs three probes. At the hourly cadence a fresh
+   * deployment probed everything once in its first few minutes, went quiet for
+   * an hour, and could not call any agent live for two hours - publishing "0%
+   * of the registry is real" for the whole window, which is Bench reporting
+   * its own cold start as a finding about the ecosystem. The hourly rule
+   * exists to avoid hammering strangers' hosts; three probes two minutes apart
+   * is still gentle, and it is the least that lets the number mean anything.
+   */
+  bootstrapAfterMs: 2 * 60 * 1000,
 } as const;
 
 export class Prober {
@@ -93,6 +116,10 @@ export class Prober {
     const targets = await this.repo.dueForProbe(
       this.opts.batchSize ?? DEFAULTS.batchSize,
       this.opts.staleAfterMs ?? DEFAULTS.staleAfterMs,
+      {
+        afterMs: this.opts.bootstrapAfterMs ?? DEFAULTS.bootstrapAfterMs,
+        untilProbeCount: VERIFIED_LIVE.minProbeCount,
+      },
     );
     if (targets.length === 0) {
       return { probed: 0, reachable: 0, conformant: 0, failed: 0, reasons: [] };

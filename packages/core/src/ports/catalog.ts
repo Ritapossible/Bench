@@ -42,8 +42,22 @@ export interface CatalogRepository {
   recordProbe(result: ProbeResult): Promise<void>;
   /** Folded over the retained probe history for this agent. */
   liveness(agent: AgentId): Promise<LivenessSummary>;
-  /** Least-recently-probed first, so a large catalog cycles fairly. */
-  dueForProbe(limit: number, staleAfterMs: number): Promise<readonly ProbeTarget[]>;
+  /**
+   * Least-recently-probed first, so a large catalog cycles fairly.
+   *
+   * `bootstrap` exists because a verdict needs `VERIFIED_LIVE.minProbeCount`
+   * probes and `staleAfterMs` is an hour. Without it a fresh deployment gives
+   * every endpoint one probe in the first few minutes, then goes quiet for an
+   * hour, and cannot call a single agent verified live for two hours - during
+   * which the site reports that 0% of the registry is real. An endpoint that
+   * does not yet have enough probes to be judged is due again after
+   * `afterMs` instead, and settles to the hourly cadence once it does.
+   */
+  dueForProbe(
+    limit: number,
+    staleAfterMs: number,
+    bootstrap?: { readonly afterMs: number; readonly untilProbeCount: number },
+  ): Promise<readonly ProbeTarget[]>;
   /** Probes not yet covered by an onchain anchor, oldest first. */
   unanchoredProbes(limit: number): Promise<readonly ProbeResult[]>;
   markProbesAnchored(upTo: Date, digest: Hex, txHash: Hex): Promise<number>;

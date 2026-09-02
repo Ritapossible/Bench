@@ -267,8 +267,14 @@ export class PgCatalogRepository implements CatalogRepository {
    * than one tick still cycles fairly — and its tail is where the dead agents
    * are, which is exactly what the filter needs to know about.
    */
-  async dueForProbe(limit: number, staleAfterMs: number): Promise<readonly ProbeTarget[]> {
+  async dueForProbe(
+    limit: number,
+    staleAfterMs: number,
+    bootstrap?: { readonly afterMs: number; readonly untilProbeCount: number },
+  ): Promise<readonly ProbeTarget[]> {
     const cutoff = new Date(Date.now() - staleAfterMs);
+    const bootstrapCutoff =
+      bootstrap === undefined ? null : new Date(Date.now() - bootstrap.afterMs);
 
     const rows = await this.db
       .select({
@@ -289,9 +295,18 @@ export class PgCatalogRepository implements CatalogRepository {
         schema.agentEndpoints.url,
       )
       .having(
-        sql`max(${schema.probeResults.at}) is null or max(${schema.probeResults.at}) < ${cutoff}`,
+        bootstrapCutoff === null
+          ? sql`max(${schema.probeResults.at}) is null or max(${schema.probeResults.at}) < ${cutoff}`
+          : sql`max(${schema.probeResults.at}) is null
+                 or max(${schema.probeResults.at}) < ${cutoff}
+                 or (count(${schema.probeResults.id}) < ${bootstrap?.untilProbeCount ?? 0}
+                     and max(${schema.probeResults.at}) < ${bootstrapCutoff})`,
       )
-      .orderBy(sql`max(${schema.probeResults.at}) asc nulls first`)
+      // Endpoints with no verdict yet come first: a probe that completes a
+      // verdict is worth more than the nth probe of one already decided.
+      .orderBy(
+        sql`count(${schema.probeResults.id}) asc, max(${schema.probeResults.at}) asc nulls first`,
+      )
       .limit(limit);
 
     return rows.map((r) => ({
