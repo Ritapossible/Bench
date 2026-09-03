@@ -416,6 +416,16 @@ export function score(s: Seed): Score | null {
                 maxDrawdownUsd: 180,
               } as const);
 
+  // Capital is fixed here so the fixture's normalized value can be produced by
+  // the same tanh the scorer uses. It used to be `0.5 + deltaUsd / 800`, the
+  // exact inverse of the formula the catalog page then used to turn it back
+  // into dollars - so the fixtures round-tripped perfectly while production,
+  // which normalizes through a tanh, silently displayed the wrong amount.
+  // Fixtures that agree with the code only when the code is wrong are worse
+  // than no fixtures.
+  const capitalUsd = 5_000;
+  const ratio = s.deltaUsd / capitalUsd;
+
   return {
     agent: id(s.tokenId),
     category: s.category,
@@ -423,7 +433,9 @@ export function score(s: Seed): Score | null {
     window: { start: new Date('2026-07-25T00:00:00Z'), end: now() },
     sampleSize: s.sampleSize,
     baseline: { kind: 'do-nothing' },
-    normalized: Math.max(0, Math.min(1, 0.5 + s.deltaUsd / 800)),
+    normalized: Math.max(0, Math.min(1, 0.5 + Math.tanh(ratio * 8) / 2)),
+    meanDeltaUsd: s.deltaUsd,
+    capitalUsd,
     metric,
   };
 }
@@ -433,6 +445,8 @@ function summary(s: Seed): AgentSummary {
   return {
     entry: { record: record(s), liveness, verifiedLive: isVerifiedLive(liveness) },
     score: score(s),
+    // Every seed carries a score, so none of them is in the failed state.
+    failedAuditions: null,
   };
 }
 

@@ -36,9 +36,10 @@ const record = (tokenId: bigint): AgentRecord => ({
   cardUri: `ipfs://card/${tokenId}`,
   card: {
     name: `agent ${tokenId}`,
-    description: null,
+    description: '',
     category: 'other',
     endpoints: [endpointFor(tokenId)],
+    permissions: { contractAllowlist: [], requiresTokenApprovals: false },
     raw: {},
   },
   registeredAt: new Date('2026-08-01T00:00:00.000Z'),

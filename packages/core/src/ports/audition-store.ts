@@ -84,7 +84,25 @@ export interface AuditionStore {
   completedAuditions(chain: ChainName, limit?: number): Promise<readonly AuditionEvidence[]>;
 
   putOutcome(outcome: OutcomeRecord, replayHash: string): Promise<void>;
-  outcomesFor(agent: AgentId, limit?: number): Promise<readonly OutcomeRecord[]>;
+  /**
+   * Outcomes for an agent, from runs that completed.
+   *
+   * Runs that failed are excluded, and that is a correctness rule rather than a
+   * filter for tidiness. An agent that 404s the audition task, times out, or
+   * refuses it still produces an outcome - it moved nothing, so its delta
+   * against doing nothing is zero - and scoring that alongside real results
+   * presented "could not be driven at all" as "+$0.00, chose not to act". Those
+   * are opposite findings, and the kinder one was winning: twenty agents in the
+   * live catalog carried a +$0.00 score built entirely on failed auditions.
+   *
+   * `includeFailed` exists for the agent detail page, which shows every run
+   * beside its status and reason and so needs the whole history.
+   */
+  outcomesFor(
+    agent: AgentId,
+    limit?: number,
+    opts?: { readonly includeFailed?: boolean },
+  ): Promise<readonly OutcomeRecord[]>;
 
   putScore(score: Score): Promise<void>;
   /**
@@ -96,6 +114,20 @@ export interface AuditionStore {
    * zero is lying about it.
    */
   latestScores(agents: readonly AgentId[], basis: ScoreBasis): Promise<ReadonlyMap<string, Score>>;
+
+  /**
+   * Failed auditions per agent, keyed like `latestScores`.
+   *
+   * An agent whose every audition failed has no score, and without this it is
+   * indistinguishable from one that was never picked up - the catalog showed
+   * both as "No auditions yet - queued for audition". They are opposite
+   * findings: one is a queue that has not reached the agent, the other is an
+   * agent that was reached and could not be driven, which is the more useful
+   * result of the two and the one the catalog was hiding.
+   *
+   * Absent from the map means no failures, not zero failures recorded.
+   */
+  failedAuditions(agents: readonly AgentId[]): Promise<ReadonlyMap<string, FailedAuditions>>;
   latestScore(agent: AgentId, basis: ScoreBasis): Promise<Score | null>;
   /** Best normalized score per category, for the leaderboard. */
   topByCategory(
@@ -125,6 +157,14 @@ export interface AuditionStore {
   recordCrossReference(chain: CatalogStats['chain'], summary: AgreementSummary): Promise<void>;
   latestCrossReference(chain: CatalogStats['chain']): Promise<AgreementSummary | null>;
   statsHistory(chain: CatalogStats['chain'], limit?: number): Promise<readonly CatalogStats[]>;
+}
+
+/** Why an agent has no score despite having been picked up for audition. */
+export interface FailedAuditions {
+  readonly count: number;
+  /** Reason from the most recent failure, verbatim from the run record. */
+  readonly lastReason: string | null;
+  readonly lastAt: Date | null;
 }
 
 /** The map key used by `latestScores`. Stable across both implementations. */

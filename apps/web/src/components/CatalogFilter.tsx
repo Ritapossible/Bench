@@ -34,6 +34,17 @@ export interface AgentRow {
   readonly deltaUsd: number | null;
   readonly sampleSize: number;
   readonly thin: boolean;
+  /**
+   * Auditions attempted that failed, and why the last one did.
+   *
+   * Zero with a null `deltaUsd` means the queue has not reached this agent.
+   * Non-zero means it did, and the agent could not be driven - a result, and
+   * for most of this catalog the only result there is. Both used to render as
+   * "No auditions yet - queued for audition", which was false for the second
+   * group and made the audition queue look idle when it was working.
+   */
+  readonly failedAuditions: number;
+  readonly failureReason: string | null;
 }
 
 /**
@@ -138,7 +149,16 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
               </div>
 
               <div className="sumcard-score">
-                {r.deltaUsd === null ? (
+                {r.deltaUsd === null && r.failedAuditions > 0 ? (
+                  <>
+                    <span className="small ink">Could not be driven</span>
+                    <span className="tiny">
+                      {r.failedAuditions} audition{r.failedAuditions === 1 ? '' : 's'} attempted,
+                      none completed
+                      {r.failureReason === null ? '' : ` - ${r.failureReason}`}
+                    </span>
+                  </>
+                ) : r.deltaUsd === null ? (
                   <>
                     <span className="small ink">No auditions yet</span>
                     <span className="tiny">

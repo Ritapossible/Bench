@@ -266,10 +266,10 @@ describe('Indexer re-sweep', () => {
   class SweepRepo implements Partial<CatalogRepository> {
     cursor: bigint | null = null;
     readonly cursorWrites: bigint[] = [];
-    async checkpoint(): Promise<{ lastBlock: bigint; lastTokenId: bigint | null } | null> {
-      return { lastBlock: 0n, lastTokenId: this.cursor };
+    async checkpoint(chain: ChainName): Promise<IndexerCheckpoint | null> {
+      return { chain, lastBlock: 0n, lastTokenId: this.cursor, updatedAt: new Date(0) };
     }
-    async setTokenCursor(_chain: string, id: bigint): Promise<void> {
+    async setTokenCursor(_chain: ChainName, id: bigint): Promise<void> {
       this.cursor = id;
       this.cursorWrites.push(id);
     }

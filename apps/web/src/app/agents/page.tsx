@@ -42,9 +42,11 @@ export default async function AgentsPage() {
       uptimeBps: liveness.uptimeBps,
       p95LatencyMs: liveness.p95LatencyMs,
       probeCount: liveness.probeCount,
-      deltaUsd: a.score ? (a.score.normalized - 0.5) * 800 : null,
+      deltaUsd: a.score?.meanDeltaUsd ?? null,
       sampleSize: a.score?.sampleSize ?? 0,
       thin: a.score ? isThin(a.score) : false,
+      failedAuditions: a.failedAuditions?.count ?? 0,
+      failureReason: a.failedAuditions?.lastReason ?? null,
     };
   });
 
@@ -61,8 +63,9 @@ export default async function AgentsPage() {
             </p>
           )}
           <p className="lead">
-            Ranked on what each agent did in audition against a do-nothing baseline. Agents with no
-            completed auditions are listed and probed, and say so - they are never given a
+            Ranked on the dollars each agent moved in audition against a do-nothing baseline, over
+            the same position and window. Agents with no completed auditions say so, and an agent
+            that was driven and failed says that instead of nothing - neither is ever given a
             fabricated number.
           </p>
         </div>

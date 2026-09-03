@@ -186,6 +186,8 @@ export class Scorer {
         sampleSize: inWindow.length,
         baseline,
         normalized: normalizeDelta(meanDelta, capital),
+        meanDeltaUsd: meanDelta,
+        capitalUsd: capital,
         metric: metricFor(category, inWindow),
       },
     };

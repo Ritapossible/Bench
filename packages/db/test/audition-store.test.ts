@@ -47,7 +47,7 @@ const action = (seq: number, value: bigint): InterceptedAction => ({
   simulated: { success: true, gasUsed: 21_000n },
 });
 
-const run = (id: string, a: AgentId): ShadowRun => ({
+const run = (id: string, a: AgentId, over: Partial<ShadowRun> = {}): ShadowRun => ({
   id,
   agent: a,
   window: {
@@ -69,10 +69,11 @@ const run = (id: string, a: AgentId): ShadowRun => ({
     },
     capital,
   },
-  status: 'finished',
+  status: 'complete',
   startedAt: new Date('2026-08-10T00:00:00.000Z'),
   finishedAt: new Date('2026-08-10T01:00:00.000Z'),
   egressSpentUsd: 0.42,
+  ...over,
 });
 
 const outcome = (runId: string): OutcomeRecord => ({
@@ -95,6 +96,8 @@ const score = (a: AgentId, over: Partial<Score> = {}): Score => ({
   sampleSize: 6,
   baseline: { kind: 'do-nothing' },
   normalized: 0.72,
+  meanDeltaUsd: 132.5,
+  capitalUsd: 5_000,
   metric: { kind: 'rebalancing', inRangeBps: 8_400, rebalanceCount: 11, feesEarnedUsd: 132.5 },
   ...over,
 });
@@ -157,6 +160,72 @@ describeDb('PgAuditionStore', () => {
     };
     await store.putOutcome(o, '0xreplay');
     expect((await store.outcomesFor(agent(1n)))[0]).toEqual(o);
+  });
+
+  it('leaves outcomes from failed runs out of the default read', async () => {
+    // An agent that 404s the task, times out, or refuses it still lands an
+    // outcome row: it moved nothing, so its delta against doing nothing is
+    // zero. Scoring that beside real results reads "could not be driven at
+    // all" as "+$0.00, chose not to act" - opposite findings, and the kinder
+    // one wins. The read the scorer uses has to drop it.
+    await store.putRun(run('run-ok', agent(1n)), []);
+    await store.putOutcome({ ...outcome('run-ok'), deltaVsDoNothingUsd: 142.11 }, '0xreplay-ok');
+    await store.putRun(
+      run('run-dead', agent(1n), {
+        status: 'failed',
+        finishedAt: new Date('2026-08-11T01:00:00.000Z'),
+        failureReason: 'endpoint returned 404',
+      }),
+      [],
+    );
+    await store.putOutcome(
+      { ...outcome('run-dead'), deltaVsDoNothingUsd: 0, actionCount: 0 },
+      '0xreplay-dead',
+    );
+
+    const scored = await store.outcomesFor(agent(1n));
+    expect(scored.map((o) => o.runId)).toEqual(['run-ok']);
+  });
+
+  it('includes failed runs when the caller asks, for the per-agent history', async () => {
+    // The detail page shows every run beside its status and reason, so hiding
+    // the failures there would hide the very thing it exists to report.
+    await store.putRun(run('run-ok', agent(1n)), []);
+    await store.putOutcome(outcome('run-ok'), '0xreplay-ok');
+    await store.putRun(
+      run('run-dead', agent(1n), {
+        status: 'failed',
+        finishedAt: new Date('2026-08-11T01:00:00.000Z'),
+        failureReason: 'endpoint returned 404',
+      }),
+      [],
+    );
+    await store.putOutcome(outcome('run-dead'), '0xreplay-dead');
+
+    const all = await store.outcomesFor(agent(1n), 20, { includeFailed: true });
+    expect(all.map((o) => o.runId)).toEqual(['run-dead', 'run-ok']);
+  });
+
+  it('reports no outcomes at all for an agent whose every audition failed', async () => {
+    // This is the state twenty catalog cards were actually in. It has to come
+    // back empty rather than as a zero, so the caller can say "could not be
+    // driven" instead of showing a score built on nothing.
+    await store.putRun(run('run-dead', agent(2n), { status: 'failed' }), []);
+    await store.putOutcome(outcome('run-dead'), '0xreplay-dead');
+
+    expect(await store.outcomesFor(agent(2n))).toEqual([]);
+  });
+
+  it('round-trips the dollars a score was built from', async () => {
+    // These are the only place the measured amounts survive: `normalized` is a
+    // bounded tanh and cannot be inverted. If the columns drop them, every
+    // page showing money is back to reconstructing a figure that never
+    // existed.
+    await store.putScore(score(agent(1n), { meanDeltaUsd: -412.5, capitalUsd: 25_000 }));
+
+    const read = await store.latestScore(agent(1n), 'simulated');
+    expect(read?.meanDeltaUsd).toBe(-412.5);
+    expect(read?.capitalUsd).toBe(25_000);
   });
 
   it('returns the newest score per agent in one query', async () => {

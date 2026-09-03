@@ -29,6 +29,13 @@
       "when": 1788001549795,
       "tag": "0003_mandate_signature",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788437225541,
+      "tag": "0004_score_dollar_columns",
+      "breakpoints": true
     }
   ]
 }

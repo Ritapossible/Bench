@@ -58,7 +58,7 @@ export default async function HirePage({
   if (agent === null) notFound();
 
   const card = agent.entry.record.card;
-  const delta = agent.score ? (agent.score.normalized - 0.5) * 800 : null;
+  const delta = agent.score?.meanDeltaUsd ?? null;
   const category = card?.category ?? 'other';
 
   const summary =

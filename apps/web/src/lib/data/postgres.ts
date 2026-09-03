@@ -59,13 +59,18 @@ export function createPgData(connectionString: string): BenchData {
 
   /** Attach the newest simulated score to each entry, in one round trip. */
   const withScores = async (entries: readonly CatalogEntry[]): Promise<readonly AgentSummary[]> => {
-    const scores = await audition.latestScores(
-      entries.map((e) => e.record.id),
-      'simulated',
-    );
+    const ids = entries.map((e) => e.record.id);
+    // Failures are fetched beside the scores, not derived from their absence:
+    // "no score" covers both "never reached" and "could not be driven", and
+    // the catalog has to say which.
+    const [scores, failures] = await Promise.all([
+      audition.latestScores(ids, 'simulated'),
+      audition.failedAuditions(ids),
+    ]);
     return entries.map((entry) => ({
       entry,
       score: scores.get(agentKey(entry.record.id)) ?? null,
+      failedAuditions: failures.get(agentKey(entry.record.id)) ?? null,
     }));
   };
 
@@ -173,7 +178,9 @@ export function createPgData(connectionString: string): BenchData {
       const [liveness, runs, outcomes, simulated, realized] = await Promise.all([
         catalog.liveness(id),
         audition.runsFor(id),
-        audition.outcomesFor(id),
+        // The detail page shows every run beside its status and reason, so it
+        // needs failed ones too; scoring does not.
+        audition.outcomesFor(id, 20, { includeFailed: true }),
         audition.latestScore(id, 'simulated'),
         audition.latestScore(id, 'realized'),
       ]);
@@ -184,6 +191,9 @@ export function createPgData(connectionString: string): BenchData {
       return {
         entry: { record, liveness, verifiedLive: isVerifiedLive(liveness) },
         score: simulated,
+        // The detail page already lists every run with its status and reason,
+        // so this is only here to keep the summary shape whole.
+        failedAuditions: (await audition.failedAuditions([id])).get(agentKey(id)) ?? null,
         runs,
         outcomes,
         actionsByRun,

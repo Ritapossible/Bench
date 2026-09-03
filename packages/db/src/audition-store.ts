@@ -5,6 +5,7 @@ import {
   type AgentId,
   type AgreementSummary,
   type AuditionStore,
+  type FailedAuditions,
   type AuditionWindow,
   type Baseline,
   type CatalogStats,
@@ -318,13 +319,21 @@ export class PgAuditionStore implements AuditionStore {
       });
   }
 
-  async outcomesFor(agent: AgentId, limit = 20): Promise<readonly OutcomeRecord[]> {
+  async outcomesFor(
+    agent: AgentId,
+    limit = 20,
+    opts: { readonly includeFailed?: boolean } = {},
+  ): Promise<readonly OutcomeRecord[]> {
     const rows = await this.db
       .select({ o: schema.outcomeRecords })
       .from(schema.outcomeRecords)
       .innerJoin(schema.shadowRuns, eq(schema.shadowRuns.id, schema.outcomeRecords.runId))
       .innerJoin(schema.agents, eq(schema.agents.id, schema.shadowRuns.agentId))
-      .where(agentMatches(agent))
+      .where(
+        opts.includeFailed === true
+          ? agentMatches(agent)
+          : and(agentMatches(agent), eq(schema.shadowRuns.status, 'complete')),
+      )
       .orderBy(desc(schema.shadowRuns.finishedAt))
       .limit(limit);
 
@@ -356,6 +365,8 @@ export class PgAuditionStore implements AuditionStore {
         sampleSize: score.sampleSize,
         baseline: score.baseline as unknown as Json,
         normalized: score.normalized,
+        meanDeltaUsd: score.meanDeltaUsd,
+        capitalUsd: score.capitalUsd,
         metric: score.metric as unknown as Json,
       })
       .onConflictDoUpdate({
@@ -370,6 +381,8 @@ export class PgAuditionStore implements AuditionStore {
           sampleSize: score.sampleSize,
           baseline: score.baseline as unknown as Json,
           normalized: score.normalized,
+          meanDeltaUsd: score.meanDeltaUsd,
+          capitalUsd: score.capitalUsd,
           metric: score.metric as unknown as Json,
           computedAt: new Date(),
         },
@@ -404,6 +417,43 @@ export class PgAuditionStore implements AuditionStore {
       // Ordered newest-first per agent, so the first row wins and later ones
       // are older windows for the same agent.
       if (!out.has(key)) out.set(key, toScore(s, id));
+    }
+    return out;
+  }
+
+  async failedAuditions(agents: readonly AgentId[]): Promise<ReadonlyMap<string, FailedAuditions>> {
+    if (agents.length === 0) return new Map();
+
+    // One pass over the failed runs for the whole page rather than a query per
+    // agent: the catalog renders up to 200 rows and this is on the render path.
+    const rows = await this.db
+      .select({
+        chain: schema.agents.chain,
+        tokenId: schema.agents.tokenId,
+        finishedAt: schema.shadowRuns.finishedAt,
+        startedAt: schema.shadowRuns.startedAt,
+        failureReason: schema.shadowRuns.failureReason,
+      })
+      .from(schema.shadowRuns)
+      .innerJoin(schema.agents, eq(schema.agents.id, schema.shadowRuns.agentId))
+      .where(and(eq(schema.shadowRuns.status, 'failed'), anyOfAgents(agents)))
+      .orderBy(desc(schema.shadowRuns.finishedAt));
+
+    const out = new Map<string, FailedAuditions>();
+    for (const r of rows) {
+      const key = agentKey({ chain: chainOf(r.chain), tokenId: toBigInt(r.tokenId) });
+      const prev = out.get(key);
+      if (prev === undefined) {
+        // Rows arrive newest-first, so the first one per agent carries the
+        // reason worth showing.
+        out.set(key, {
+          count: 1,
+          lastReason: r.failureReason,
+          lastAt: r.finishedAt ?? r.startedAt,
+        });
+      } else {
+        out.set(key, { ...prev, count: prev.count + 1 });
+      }
     }
     return out;
   }
@@ -585,6 +635,8 @@ function toScore(s: typeof schema.scores.$inferSelect, agent: AgentId): Score {
     sampleSize: s.sampleSize,
     baseline: s.baseline,
     normalized: s.normalized,
+    meanDeltaUsd: s.meanDeltaUsd,
+    capitalUsd: s.capitalUsd,
     metric: s.metric,
   };
 }

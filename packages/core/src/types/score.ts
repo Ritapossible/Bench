@@ -25,6 +25,24 @@ export interface Score {
   readonly baseline: Baseline;
   /** Category-normalised to [0, 1] for cross-category ranking. */
   readonly normalized: number;
+  /**
+   * Mean dollar delta against the baseline across `sampleSize` auditions.
+   *
+   * Recorded rather than reconstructed. `normalized` is a bounded tanh of
+   * delta-over-capital, so it is not invertible back to dollars, and the
+   * catalog page used to display `(normalized - 0.5) * 800` under the caption
+   * "vs doing nothing" - a dollar figure that matched no dollar amount the
+   * system had ever measured. Anything showing money has to read this field.
+   */
+  readonly meanDeltaUsd: number;
+  /**
+   * Mean capital the auditions were run with, in USD.
+   *
+   * Carried beside the delta because the delta is meaningless without it:
+   * +$142 on $5,000 and +$142 on $500,000 are not the same result, and
+   * `normalized` is the only place that ratio currently survives.
+   */
+  readonly capitalUsd: number;
   /** The raw category-native metric, kept for display and audit. */
   readonly metric: CategoryMetric;
 }

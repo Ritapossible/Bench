@@ -1,0 +1,23 @@
+{
+  // Tests and dev scripts are not part of the build graph in tsconfig.json, so
+  // for a long time nothing typechecked them. That is not a cosmetic gap: a
+  // fixture in packages/db/test carried status: 'finished', a value absent
+  // from ShadowRunStatus and never written by any production path, and the
+  // suite asserted against it for months. A test that lies about the shape of
+  // the data proves nothing about the code under it.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "module": "esnext",
+    "moduleResolution": "bundler"
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/test/**/*.ts",
+    "apps/worker/src/**/*.ts",
+    "apps/worker/test/**/*.ts",
+    "scripts/audition-demo.ts",
+    "scripts/gate-demo.ts"
+  ]
+}

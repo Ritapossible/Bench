@@ -92,13 +92,12 @@ export default async function AgentPage({
             </div>
             {agent.score ? (
               <>
-                <div className="statnum">
-                  {usd((agent.score.normalized - 0.5) * 800, { sign: true })}
-                </div>
+                <div className="statnum">{usd(agent.score.meanDeltaUsd, { sign: true })}</div>
                 <p className="small">
                   Against the same position left alone, over {agent.score.sampleSize} audition
-                  {agent.score.sampleSize === 1 ? '' : 's'} on a forked chain.
-                  {isThin(agent.score) ? ' Too few to be a track record yet.' : ''}
+                  {agent.score.sampleSize === 1 ? '' : 's'} on a forked chain
+                  {agent.score.capitalUsd > 0 ? ` with ${usd(agent.score.capitalUsd)} at risk` : ''}
+                  .{isThin(agent.score) ? ' Too few to be a track record yet.' : ''}
                 </p>
                 {/* The dates were rendered as a range and read as an error when
                     there is one audition: "2026-09-03 → 2026-09-03". A single

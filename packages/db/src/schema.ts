@@ -206,6 +206,10 @@ export const scores = pgTable(
     sampleSize: integer('sample_size').notNull(),
     baseline: jsonb('baseline').notNull(),
     normalized: doublePrecision('normalized').notNull(),
+    // The dollars behind `normalized`. Stored because tanh is not invertible:
+    // without these two columns nothing downstream can name a real amount.
+    meanDeltaUsd: doublePrecision('mean_delta_usd').notNull().default(0),
+    capitalUsd: doublePrecision('capital_usd').notNull().default(0),
     metric: jsonb('metric').notNull(),
     computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
   },

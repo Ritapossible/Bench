@@ -139,6 +139,34 @@ describe('Scorer', () => {
     expect(score?.normalized).toBeLessThan(1);
   });
 
+  it('records the dollars it measured, not a number recoverable from the score', async () => {
+    // `normalized` is a bounded tanh of delta-over-capital, so it cannot be
+    // inverted back to dollars. Three pages nonetheless rendered
+    // `(normalized - 0.5) * 800` under the caption "vs doing nothing": here
+    // that would have shown $174.68 for a $500 result. The measured figures
+    // have to travel on the score itself.
+    const at = new Date();
+    const store = new StubStore(
+      [run('r1', at, 10_000n), run('r2', at, 10_000n)],
+      [outcome('r1', 400), outcome('r2', 600)],
+    );
+
+    const { score } = await build(store).scoreAgent(AGENT, 'yield');
+
+    expect(score?.meanDeltaUsd).toBe(500);
+    expect(score?.capitalUsd).toBe(10_000);
+    // The old reconstruction, kept here so the gap stays visible if anyone
+    // reaches for it again.
+    expect((score!.normalized - 0.5) * 800).not.toBeCloseTo(500, 0);
+  });
+
+  it('keeps the delta signed, so a loss reads as a loss in dollars too', async () => {
+    const at = new Date();
+    const store = new StubStore([run('r1', at, 10_000n)], [outcome('r1', -800)]);
+    const { score } = await build(store).scoreAgent(AGENT, 'yield');
+    expect(score?.meanDeltaUsd).toBe(-800);
+  });
+
   it('scores a losing agent below neutral', async () => {
     const at = new Date();
     const store = new StubStore([run('r1', at, 10_000n)], [outcome('r1', -800)]);

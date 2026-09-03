@@ -4,6 +4,7 @@ import type {
   AgentId,
   CatalogEntry,
   CatalogStats,
+  FailedAuditions,
   InterceptedAction,
   LivePosition,
   OutcomeRecord,
@@ -84,6 +85,14 @@ export interface AgentSummary {
   readonly entry: CatalogEntry;
   /** Null for agents with no completed auditions - shown, never faked. */
   readonly score: Score | null;
+  /**
+   * Auditions that were attempted and failed.
+   *
+   * Null score plus a non-null value here is "we drove it and it could not be
+   * driven", which is a result. Null score with null here is "not reached
+   * yet", which is not. The catalog rendered both as "No auditions yet".
+   */
+  readonly failedAuditions: FailedAuditions | null;
 }
 
 export interface AgentDetail extends AgentSummary {

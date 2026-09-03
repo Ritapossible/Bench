@@ -38,7 +38,7 @@ const agent = (tokenId: bigint, withA2a = true): AgentRecord => ({
     description: '',
     category: 'yield',
     endpoints: withA2a ? [{ protocol: 'a2a', url: `https://a.example/${tokenId}` }] : [],
-    permissions: { canTransfer: true, canApprove: true, declaredContracts: [] },
+    permissions: { contractAllowlist: [], requiresTokenApprovals: true },
     raw: {},
   },
   registeredAt: new Date(0),
