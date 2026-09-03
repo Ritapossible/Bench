@@ -337,7 +337,7 @@ async function main(): Promise<void> {
     // Without this, a throwing job prints an unhandled rejection and the
     // process keeps running as though the tick had succeeded.
     w.on('failed', (job, err) => {
-      heartbeat.fail(w.name);
+      heartbeat.fail(w.name, err instanceof Error ? err.message : String(err));
       console.error(`[bench:worker] ${w.name} job ${job?.id ?? '?'} failed:`, err);
     });
     w.on('completed', () => {

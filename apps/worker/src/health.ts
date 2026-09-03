@@ -17,7 +17,7 @@ import { createServer, type Server } from 'node:http';
  */
 export interface Heartbeat {
   mark(queue: string): void;
-  fail(queue: string): void;
+  fail(queue: string, reason?: string): void;
 }
 
 interface QueueState {
@@ -25,6 +25,16 @@ interface QueueState {
   lastFailAt: number | null;
   ticks: number;
   failures: number;
+  /**
+   * Why the last failure failed.
+   *
+   * Counting failures says a queue is broken and nothing about what to do -
+   * and on a hosted worker the logs are a click away from whoever is looking
+   * at this endpoint, which in practice means the reason is not read. A queue
+   * that has failed twice and cannot say why is a queue nobody can fix from
+   * here.
+   */
+  lastFailReason: string | null;
 }
 
 export function startHealthServer(port: number): { heartbeat: Heartbeat; server: Server } {
@@ -33,7 +43,7 @@ export function startHealthServer(port: number): { heartbeat: Heartbeat; server:
   const stateFor = (q: string): QueueState => {
     let s = queues.get(q);
     if (s === undefined) {
-      s = { lastOkAt: null, lastFailAt: null, ticks: 0, failures: 0 };
+      s = { lastOkAt: null, lastFailAt: null, ticks: 0, failures: 0, lastFailReason: null };
       queues.set(q, s);
     }
     return s;
@@ -45,10 +55,13 @@ export function startHealthServer(port: number): { heartbeat: Heartbeat; server:
       s.lastOkAt = Date.now();
       s.ticks += 1;
     },
-    fail(queue) {
+    fail(queue, reason) {
       const s = stateFor(queue);
       s.lastFailAt = Date.now();
       s.failures += 1;
+      // Bounded: an error carrying a stack or a payload would otherwise put an
+      // unbounded string in a public endpoint.
+      s.lastFailReason = reason === undefined ? null : reason.slice(0, 300);
     },
   };
 
@@ -66,6 +79,7 @@ export function startHealthServer(port: number): { heartbeat: Heartbeat; server:
             secondsSinceLastOk: s.lastOkAt === null ? null : Math.round((now - s.lastOkAt) / 1000),
             secondsSinceLastFailure:
               s.lastFailAt === null ? null : Math.round((now - s.lastFailAt) / 1000),
+            lastFailure: s.lastFailReason,
           },
         ]),
       ),
