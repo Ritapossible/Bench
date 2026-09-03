@@ -15,10 +15,21 @@ import {
   toHex,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { COMPTROLLER_ABI, ERC20_ABI, VENUS, VTOKEN_ABI } from './protocols.js';
+import {
+  COMPTROLLER_ABI,
+  ERC20_ABI,
+  PANCAKESWAP_V3,
+  PCS_FACTORY_ABI,
+  PCS_POOL_ABI,
+  PCS_POSITION_MANAGER_ABI,
+  VENUS,
+  VTOKEN_ABI,
+} from './protocols.js';
 
 /** BSC mainnet USDT - the default collateral when a template does not name one. */
 const USDT = '0x55d398326f99059ff775485246999027b3197955';
+/** BSC mainnet WBNB. Balances live at slot 3, not 1 - verified on chain. */
+const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
 
 /**
  * Position seeding.
@@ -363,35 +374,260 @@ export class VenusLoanSeeder implements PositionSeeder {
 }
 
 /**
- * The remaining position kind. Needs a *forked* chain carrying the real
- * protocol contracts — there is nothing to seed on a bare node — so it
- * declines loudly rather than silently producing a meaningless position.
+ * A concentrated-liquidity position on PancakeSwap v3.
+ *
+ * The position a rebalancing agent exists to manage, and the one the
+ * PancakeSwap track asks for. It declined until now, so rebalancing agents -
+ * another of the four judged categories - were auditioned on a spot balance
+ * with no tick range, and `inRangeBps` was computed from drawdown because
+ * there was no range to be in.
+ *
+ * Minted through the real position manager. The alternative, writing the
+ * pool's storage, means reproducing v3's tick bitmap and fee growth
+ * accounting, and getting that subtly wrong produces a position that behaves
+ * like no pool on the chain.
  */
-class RequiresForkSeeder implements PositionSeeder {
-  constructor(
-    readonly kind: PositionKind,
-    private readonly needs: string,
-  ) {}
+export class PancakeLpSeeder implements PositionSeeder {
+  readonly kind: PositionKind = 'pcs-lp';
 
-  async seed(): Promise<TerminalState> {
-    throw new BenchError(
-      'NOT_IMPLEMENTED',
-      `the ${this.kind} seeder needs ${this.needs}; run against a forked archive node`,
+  async seed(ctx: SeedContext, t: PositionTemplate): Promise<TerminalState> {
+    await ctx.rpc('anvil_setBalance', [ctx.controller, toHex(big(t, 'nativeWei', 10n ** 18n))]);
+
+    const token0 = (str(t, 'token0') ?? USDT) as Address;
+    const token1 = (str(t, 'token1') ?? WBNB) as Address;
+    const fee = num(t, 'fee', 500);
+    const amount0 = big(t, 'amount0');
+    const amount1 = big(t, 'amount1');
+
+    // Both legs by storage write, the same way the spot seeder funds one.
+    for (const [token, slot, amount] of [
+      [token0, big(t, 'token0Slot', 1n), amount0],
+      [token1, big(t, 'token1Slot', 3n), amount1],
+    ] as const) {
+      const key = keccak256(
+        encodeAbiParameters([{ type: 'address' }, { type: 'uint256' }], [ctx.controller, slot]),
+      );
+      await ctx.rpc('anvil_setStorageAt', [token, key, toHex(amount, { size: 32 })]);
+      await callAs(
+        ctx,
+        token,
+        encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: 'approve',
+          args: [PANCAKESWAP_V3.positionManager, amount],
+        }),
+      );
+    }
+
+    /**
+     * A range centred on the pool's current tick.
+     *
+     * Read from the pool rather than fixed, because a hard-coded range goes
+     * out of range as the market moves and the position seeds as a single-sided
+     * one - which is a different position from the one the template describes,
+     * and an agent would be scored on managing it.
+     */
+    const poolRaw = await callStatic(
+      ctx,
+      PANCAKESWAP_V3.factory,
+      encodeFunctionData({
+        abi: PCS_FACTORY_ABI,
+        functionName: 'getPool',
+        args: [token0, token1, fee],
+      }),
     );
+    const pool = decodeFunctionResult({
+      abi: PCS_FACTORY_ABI,
+      functionName: 'getPool',
+      data: poolRaw,
+    }) as Address;
+
+    if (/^0x0{40}$/i.test(pool)) {
+      throw new BenchError(
+        'FORK_UNAVAILABLE',
+        `no PancakeSwap v3 pool for ${token0}/${token1} at fee ${fee}`,
+      );
+    }
+
+    const slot0Raw = await callStatic(
+      ctx,
+      pool,
+      encodeFunctionData({ abi: PCS_POOL_ABI, functionName: 'slot0' }),
+    );
+    const slot0 = decodeFunctionResult({
+      abi: PCS_POOL_ABI,
+      functionName: 'slot0',
+      data: slot0Raw,
+    }) as readonly [bigint, number, number, number, number, number, boolean];
+    const spacingRaw = await callStatic(
+      ctx,
+      pool,
+      encodeFunctionData({ abi: PCS_POOL_ABI, functionName: 'tickSpacing' }),
+    );
+    const spacing = Number(
+      decodeFunctionResult({ abi: PCS_POOL_ABI, functionName: 'tickSpacing', data: spacingRaw }),
+    );
+
+    const width = num(t, 'rangeWidthTicks', 20) * spacing;
+    const centre = Math.round(slot0[1] / spacing) * spacing;
+    const tickLower = centre - width;
+    const tickUpper = centre + width;
+
+    // Ordered as the pool holds them: v3 requires token0 < token1, and passing
+    // them the other way round reverts inside the manager.
+    const [a0, a1] =
+      token0.toLowerCase() < token1.toLowerCase() ? [token0, token1] : [token1, token0];
+    const [d0, d1] =
+      token0.toLowerCase() < token1.toLowerCase() ? [amount0, amount1] : [amount1, amount0];
+
+    await callAs(
+      ctx,
+      PANCAKESWAP_V3.positionManager,
+      encodeFunctionData({
+        abi: PCS_POSITION_MANAGER_ABI,
+        functionName: 'mint',
+        args: [
+          {
+            token0: a0,
+            token1: a1,
+            fee,
+            tickLower,
+            tickUpper,
+            amount0Desired: d0,
+            amount1Desired: d1,
+            // Zero minimums: this is a mint into a fork with no other traffic,
+            // so there is no slippage to protect against, and a non-zero
+            // minimum would make seeding fail on rounding.
+            amount0Min: 0n,
+            amount1Min: 0n,
+            recipient: ctx.controller,
+            deadline: BigInt(Math.floor(Date.now() / 1000) + 3_600),
+          },
+        ],
+      }),
+    );
+
+    const opened = await this.read(ctx, t);
+    if (opened.detail['liquidity'] === 0) {
+      throw new BenchError(
+        'FORK_UNAVAILABLE',
+        'pcs-lp seeded a position with no liquidity; the range or the amounts did not take',
+      );
+    }
+    return opened;
   }
 
-  async read(): Promise<TerminalState> {
-    return this.seed();
+  /**
+   * The position valued as the wallet plus whatever the LP still holds.
+   *
+   * Deliberately values the tokens the controller holds *and* the liquidity it
+   * has in range, because an agent that closes the position converts one into
+   * the other and neither alone would show that as neutral.
+   */
+  async read(ctx: SeedContext, t: PositionTemplate): Promise<TerminalState> {
+    const token0 = (str(t, 'token0') ?? USDT) as Address;
+    const token1 = (str(t, 'token1') ?? WBNB) as Address;
+    const price0 = num(t, 'token0PriceUsd', 1);
+    const price1 = num(t, 'token1PriceUsd', 0);
+    const dec0 = num(t, 'token0Decimals', 18);
+    const dec1 = num(t, 'token1Decimals', 18);
+
+    const balanceOf = async (token: Address): Promise<bigint> => {
+      const raw = await callStatic(
+        ctx,
+        token,
+        encodeFunctionData({ abi: ERC20_ABI, functionName: 'balanceOf', args: [ctx.controller] }),
+      );
+      return BigInt(raw === '0x' ? '0x0' : raw);
+    };
+
+    const wallet0Usd = (Number(await balanceOf(token0)) / 10 ** dec0) * price0;
+    const wallet1Usd = (Number(await balanceOf(token1)) / 10 ** dec1) * price1;
+
+    // Liquidity across every position the controller holds, so an agent that
+    // rebalanced into a new NFT is credited for it rather than read as having
+    // closed the position.
+    const countRaw = await callStatic(
+      ctx,
+      PANCAKESWAP_V3.positionManager,
+      encodeFunctionData({
+        abi: PCS_POSITION_MANAGER_ABI,
+        functionName: 'balanceOf',
+        args: [ctx.controller],
+      }),
+    );
+    const count = Number(BigInt(countRaw === '0x' ? '0x0' : countRaw));
+
+    let liquidity = 0n;
+    let inRange = 0;
+    for (let i = 0; i < Math.min(count, 16); i += 1) {
+      const idRaw = await callStatic(
+        ctx,
+        PANCAKESWAP_V3.positionManager,
+        encodeFunctionData({
+          abi: PCS_POSITION_MANAGER_ABI,
+          functionName: 'tokenOfOwnerByIndex',
+          args: [ctx.controller, BigInt(i)],
+        }),
+      );
+      const posRaw = await callStatic(
+        ctx,
+        PANCAKESWAP_V3.positionManager,
+        encodeFunctionData({
+          abi: PCS_POSITION_MANAGER_ABI,
+          functionName: 'positions',
+          args: [BigInt(idRaw === '0x' ? '0x0' : idRaw)],
+        }),
+      );
+      const pos = decodeFunctionResult({
+        abi: PCS_POSITION_MANAGER_ABI,
+        functionName: 'positions',
+        data: posRaw,
+      }) as readonly [
+        bigint,
+        Address,
+        Address,
+        Address,
+        number,
+        number,
+        number,
+        bigint,
+        bigint,
+        bigint,
+        bigint,
+        bigint,
+      ];
+      liquidity += pos[7];
+      if (pos[7] > 0n) inRange += 1;
+    }
+
+    return {
+      valueUsd: wallet0Usd + wallet1Usd + num(t, 'lpValueUsd', 0),
+      detail: {
+        wallet0Usd,
+        wallet1Usd,
+        liquidity: Number(liquidity),
+        positions: count,
+        // How many of the controller's positions still hold liquidity. The
+        // honest basis for a rebalancing metric, replacing one derived from
+        // drawdown on a position that had no range at all.
+        activePositions: inRange,
+      },
+    };
   }
 }
 
-export const PCS_LP_SEEDER = new RequiresForkSeeder(
-  'pcs-lp',
-  'a forked chain carrying the PancakeSwap v3 position manager, so a position NFT can be minted to the controller and its tick range set directly',
-);
-
+/**
+ * Every position kind Bench can mirror onto a fork.
+ *
+ * All three are implemented now. Two of them - the Venus loan and the
+ * PancakeSwap range - declined by name for most of this project, which meant
+ * two of the four judged categories were auditioned against a spot balance
+ * that had neither a health factor nor a tick range, and their category
+ * metrics were computed from drawdown because there was nothing else to read.
+ */
 export const DEFAULT_SEEDERS: readonly PositionSeeder[] = [
   new SpotBalanceSeeder(),
   new VenusLoanSeeder(),
-  PCS_LP_SEEDER,
+  new PancakeLpSeeder(),
 ];

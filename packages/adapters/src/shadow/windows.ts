@@ -1,6 +1,9 @@
 import type { AuditionWindow, ChainName, PositionTemplate } from '@bench/core';
 import { VENUS } from './protocols.js';
 
+/** BSC mainnet WBNB, the second leg of the liquidity window. */
+const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
+
 /**
  * The audition window library - ARCHITECTURE.md 3.3.
  *
@@ -190,6 +193,43 @@ export function auditionWindows(opts: {
      */
     ...(opts.forkChain === 'bsc-mainnet'
       ? [
+          /**
+           * A concentrated-liquidity range, for the other category that could
+           * not be auditioned. A rebalancing agent's whole job is keeping this
+           * position in range, and it was being handed a spot balance.
+           */
+          {
+            window: {
+              id: `pcs-live-${opts.forkChain}-${opts.forkBlock.toString()}`,
+              label: 'Concentrated liquidity',
+              regime: 'live' as const,
+              forkBlock: opts.forkBlock,
+              endBlock: opts.forkBlock + 5_000n,
+              seed: `bench-pcs-live-${opts.forkBlock.toString()}`,
+            },
+            position: {
+              kind: 'pcs-lp' as const,
+              label: 'USDT/WBNB liquidity, 20 ticks either side',
+              params: {
+                nativeWei: 10n ** 18n,
+                token0: constants.token,
+                token1: WBNB,
+                token0Slot: constants.balanceSlot,
+                // Verified against the chain: WBNB holds balances at slot 3.
+                token1Slot: 3n,
+                fee: 500,
+                amount0: capital.amount,
+                amount1: 15n * 10n ** 18n,
+                rangeWidthTicks: 20,
+                token0PriceUsd: constants.tokenPriceUsd,
+                token1PriceUsd: constants.nativePriceUsd,
+                token0Decimals: constants.decimals,
+                token1Decimals: 18,
+                nativePriceUsd: constants.nativePriceUsd,
+              },
+              capital,
+            },
+          },
           {
             window: {
               id: `venus-live-${opts.forkChain}-${opts.forkBlock.toString()}`,

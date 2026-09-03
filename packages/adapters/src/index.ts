@@ -90,7 +90,7 @@ export { decodeAction, jsonSafe, KNOWN_SELECTORS, type DecodedAction } from './s
 export {
   SpotBalanceSeeder,
   DEFAULT_SEEDERS,
-  PCS_LP_SEEDER,
+  PancakeLpSeeder,
   VenusLoanSeeder,
 } from './shadow/seeders.js';
 export { InMemoryEgressGuard, type EgressGuardOptions } from './shadow/egress-guard.js';

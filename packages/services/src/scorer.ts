@@ -73,25 +73,30 @@ export function metricFor(
   const delta = sum((o) => o.deltaVsDoNothingUsd);
 
   switch (category) {
-    case 'rebalancing':
+    case 'rebalancing': {
+      /**
+       * Measured from the LP position, now that one can be seeded.
+       *
+       * `inRangeBps` was `1 - drawdown/(|delta|+drawdown)` scaled to basis
+       * points - real arithmetic over real inputs, and not time in range,
+       * because a spot balance has no range to be in. It is now the share of
+       * runs that ended with liquidity still deployed, which is what the
+       * position records and what a rebalancing agent is paid to maintain.
+       *
+       * Runs against a position that carries no LP detail contribute nothing
+       * rather than a zero, so a catalog auditioned before the seeder existed
+       * does not drag the number down.
+       */
+      const lpRuns = outcomes.filter((o) => typeof o.terminal.detail['positions'] === 'number');
+      const active = lpRuns.filter((o) => (o.terminal.detail['activePositions'] ?? 0) > 0).length;
       return {
         kind: 'rebalancing',
-        /**
-         * Zero until an LP position can be seeded, not a proxy.
-         *
-         * This was `1 - drawdown/(|delta|+drawdown)` scaled to basis points.
-         * That number is real arithmetic over real inputs, and it is not time
-         * in range: there is no tick range in a spot-balance position, which
-         * is the only kind Bench can currently seed. Reporting it under the
-         * name of an LP metric is the same mistake as rendering
-         * `(normalized - 0.5) * 800` as dollars - a true quantity wearing the
-         * label of a different one. `pcs-lp` is what makes this measurable.
-         */
-        inRangeBps: 0,
+        inRangeBps: lpRuns.length === 0 ? 0 : Math.round((10_000 * active) / lpRuns.length),
         rebalanceCount: Math.round(actions / n),
-        /** Delta is not fee income. Zero until an LP position records fees. */
+        /** Fees need the position's collected amounts, which are not recorded yet. */
         feesEarnedUsd: 0,
       };
+    }
     case 'grid':
       return {
         kind: 'grid',
