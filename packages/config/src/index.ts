@@ -86,6 +86,24 @@ const schema = z.object({
     ),
   SHADOW_MAX_CONCURRENT_FORKS: z.coerce.number().int().positive().default(4),
 
+  /**
+   * Public origin this worker is reachable at, e.g.
+   * `https://bench-worker.up.railway.app`.
+   *
+   * An audition hands the agent an RPC endpoint and measures what it does with
+   * it. The interceptor that serves that endpoint binds to loopback, because
+   * it can mint balances and impersonate accounts - so without a public origin
+   * to route through, a registered agent on someone else's infrastructure
+   * cannot reach it, cannot transact, and every measured delta is zero. That
+   * was the state of production: one completed audition, zero transactions,
+   * +$0.00, and no way for any agent to have scored anything else.
+   *
+   * Optional because local development and the test suite drive in-process
+   * agents over loopback quite happily. The worker warns loudly at boot when
+   * it is auditioning remote agents without one.
+   */
+  BENCH_PUBLIC_RPC_BASE_URL: z.string().url().optional(),
+
   ALTLAYER_8004SCAN_API_KEY: z.string().optional(),
 });
 

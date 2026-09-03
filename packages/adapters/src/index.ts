@@ -14,6 +14,7 @@ import { Erc8183EscrowClient } from './chain/erc8183-escrow.js';
 import { X402PaymentClient } from './chain/x402-payment.js';
 import { HttpProbeClient } from './probe/http-probe.js';
 import { AnvilForkProvider } from './shadow/anvil-fork.js';
+import { RpcGateway } from './shadow/rpc-gateway.js';
 import { InMemoryEgressGuard } from './shadow/egress-guard.js';
 import {
   AltanaWalletProvider,
@@ -37,6 +38,7 @@ export {
   type CardResolverOptions,
 } from './catalog/card-resolver.js';
 export { HttpProbeClient, extractSseData, type ProbeOptions } from './probe/http-probe.js';
+export { RpcGateway, type RpcGatewayOptions, type RpcRoute } from './shadow/rpc-gateway.js';
 export {
   checkArchiveRpc,
   checkAuditionPreconditions,
@@ -126,13 +128,29 @@ export interface Adapters {
    */
   readonly wallet: () => WalletProvider;
   readonly fork: AnvilForkProvider;
+  /**
+   * Publishes each fork's RPC under a per-run token. Exposed so the worker can
+   * mount it on the port its host actually publishes - the gateway needs a
+   * public port, and the worker owns the only one.
+   */
+  readonly rpcGateway: RpcGateway;
   readonly egress: InMemoryEgressGuard;
   /** No-op until ALTLAYER_8004SCAN_API_KEY is set. Never gates the catalog. */
   readonly crossRef: CrossReferenceSource;
 }
 
-export function buildAdapters(cfg: BenchConfig): Adapters {
+/**
+ * @param gateway Injected rather than built here because the worker has to
+ * mount it on its HTTP server, and that server starts before this runs - it
+ * has to answer "the process is up" while a bad DATABASE_URL is still hanging.
+ * Passing one guarantees the fork provider and the HTTP server share a route
+ * table; two would mean tokens that resolve on one and 404 on the other.
+ */
+export function buildAdapters(cfg: BenchConfig, gateway?: RpcGateway): Adapters {
+  const rpcGateway = gateway ?? new RpcGateway({ publicBaseUrl: cfg.BENCH_PUBLIC_RPC_BASE_URL });
+
   return {
+    rpcGateway,
     registry: new Erc8004RegistryClient({
       chain: cfg.BENCH_CHAIN,
       rpcUrl: rpcUrlFor(cfg),
@@ -152,7 +170,7 @@ export function buildAdapters(cfg: BenchConfig): Adapters {
     payment: new X402PaymentClient(),
     escrow: new Erc8183EscrowClient(),
     wallet: () => buildWallet(cfg),
-    fork: new AnvilForkProvider(),
+    fork: new AnvilForkProvider({ gateway: rpcGateway }),
     egress: new InMemoryEgressGuard({
       budgetUsd: cfg.SHADOW_EGRESS_BUDGET_USD,
       allowlist: cfg.SHADOW_EGRESS_ALLOWLIST,

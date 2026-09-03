@@ -73,6 +73,7 @@ const run = (id: string, a: AgentId, over: Partial<ShadowRun> = {}): ShadowRun =
   startedAt: new Date('2026-08-10T00:00:00.000Z'),
   finishedAt: new Date('2026-08-10T01:00:00.000Z'),
   egressSpentUsd: 0.42,
+  gasSpentUsd: 0.11,
   ...over,
 });
 

@@ -69,6 +69,15 @@ export interface ShadowRun {
   readonly finishedAt: Date | null;
   /** Real money spent on the agent's outbound x402 data calls during the run. */
   readonly egressSpentUsd: number;
+  /**
+   * Gas the agent's transactions burned during the run, valued in USD.
+   *
+   * Separate from egress because they are different costs with different
+   * reliability: gas is measured from the receipts of transactions this system
+   * executed, egress is metered only for in-process agents. Reported as the
+   * cost an agent's advantage has to beat.
+   */
+  readonly gasSpentUsd: number;
   readonly failureReason?: string;
 }
 

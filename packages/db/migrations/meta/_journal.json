@@ -36,6 +36,13 @@
       "when": 1788437225541,
       "tag": "0004_score_dollar_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788453161766,
+      "tag": "0005_run_gas_cost",
+      "breakpoints": true
     }
   ]
 }

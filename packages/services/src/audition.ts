@@ -54,6 +54,26 @@ export interface AuditionResult {
   readonly failureReason?: string;
   /** Real money this agent spent reaching the network during its audition. */
   readonly egressSpentUsd: number;
+  /**
+   * Gas the agent's transactions burned, valued in USD.
+   *
+   * The real cost of running an agent, and the number its advantage has to
+   * beat. `egressSpentUsd` alone was reported as "cost" and is zero for every
+   * remote agent - the shim calls the endpoint directly rather than through
+   * the meter - so the required with-agent/without-agent cost comparison was
+   * being made against zero.
+   */
+  readonly gasSpentUsd: number;
+  /**
+   * Worst peak-to-trough decline observed during the run, in USD.
+   *
+   * Sampled after every transaction rather than derived from the endpoints, so
+   * a position that dipped and recovered is not reported as having been calm.
+   */
+  readonly maxDrawdownUsd: number;
+  /** Measured around this agent's run alone, not the batch it was part of. */
+  readonly startedAt: Date;
+  readonly finishedAt: Date;
 }
 
 export interface AuditionReport {
@@ -188,9 +208,41 @@ export class AuditionRunner {
     });
     const actions: InterceptedAction[] = [];
 
+    /**
+     * True peak-to-trough across the run, not the net change.
+     *
+     * `maxDrawdownUsd` used to be computed as `opened - terminal`, which is the
+     * net decline: an agent that took the position down 50% and recovered
+     * recorded a drawdown of zero, and the number was rendered as "Max
+     * drawdown" to judges who trade for a living. Sampling after each action
+     * is what makes it the quantity its name claims - and each sample is one
+     * read against a local anvil, so the cost is negligible next to the
+     * transaction that triggered it.
+     */
+    let peakUsd = 0;
+    let troughGapUsd = 0;
+    let sampling: Promise<void> = Promise.resolve();
+    const sample = (): void => {
+      sampling = sampling.then(async () => {
+        try {
+          const now = await fork.terminalState(req.position);
+          if (now.valueUsd > peakUsd) peakUsd = now.valueUsd;
+          const gap = peakUsd - now.valueUsd;
+          if (gap > troughGapUsd) troughGapUsd = gap;
+        } catch {
+          // A read that fails mid-run must not fail the audition. The samples
+          // that did land still bound the drawdown from below.
+        }
+      });
+    };
+
     try {
-      fork.onAction((a) => actions.push(a));
+      fork.onAction((a) => {
+        actions.push(a);
+        sample();
+      });
       const seeded = await fork.seedPosition(req.position);
+      peakUsd = seeded.openedAt.valueUsd;
 
       let failed = false;
       let failureReason: string | undefined;
@@ -198,6 +250,13 @@ export class AuditionRunner {
       // Scoped to this agent's run, so one agent cannot spend another's budget
       // and the recorded total is attributable.
       const runId = `${hash}:${agent.id}`;
+
+      // Measured around this agent alone. The audition service used to stamp
+      // one `startedAt` before the whole batch and one `finishedAt` after it,
+      // so six agents each reported the batch's wall-clock as their own time -
+      // and time is one of the three dimensions the TermiX report is required
+      // to compare.
+      const startedAt = new Date();
 
       try {
         await withTimeout(
@@ -220,7 +279,26 @@ export class AuditionRunner {
         failureReason = redactError(err);
       }
 
+      const finishedAt = new Date();
+      // Let any sampling started by a late action finish before the verdict.
+      await sampling;
       const terminal = await fork.terminalState(req.position);
+      if (terminal.valueUsd > peakUsd) peakUsd = terminal.valueUsd;
+      if (peakUsd - terminal.valueUsd > troughGapUsd) troughGapUsd = peakUsd - terminal.valueUsd;
+
+      /**
+       * Gas, priced in the same unit of account as the position.
+       *
+       * `nativePriceUsd` is pinned on the window rather than fetched, which is
+       * what makes two agents in the same audition comparable: a price that
+       * moved between two runs would show up as one agent outperforming the
+       * other. Missing it yields zero rather than a guess.
+       */
+      const gasUsed = actions.reduce((a, x) => a + x.simulated.gasUsed, 0n);
+      const declaredPrice = req.position.params['nativePriceUsd'];
+      const nativePriceUsd = typeof declaredPrice === 'number' ? declaredPrice : 0;
+      const gasPriceWei = gasUsed === 0n ? 0n : await fork.gasPriceWei();
+      const gasSpentUsd = (Number(gasUsed * gasPriceWei) / 1e18) * nativePriceUsd;
 
       return {
         agentId: agent.id,
@@ -229,10 +307,14 @@ export class AuditionRunner {
         terminal,
         actions,
         deltaVsDoNothingUsd: terminal.valueUsd - doNothing.valueUsd,
+        maxDrawdownUsd: troughGapUsd,
+        startedAt,
+        finishedAt,
         replayHash: hash,
         failed,
         ...(failureReason === undefined ? {} : { failureReason }),
         egressSpentUsd: this.deps.egress === undefined ? 0 : await this.deps.egress.spent(runId),
+        gasSpentUsd,
       };
     } finally {
       await fork.destroy();

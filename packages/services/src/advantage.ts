@@ -45,6 +45,9 @@ export interface AdvantageTask {
     readonly durationMs: number | null;
     /** Real money: the agent's outbound x402 data calls during the run. */
     readonly costUsd: number;
+    /** Gas, split out: it is measured, where egress is metered only in-process. */
+    readonly gasUsd: number;
+    readonly egressUsd: number;
     /** The outputs, attached. Every transaction it tried to make. */
     readonly actions: readonly {
       readonly seq: number;
@@ -96,7 +99,17 @@ const selectorOf = (data: string): string =>
 function toTask(e: AuditionEvidence): AdvantageTask {
   const terminalUsd = e.outcome.terminal.valueUsd;
   const delta = e.outcome.deltaVsDoNothingUsd;
-  const costUsd = e.run.egressSpentUsd;
+  /**
+   * What running the agent actually cost.
+   *
+   * Gas plus metered egress, not egress alone. Egress is zero for every remote
+   * agent - the A2A and MCP shims call the endpoint directly rather than
+   * through the meter - so `agentWon: delta > costUsd` was `0 > 0` and the
+   * required cost comparison was being made against nothing. Gas is measured
+   * from the receipts of the transactions this system executed, so it is the
+   * one cost an audition can state without qualification.
+   */
+  const costUsd = e.run.gasSpentUsd + e.run.egressSpentUsd;
   const started = e.run.startedAt?.getTime();
   const finished = e.run.finishedAt?.getTime();
 
@@ -114,6 +127,8 @@ function toTask(e: AuditionEvidence): AdvantageTask {
       actionCount: e.outcome.actionCount,
       maxDrawdownUsd: e.outcome.maxDrawdownUsd,
       durationMs: started === undefined || finished === undefined ? null : finished - started,
+      gasUsd: e.run.gasSpentUsd,
+      egressUsd: e.run.egressSpentUsd,
       costUsd,
       actions: e.actions.map((a) => ({
         seq: a.seq,

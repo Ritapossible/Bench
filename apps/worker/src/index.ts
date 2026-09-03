@@ -10,6 +10,7 @@ import {
 } from '@bench/adapters';
 import { loadConfig, requireArchiveRpc } from '@bench/config';
 import { redactError, redactSecrets } from '@bench/core';
+import { RpcGateway } from '@bench/adapters';
 import {
   PgAuditionStore,
   PgCatalogRepository,
@@ -56,7 +57,19 @@ async function main(): Promise<void> {
   // Before the first network call, so a worker that then hangs on a bad
   // DATABASE_URL still answers "the process is up, no queue has ticked"
   // rather than nothing at all.
-  const { heartbeat, server: health } = startHealthServer(Number(process.env['PORT'] ?? 8080));
+  /**
+   * The audition gateway shares the worker's one public port.
+   *
+   * A container host publishes a single port. Binding a fresh public port per
+   * fork works on a laptop and nowhere this runs, so `/rpc/<token>` is served
+   * alongside `/health` and routed to the right loopback interceptor.
+   */
+  const rpcGateway = new RpcGateway({ publicBaseUrl: cfg.BENCH_PUBLIC_RPC_BASE_URL });
+
+  const { heartbeat, server: health } = startHealthServer(
+    Number(process.env['PORT'] ?? 8080),
+    (req, res) => rpcGateway.handle(req, res),
+  );
 
   // Migrations before anything opens a pool. The worker boots ahead of the web
   // app in every deployment ordering worth having, so this is the one process
@@ -68,7 +81,7 @@ async function main(): Promise<void> {
   const db = createDb(cfg.DATABASE_URL);
   const repo = new PgCatalogRepository(db);
   const audition = new PgAuditionStore(db);
-  const adapters = buildAdapters(cfg);
+  const adapters = buildAdapters(cfg, rpcGateway);
   const redis = redisOptionsFrom(cfg.REDIS_URL);
 
   const indexer = new Indexer(adapters.registry, repo, {
@@ -176,6 +189,24 @@ async function main(): Promise<void> {
     console.log(
       '[bench:worker] probe anchoring OFF - needs BENCH_SIGNER_PRIVATE_KEY and ERC8004_VALIDATION_REGISTRY',
     );
+  }
+  /**
+   * The loudest line in this block, because it is the one that made the
+   * product produce nothing while looking healthy.
+   *
+   * Without a public origin, an audition hands a registered agent a loopback
+   * URL it cannot reach. The agent responds, the run completes, and the delta
+   * is zero - not because the agent chose to do nothing, but because it was
+   * never given a chain it could touch. Every score was that zero.
+   */
+  if (auditionService !== null && !rpcGateway.publiclyRoutable) {
+    console.warn(
+      '[bench:worker] BENCH_PUBLIC_RPC_BASE_URL is not set - auditions will hand agents a ' +
+        'loopback RPC they cannot reach, so every agent will measure exactly $0.00 whatever ' +
+        "it would have done. Set it to this service's public origin.",
+    );
+  } else if (auditionService !== null) {
+    console.log(`[bench:worker] audition RPC published at ${cfg.BENCH_PUBLIC_RPC_BASE_URL}/rpc/…`);
   }
   if (adapters.egress === undefined || cfg.SHADOW_EGRESS_ALLOWLIST.length === 0) {
     console.log(

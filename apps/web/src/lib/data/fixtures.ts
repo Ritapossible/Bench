@@ -537,6 +537,7 @@ export const fixtureData: BenchData = {
           startedAt: new Date(now().getTime() - (3 - i) * 86_400_000),
           finishedAt: new Date(now().getTime() - (3 - i) * 86_400_000 + 3_600_000),
           egressSpentUsd: 0.42,
+          gasSpentUsd: 0.11,
         }))
       : [];
 

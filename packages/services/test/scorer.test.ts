@@ -33,6 +33,7 @@ const run = (id: string, at: Date, capitalWhole: bigint): ShadowRun => ({
   startedAt: at,
   finishedAt: at,
   egressSpentUsd: 0,
+  gasSpentUsd: 0,
 });
 
 const outcome = (runId: string, delta: number): OutcomeRecord => ({

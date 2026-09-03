@@ -89,6 +89,7 @@ export class PgAuditionStore implements AuditionStore {
           startedAt: run.startedAt,
           finishedAt: run.finishedAt,
           egressSpentUsd: run.egressSpentUsd,
+          gasSpentUsd: run.gasSpentUsd,
           failureReason: run.failureReason ?? null,
         })
         .onConflictDoUpdate({
@@ -98,6 +99,7 @@ export class PgAuditionStore implements AuditionStore {
             startedAt: run.startedAt,
             finishedAt: run.finishedAt,
             egressSpentUsd: run.egressSpentUsd,
+            gasSpentUsd: run.gasSpentUsd,
             failureReason: run.failureReason ?? null,
           },
         });
@@ -150,6 +152,7 @@ export class PgAuditionStore implements AuditionStore {
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
       egressSpentUsd: run.egressSpentUsd,
+      gasSpentUsd: run.gasSpentUsd,
       ...(run.failureReason === null ? {} : { failureReason: run.failureReason }),
     }));
   }
@@ -276,6 +279,7 @@ export class PgAuditionStore implements AuditionStore {
           startedAt: run.startedAt,
           finishedAt: run.finishedAt,
           egressSpentUsd: run.egressSpentUsd,
+          gasSpentUsd: run.gasSpentUsd,
           ...(run.failureReason === null ? {} : { failureReason: run.failureReason }),
         },
         outcome: {

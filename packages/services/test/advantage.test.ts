@@ -24,6 +24,7 @@ const evidence = (over: Partial<AuditionEvidence> = {}): AuditionEvidence => ({
     startedAt: new Date('2026-09-03T10:00:00Z'),
     finishedAt: new Date('2026-09-03T10:00:42Z'),
     egressSpentUsd: 0.02,
+    gasSpentUsd: 0.31,
   },
   outcome: {
     runId: 'run-1',

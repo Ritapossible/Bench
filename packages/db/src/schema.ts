@@ -157,6 +157,9 @@ export const shadowRuns = pgTable(
     startedAt: timestamp('started_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
     egressSpentUsd: doublePrecision('egress_spent_usd').notNull().default(0),
+    // Gas the agent burned, priced in the window's unit of account. The cost
+    // its advantage has to beat, and previously not counted at all.
+    gasSpentUsd: doublePrecision('gas_spent_usd').notNull().default(0),
     failureReason: text('failure_reason'),
   },
   (t) => [index('runs_agent_window_idx').on(t.agentId, t.windowId)],

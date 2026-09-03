@@ -93,6 +93,9 @@ class FakeForks implements ForkProvider {
         };
       },
       onAction() {},
+      async gasPriceWei(): Promise<bigint> {
+        return 0n;
+      },
       async terminalState() {
         return { valueUsd: values[n] ?? 10_000, detail: {} };
       },
@@ -186,6 +189,7 @@ describe('AuditionService', () => {
       startedAt: new Date(),
       finishedAt: new Date(),
       egressSpentUsd: 0,
+      gasSpentUsd: 0,
     };
     const store = new StubStore([recent]);
     const r = await build([agent(1n)], store, new FakeForks([10_000])).tick(window_, position);
@@ -256,6 +260,7 @@ describe('AuditionService skip reasons', () => {
       startedAt: new Date(),
       finishedAt: new Date(),
       egressSpentUsd: 0,
+      gasSpentUsd: 0,
     };
     // Agent-aware: the shared stub returns the same run for every agent, which
     // would make all three read as recently audited and hide the reason under

@@ -204,9 +204,14 @@ export class AuditionService {
         window,
         position,
         status: result.failed ? 'failed' : 'complete',
-        startedAt: now,
-        finishedAt: this.now(),
+        // The runner's own measurement of this agent, not the batch's. These
+        // were one timestamp taken before the batch and one after it, so every
+        // agent in a batch of six reported the same inflated duration - and
+        // duration is one of the three dimensions TermiX asks us to compare.
+        startedAt: result.startedAt,
+        finishedAt: result.finishedAt,
         egressSpentUsd: result.egressSpentUsd,
+        gasSpentUsd: result.gasSpentUsd,
         ...(result.failureReason === undefined ? {} : { failureReason: result.failureReason }),
       };
 
@@ -220,7 +225,10 @@ export class AuditionService {
           deltaVsDoNothingUsd: result.deltaVsDoNothingUsd,
           deltaVsPeerMedianUsd:
             report.peerMedianUsd === null ? null : result.terminal.valueUsd - report.peerMedianUsd,
-          maxDrawdownUsd: Math.max(0, result.opened.valueUsd - result.terminal.valueUsd),
+          // Sampled peak-to-trough from the runner. This was
+          // `opened - terminal`, the net decline, which reported an agent that
+          // halved the position and recovered as having no drawdown at all.
+          maxDrawdownUsd: result.maxDrawdownUsd,
           actionCount: result.actions.length,
         },
         report.replayHash,

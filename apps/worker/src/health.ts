@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { redactSecrets } from '@bench/core';
 
@@ -116,7 +116,22 @@ function authorized(req: { headers: Record<string, unknown>; url?: string | unde
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export function startHealthServer(port: number): { heartbeat: Heartbeat; server: Server } {
+/**
+ * Something else that wants requests on this port.
+ *
+ * The worker gets one public port from its host, and the audition gateway
+ * needs it too - a fork's RPC has to be reachable by an agent that is not on
+ * this machine. Returning true means the request was handled.
+ */
+export type ExtraHandler = (
+  req: IncomingMessage,
+  res: ServerResponse,
+) => boolean | Promise<boolean>;
+
+export function startHealthServer(
+  port: number,
+  extra?: ExtraHandler,
+): { heartbeat: Heartbeat; server: Server } {
   const startedAt = Date.now();
   const queues = new Map<string, QueueState>();
   const stateFor = (q: string): QueueState => {
@@ -171,6 +186,25 @@ export function startHealthServer(port: number): { heartbeat: Heartbeat; server:
   const idleStreak = new Map<string, number>();
 
   const server = createServer((req, res) => {
+    if (extra !== undefined) {
+      void (async () => {
+        try {
+          if (await extra(req, res)) return;
+        } catch {
+          if (!res.headersSent) {
+            res.writeHead(500, { 'content-type': 'application/json' });
+            res.end('{"error":"handler failed"}');
+          }
+          return;
+        }
+        respondHealth(req, res);
+      })();
+      return;
+    }
+    respondHealth(req, res);
+  });
+
+  function respondHealth(req: IncomingMessage, res: ServerResponse): void {
     const now = Date.now();
     const detailed = authorized(req);
     const stalled = [...idleStreak.entries()].filter(([, n]) => n >= IDLE_STREAK_ALERT);
@@ -210,10 +244,9 @@ export function startHealthServer(port: number): { heartbeat: Heartbeat; server:
     };
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify(body, null, 2));
-    // Nothing routes: every path answers the same thing, so a host that is
+    // Every path that is not claimed above answers the same thing, so a host
     // configured to check `/` and one configured to check `/health` both work.
-    void req;
-  });
+  }
 
   // A port already in use is a local-development annoyance, not a reason to
   // ground the worker - the queues are the product, this is instrumentation.

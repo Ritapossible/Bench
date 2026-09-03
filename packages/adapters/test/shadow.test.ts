@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { execSync } from 'node:child_process';
 import { replayHash, type InterceptedAction, type PositionTemplate } from '@bench/core';
 import {
   createWalletClient,
@@ -13,15 +12,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { AnvilForkProvider } from '../src/shadow/anvil-fork.js';
 import { controllerFor } from '../src/shadow/seeders.js';
 import { decodeAction, KNOWN_SELECTORS } from '../src/shadow/tx-decode.js';
-
-const anvilAvailable = (): boolean => {
-  try {
-    execSync(`${process.env['ANVIL_BINARY'] ?? 'anvil'} --version`, { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
-};
+import { anvilAvailable } from './helpers/anvil.js';
 
 const WINDOW = {
   id: 'test-window',

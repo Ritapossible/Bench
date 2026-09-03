@@ -27,6 +27,19 @@ export interface ForkHandle {
   /** Called for every intercepted, simulated, never-broadcast transaction. */
   onAction(cb: (a: InterceptedAction) => void): void;
   terminalState(t: PositionTemplate): Promise<TerminalState>;
+  /**
+   * The fork's gas price, in wei.
+   *
+   * Needed because gas is the cost the agent's advantage has to beat, and it
+   * was not being counted. The TermiX report is required to compare agent
+   * against no-agent on time, cost and output quality, and `cost` was the
+   * egress meter alone - which is zero for every remote agent, since the shim
+   * calls the endpoint directly rather than through the meter. So the report
+   * asked "did the agent beat doing nothing net of cost" against a cost of
+   * exactly zero, and gas - the one real cost an audition can measure - was
+   * not in it.
+   */
+  gasPriceWei(): Promise<bigint>;
   destroy(): Promise<void>;
 }
 

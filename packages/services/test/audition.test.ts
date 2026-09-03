@@ -8,6 +8,7 @@ import {
   type ForkHandle,
   type ForkProvider,
   type Hex,
+  type InterceptedAction,
   type PositionTemplate,
   type SeededPosition,
   type SpawnForkOptions,
@@ -76,6 +77,9 @@ class FakeForks implements ForkProvider {
       // The runner registers a listener; these fakes emit no actions, so it is
       // accepted and dropped rather than stored.
       onAction() {},
+      async gasPriceWei(): Promise<bigint> {
+        return 1_000_000_000n;
+      },
       async terminalState(): Promise<TerminalState> {
         return { valueUsd: values[n] ?? 10_000, detail: {} };
       },
@@ -128,9 +132,12 @@ const agent = (id: string, run?: (ctx: ShadowAgentContext) => Promise<void>): Sh
   run: run ?? (async () => {}),
 });
 
-const request = (agents: readonly ShadowAgent[]) => ({
+const request = (agents: readonly ShadowAgent[], nativePriceUsd?: number) => ({
   window: window_,
-  position,
+  position:
+    nativePriceUsd === undefined
+      ? position
+      : { ...position, params: { ...position.params, nativePriceUsd } },
   agents,
   archiveRpcUrl: 'http://archive.invalid',
   agentTimeoutMs: 1_000,
@@ -318,5 +325,123 @@ describe('AuditionRunner', () => {
       expect(report.results.every((r) => !r.failed)).toBe(true);
       expect(report.results.map((r) => r.egressSpentUsd)).toEqual([0.6, 0.6]);
     });
+  });
+});
+
+/**
+ * A fork that emits actions and moves its position, so the numbers the TermiX
+ * report compares can be checked against something other than zero.
+ */
+class ScriptedFork implements ForkProvider {
+  spawned = 0;
+  /** Emit callbacks by spawn index, so a test body can fire an action. */
+  readonly emitters = new Map<number, (a: InterceptedAction) => void>();
+
+  constructor(private readonly path: readonly number[]) {}
+
+  async spawn(): Promise<ForkHandle> {
+    const n = this.spawned;
+    this.spawned += 1;
+    const path = this.path;
+    const emitters = this.emitters;
+    let reads = 0;
+
+    return {
+      id: `fork_${n}`,
+      rpcUrl: `http://127.0.0.1:${9100 + n}`,
+      async seedPosition(): Promise<SeededPosition> {
+        return { controller: CONTROLLER, openedAt: { valueUsd: path[0] ?? 0, detail: {} } };
+      },
+      onAction(cb) {
+        emitters.set(n, cb);
+      },
+      async gasPriceWei(): Promise<bigint> {
+        return 1_000_000_000n; // 1 gwei
+      },
+      async terminalState(): Promise<TerminalState> {
+        // The baseline fork is spawned first and never moves.
+        if (n === 0) return { valueUsd: path[0] ?? 0, detail: {} };
+        const v = path[Math.min(reads + 1, path.length - 1)] ?? 0;
+        reads += 1;
+        return { valueUsd: v, detail: {} };
+      },
+      async destroy() {},
+    };
+  }
+
+  replayHash(): Hex {
+    return `0x${'cd'.repeat(32)}` as Hex;
+  }
+}
+
+const action = (seq: number, gasUsed: bigint): InterceptedAction => ({
+  seq,
+  at: new Date(),
+  to: `0x${'22'.repeat(20)}`,
+  value: 0n,
+  data: '0x',
+  decoded: null,
+  simulated: { success: true, gasUsed },
+});
+
+describe('the three numbers TermiX asks us to compare', () => {
+  it('measures time around the agent, not around the batch it was in', async () => {
+    // Six agents in a batch each reported the batch's whole wall-clock as
+    // their own duration, because the service stamped one timestamp before the
+    // batch and one after it. Two agents, one slow: the durations must differ.
+    const report = await new AuditionRunner({ forks: new FakeForks([10_000, 10_000, 10_000]) }).run(
+      request([
+        agent('quick', async () => {}),
+        agent('slow', async () => {
+          await new Promise((r) => setTimeout(r, 120));
+        }),
+      ]),
+    );
+
+    const [quick, slow] = report.results;
+    expect(quick!.finishedAt.getTime() - quick!.startedAt.getTime()).toBeLessThan(100);
+    expect(slow!.finishedAt.getTime() - slow!.startedAt.getTime()).toBeGreaterThanOrEqual(100);
+  });
+
+  it('prices the gas the agent burned, so cost is not structurally zero', async () => {
+    // `costUsd` was the egress meter alone - zero for every remote agent,
+    // because the shims call the endpoint directly rather than through it. So
+    // "did the agent beat doing nothing net of cost" was decided against zero.
+    const forks = new ScriptedFork([10_000, 10_000]);
+    const report = await new AuditionRunner({ forks }).run(
+      request(
+        [
+          agent('spender', async () => {
+            // Fork 0 is the baseline; this agent runs on fork 1.
+            forks.emitters.get(1)?.(action(1, 100_000n));
+          }),
+        ],
+        // 1 gwei * 100,000 gas = 1e14 wei = 0.0001 native, at $600 = $0.06.
+        600,
+      ),
+    );
+
+    expect(report.results[0]?.gasSpentUsd).toBeCloseTo(0.06, 6);
+  });
+
+  it('reports the worst dip, not the net change', async () => {
+    // `opened - terminal` reported an agent that halved the position and
+    // recovered as having no drawdown at all, under the label "Max drawdown",
+    // to judges who trade for a living.
+    const forks = new ScriptedFork([10_000, 6_000, 10_000]);
+    const report = await new AuditionRunner({ forks }).run(
+      request([
+        agent('dipper', async () => {
+          forks.emitters.get(1)?.(action(1, 0n));
+          await new Promise((r) => setTimeout(r, 10));
+        }),
+      ]),
+    );
+
+    const r = report.results[0];
+    // Ends where it started, so the net change is zero...
+    expect(r?.terminal.valueUsd).toBe(10_000);
+    // ...but it was $4,000 down on the way, and that is what is reported.
+    expect(r?.maxDrawdownUsd).toBeCloseTo(4_000, 0);
   });
 });

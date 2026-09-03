@@ -14,6 +14,7 @@ import {
 } from '@bench/core';
 import { startAnvil, type AnvilHandle } from './anvil-process.js';
 import { startInterceptor, type InterceptorHandle } from './interceptor.js';
+import type { RpcGateway, RpcRoute } from './rpc-gateway.js';
 import {
   controllerFor,
   DEFAULT_SEEDERS,
@@ -52,6 +53,13 @@ export interface AnvilForkProviderOptions {
    * always forks — a bare chain has no position to mirror.
    */
   readonly forkless?: boolean;
+  /**
+   * Publishes each fork's interceptor under a per-run token so an agent that
+   * is not on this host can reach it. Absent means loopback URLs, which is
+   * right for tests and local development and cannot work against a real
+   * registered agent.
+   */
+  readonly gateway?: RpcGateway;
 }
 
 class AnvilForkHandle implements ForkHandle {
@@ -63,13 +71,30 @@ class AnvilForkHandle implements ForkHandle {
     readonly id: string,
     private readonly anvil: AnvilHandle,
     private readonly interceptor: InterceptorHandle,
+    /**
+     * The public route to this fork's interceptor, when one was published.
+     *
+     * Held so `destroy` can withdraw it: a route that outlives its fork is a
+     * URL pointing at a port that has been reused, and the whole reason the
+     * token is per-run is that it stops working when the run does.
+     */
+    private readonly route: RpcRoute | null,
+    private readonly gateway: RpcGateway | null,
     private readonly seeders: readonly PositionSeeder[],
     private readonly controller: Address,
   ) {}
 
-  /** The agent's RPC: the interceptor, never anvil directly. */
+  /**
+   * The agent's RPC: the interceptor, never anvil directly, and never the
+   * loopback address when a public route exists.
+   *
+   * This getter returned `interceptor.url` - `http://127.0.0.1:<port>` - and
+   * that string was POSTed to agents on other people's infrastructure, which
+   * could not reach it. No remote agent could transact, so every measured
+   * delta was structurally zero.
+   */
   get rpcUrl(): string {
-    return this.interceptor.url;
+    return this.route?.url ?? this.interceptor.url;
   }
 
   /** Bench's own RPC: anvil directly, so seeding is not recorded as agent activity. */
@@ -128,11 +153,26 @@ class AnvilForkHandle implements ForkHandle {
     return this.#seederFor(t.kind).read(this.#ctx(), t);
   }
 
+  async gasPriceWei(): Promise<bigint> {
+    this.#assertLive();
+    // Read from anvil directly, not through the interceptor: this is Bench
+    // asking, not the agent, and it should not appear in the agent's trace.
+    const res = await fetch(this.anvil.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_gasPrice', params: [] }),
+    });
+    const body = (await res.json()) as { result?: string };
+    return body.result === undefined ? 0n : BigInt(body.result);
+  }
+
   async destroy(): Promise<void> {
     if (this.#destroyed) return;
     this.#destroyed = true;
-    // Interceptor first: closing anvil underneath a live proxy turns an
-    // orderly shutdown into a pile of ECONNREFUSED in the agent's logs.
+    // Route first, then interceptor, then anvil: withdrawing the public token
+    // before anything stops answering means a late request from the agent gets
+    // a clean "no such audition" instead of a proxy error naming a local port.
+    if (this.route !== null) this.gateway?.unregister(this.route.token);
     await this.interceptor.close();
     await this.anvil.stop();
   }
@@ -163,16 +203,25 @@ export class AnvilForkProvider implements ForkProvider {
 
     let handle: AnvilForkHandle | undefined;
     let interceptor: InterceptorHandle | undefined;
+    let route: RpcRoute | null = null;
     try {
       interceptor = await startInterceptor({
         upstreamUrl: anvil.url,
         onAction: (a) => handle?.dispatch(a),
       });
 
+      const forkId = `fork_${window.id}_${anvil.port}`;
+      // Published under a fresh per-run token when a gateway exists, so an
+      // agent elsewhere can reach this fork - and only this one, and only
+      // until it is destroyed.
+      route = this.opts.gateway?.register(interceptor.url, forkId) ?? null;
+
       handle = new AnvilForkHandle(
-        `fork_${window.id}_${anvil.port}`,
+        forkId,
         anvil,
         interceptor,
+        route,
+        this.opts.gateway ?? null,
         this.opts.seeders ?? DEFAULT_SEEDERS,
         controller,
       );
@@ -193,7 +242,9 @@ export class AnvilForkProvider implements ForkProvider {
 
       return handle;
     } catch (err) {
-      // Never leave a node behind because construction failed halfway.
+      // Never leave a node - or a live public route - behind because
+      // construction failed halfway.
+      if (route !== null) this.opts.gateway?.unregister(route.token);
       await interceptor?.close();
       await anvil.stop();
       throw err;
