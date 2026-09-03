@@ -614,6 +614,14 @@ export const fixtureData: BenchData = {
     };
   },
 
+  /**
+   * Fixtures answer immediately, so requesting and reading are the same thing.
+   * There is no queue behind them and no fork to run.
+   */
+  async requestReport(address): Promise<AddressReportResult> {
+    return fixtureData.reportForAddress(address);
+  },
+
   async reportForAddress(address): Promise<AddressReportResult> {
     if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return { status: 'invalid-address' };
     // Fixtures have no chain to read, so there is no real position to attach.

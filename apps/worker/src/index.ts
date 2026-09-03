@@ -1,6 +1,9 @@
 import {
   A2AShadowAgent,
   auditionWindows,
+  BscPositionReader,
+  mirrorPosition,
+  reportWindowFor,
   buildAdapters,
   checkArchiveRpc,
   checkAuditionPreconditions,
@@ -14,6 +17,7 @@ import { RpcGateway } from '@bench/adapters';
 import {
   PgAuditionStore,
   PgCatalogRepository,
+  PgReportStore,
   createDb,
   migrationUrl,
   runMigrations,
@@ -81,6 +85,19 @@ async function main(): Promise<void> {
   const db = createDb(cfg.DATABASE_URL);
   const repo = new PgCatalogRepository(db);
   const audition = new PgAuditionStore(db);
+  const reportStore = new PgReportStore(db);
+
+  /**
+   * Positions are read from mainnet even when the catalog is testnet.
+   *
+   * Same reasoning as the web app's reader: the catalog answers which agents
+   * are registered, and for judging that is testnet; a reader pasting their
+   * address is asking about money they actually hold, which is on mainnet.
+   */
+  const positions = new BscPositionReader({
+    chain: 'bsc-mainnet',
+    rpcUrl: cfg.BSC_MAINNET_RPC_URL ?? 'https://bsc-dataseed.bnbchain.org',
+  });
   const adapters = buildAdapters(cfg, rpcGateway);
   const redis = redisOptionsFrom(cfg.REDIS_URL);
 
@@ -235,6 +252,7 @@ async function main(): Promise<void> {
     new Queue(QUEUE.audition, redis),
     new Queue(QUEUE.scorer, redis),
     new Queue(QUEUE.crossref, redis),
+    new Queue(QUEUE.report, redis),
   ];
 
   const workers = [
@@ -315,6 +333,99 @@ async function main(): Promise<void> {
             ? `[bench:anchor] ${r.probeCount} probes → ${r.digest} tx=${r.txHash}`
             : `[bench:anchor] holding, ${r.pending} probes pending`,
         );
+      },
+      { ...redis, concurrency: 1 },
+    ),
+    /**
+     * Auditions against a position a reader pasted, rather than the shared one.
+     *
+     * `/report` read the address from chain and then had nothing to run
+     * against it, so it always answered "position only" and the product's
+     * headline claim lived in the fixtures. This is the half that was missing:
+     * mirror what the address actually holds onto a fork, drive the same
+     * verified-live agents against it, and record the runs under a window
+     * keyed by the address so the page can read them back.
+     */
+    new Worker(
+      QUEUE.report,
+      async () => {
+        if (auditionService === null || archiveRpcUrl === null || reportStore === null) {
+          outcome.set(QUEUE.report, 'nothing-due');
+          return;
+        }
+
+        // A worker that died mid-run leaves a request claimed forever, and the
+        // reader sits on "working on it" - the failure that looks like success.
+        const freed = await reportStore.releaseStale(cfg.BENCH_CHAIN, 10 * 60_000);
+        const req = await reportStore.claimNext(cfg.BENCH_CHAIN);
+        if (req === null) {
+          outcome.set(QUEUE.report, 'nothing-due');
+          lastResult.set(
+            QUEUE.report,
+            `nothing queued${freed > 0 ? ` (freed ${freed} stale)` : ''}`,
+          );
+          return;
+        }
+
+        try {
+          const live = await positions.read(req.address as `0x${string}`);
+          const mirrored = mirrorPosition(
+            {
+              address: live.address,
+              holdings: live.holdings.map((h) => ({
+                token: h.token,
+                symbol: h.symbol,
+                amount: h.amount,
+                valuedUsd: h.usdValue,
+              })),
+              nativeWei: live.holdings.find((h) => h.symbol === 'BNB')?.amount ?? 0n,
+            },
+            cfg.SHADOW_FORK_CHAIN,
+          );
+
+          if (mirrored === null) {
+            // Naming the limit rather than reporting an empty result: "we hold
+            // no slot for your token" and "no agent helped you" are different
+            // answers and the page shows different things for them.
+            await reportStore.finish(cfg.BENCH_CHAIN, req.address, {
+              ok: false,
+              reason:
+                'nothing in this position can be mirrored onto a fork yet - Bench seeds BNB plus ' +
+                'one of USDT, USDC, BUSD, CAKE or WBNB',
+            });
+            outcome.set(QUEUE.report, 'worked');
+            lastResult.set(QUEUE.report, `${req.address.slice(0, 10)}… not mirrorable`);
+            return;
+          }
+
+          const status = await checkArchiveRpc(
+            archiveRpcUrl,
+            cfg.SHADOW_FORK_CHAIN,
+            FORK_LAG_BLOCKS,
+          );
+          const window = reportWindowFor(req.address, forkBlockFor(status.head));
+          const r = await auditionService.tick(window, mirrored.template, { ignoreRecency: true });
+
+          await reportStore.finish(cfg.BENCH_CHAIN, req.address, {
+            ok: true,
+            windowId: window.id,
+            agentsRun: r.succeeded,
+          });
+          outcome.set(QUEUE.report, 'worked');
+          lastResult.set(
+            QUEUE.report,
+            `${req.address.slice(0, 10)}… auditioned=${r.auditioned} ok=${r.succeeded} failed=${r.failed}`,
+          );
+          console.log(`[bench:report] ${req.address} ok=${r.succeeded} failed=${r.failed}`);
+        } catch (err) {
+          await reportStore.finish(cfg.BENCH_CHAIN, req.address, {
+            ok: false,
+            reason: redactError(err),
+          });
+          // Recorded against the request, so the reader sees why rather than
+          // waiting; re-thrown so the queue counts it as a failure too.
+          throw err;
+        }
       },
       { ...redis, concurrency: 1 },
     ),
@@ -472,7 +583,8 @@ async function main(): Promise<void> {
 
   // Repeatable jobs are idempotent by repeat key, so re-adding them on every
   // boot is the intended way to keep the schedule in sync with the code.
-  const [indexQ, probeQ, anchorQ, auditionQ, scorerQ, crossrefQ] = queues as [
+  const [indexQ, probeQ, anchorQ, auditionQ, scorerQ, crossrefQ, reportQ] = queues as [
+    Queue,
     Queue,
     Queue,
     Queue,
@@ -487,8 +599,12 @@ async function main(): Promise<void> {
   }
   await scorerQ.add('tick', {}, repeatOpts(CADENCE_MS.scorer));
   await crossrefQ.add('tick', {}, repeatOpts(CADENCE_MS.crossref));
+  // Only when auditions can run at all: a report queue without an archive node
+  // would claim requests and fail every one of them, which is worse for the
+  // reader than the page saying up front that it cannot run one.
   if (auditionService !== null) {
     await auditionQ.add('tick', {}, repeatOpts(CADENCE_MS.audition));
+    await reportQ.add('tick', {}, repeatOpts(CADENCE_MS.report));
   }
 
   const registered = [
@@ -496,7 +612,9 @@ async function main(): Promise<void> {
     `prober/${CADENCE_MS.prober}ms`,
     `scorer/${CADENCE_MS.scorer}ms`,
     `crossref/${CADENCE_MS.crossref}ms`,
-    ...(auditionService === null ? [] : [`audition/${CADENCE_MS.audition}ms`]),
+    ...(auditionService === null
+      ? []
+      : [`audition/${CADENCE_MS.audition}ms`, `report/${CADENCE_MS.report}ms`]),
     ...(anchoringConfigured ? [`anchor/${CADENCE_MS.anchor}ms`] : []),
   ];
   console.log(`[bench:worker] queues up - ${registered.join(' ')}`);

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { formatBaseUnits, type LivePosition } from '@bench/core';
 import { data, isLiveData } from '@/lib/data/index';
+import { requestReport } from '@/lib/report/actions';
 import { CATEGORY_LABEL, usd, agentHref } from '@/lib/format';
 
 export const metadata = {
@@ -21,10 +22,12 @@ export default async function ReportPage({
   const report = result?.status === 'ok' ? result.report : null;
   const invalid = result?.status === 'invalid-address';
   const unavailable = result?.status === 'unavailable' ? result.reason : null;
-  // The position is read from chain in both the 'ok' and 'position-only' cases;
-  // what differs is whether anything has been auditioned against it.
+  const queued = result?.status === 'queued' ? result : null;
+  const cannotRun = result?.status === 'cannot-run' ? result : null;
+  // The position is read from chain in every case that has one; what differs is
+  // whether anything has been auditioned against it yet.
   const position =
-    result?.status === 'position-only' ? result.position : (report?.position ?? null);
+    result !== null && 'position' in result ? result.position : (report?.position ?? null);
   const auditioned = result?.status === 'ok';
 
   return (
@@ -86,6 +89,48 @@ export default async function ReportPage({
         ) : null}
 
         {position !== null ? <PositionPanel position={position} auditioned={auditioned} /> : null}
+
+        {/* The action that turns a position into a measurement. Everything
+            above this point is a reading; below it, agents actually run. */}
+        {position !== null && result?.status === 'position-only' ? (
+          <form action={requestReport} className="card stack stack-12">
+            <input type="hidden" name="address" value={address ?? ''} />
+            <h2 className="h3">Audition every live agent against this position</h2>
+            <p className="body">
+              Bench mirrors what this address holds onto a forked chain and hands the same position
+              to every verified-live agent in the catalog, one fork each. Nothing is broadcast and
+              nothing here touches the real position - what comes back is what each agent actually
+              did, measured against the same position left alone.
+            </p>
+            <div>
+              <button className="btn btn-primary" type="submit">
+                Run the audition
+              </button>
+            </div>
+          </form>
+        ) : null}
+
+        {queued !== null ? (
+          // Refreshes itself: the work happens in the worker, and a reader
+          // watching a page should not have to know that.
+          <div className="card stack stack-8">
+            <meta httpEquiv="refresh" content="15" />
+            <p className="quote">Auditioning agents against this position.</p>
+            <p className="body">
+              A fork per agent, seeded with what this address holds. Requested{' '}
+              {queued.requestedAt.toISOString().slice(11, 19)} UTC - this page refreshes itself.
+            </p>
+          </div>
+        ) : null}
+
+        {cannotRun !== null ? (
+          <div className="card stack stack-8">
+            <p className="quote" style={{ borderColor: 'var(--blocked)' }}>
+              This position could not be auditioned.
+            </p>
+            <p className="body">{cannotRun.reason}</p>
+          </div>
+        ) : null}
 
         {!address ? (
           <div className="card stack stack-12">

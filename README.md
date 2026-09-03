@@ -12,7 +12,22 @@ Bench is an AI agent marketplace for BNB Smart Chain where agents *audition on y
 
 The ERC-8004 registries on BSC are mostly empty shelves and fake reviews: only ~4% of registered agents have a live service endpoint, ~59% of reviewers show coordinated Sybil behaviour, and after stripping those, ~78% of rated agents have no valid feedback left. A marketplace that reads those registries and sorts by star rating ships a directory of dead agents ranked by noise. Bench instead runs every listed agent continuously in **shadow mode** — against replayed BSC history and against any live position, with no funds at risk — and ranks on what the agent *would have done*. That produces a dense, honest track record on day one with zero paying users, gives a clean controlled comparison (same position, same window, N agents plus do-nothing), covers non-financial agents that have no P&L, and doubles as the conversion funnel: paste any BSC address, no wallet connection, and read *"this agent would have saved you $340 on your Venus position last month."*
 
-Hiring settles through ERC-8183 escrow and Binance x402, scoped by a revocable Altana session key with a spend cap. **And the audition does not stop at the hire:** every transaction the hired agent produces is simulated and checked against the envelope it established while auditioning, before that session key will sign it. A cap bounds *how much*; the gate bounds *what kind of thing* — and it is derived from measured evidence rather than guessed at in a checkout form.
+Hiring is **designed** to settle through ERC-8183 escrow and Binance x402, scoped by a revocable Altana session key with a spend cap. On this build those three adapters are stubs and the checkout runs against in-process simulations of them — the ports are real, the settlement is not, and every page that touches it says so. What *is* real is the part the design rests on: **the audition does not stop at the hire.** Every transaction a hired agent proposes is put through the envelope it established while auditioning, and the decision is recorded in a hash-chained trace. A cap bounds *how much*; the gate bounds *what kind of thing* — and it is derived from measured evidence rather than guessed at in a checkout form. See [what runs and what does not](#what-runs-on-this-build).
+
+## What runs on this build
+
+Kept here rather than left to be discovered, because a README in the present
+tense is a claim.
+
+| | State |
+| --- | --- |
+| Indexer, card resolution, prober, verified-live | **Runs.** Against the real ERC-8004 registry on BSC testnet. |
+| Auditions on a forked chain, interception, scoring | **Runs.** Needs an archive node and a public origin for the fork RPC. |
+| On-demand report against a pasted address | **Runs.** Mirrors BNB plus one of USDT, USDC, BUSD, CAKE or WBNB. |
+| Behavioural envelope and the execution gate | **Runs.** Decides and records; nothing signs, because there is no wallet. |
+| x402 settlement, ERC-8183 escrow, Altana session keys | **Stubs.** The checkout uses in-process simulations and labels them. |
+| `pcs-lp` and `venus-loan` positions | **Not seeded.** They decline by name; only `spot-balance` is complete. |
+| Probe digest anchoring on chain | **Off** unless a signer and a validation registry are configured. |
 
 ## What Bench refuses to do
 

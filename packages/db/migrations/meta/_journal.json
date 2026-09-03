@@ -43,6 +43,13 @@
       "when": 1788453161766,
       "tag": "0005_run_gas_cost",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788454301445,
+      "tag": "0006_report_requests",
+      "breakpoints": true
     }
   ]
 }

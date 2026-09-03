@@ -195,6 +195,36 @@ export const outcomeRecords = pgTable('outcome_records', {
   attestedTxHash: text('attested_tx_hash'),
 });
 
+/**
+ * A reader asking "what would an agent have done with my position?".
+ *
+ * `/report` read the address from chain and then had nothing to run against
+ * it, so it always answered "position only" - the product's headline claim
+ * existed in fixtures and nowhere else. This is the queue that makes it real:
+ * the page records a request, the worker mirrors the position onto a fork and
+ * auditions the verified-live agents against it, and the page reads back the
+ * runs recorded under that window.
+ *
+ * Keyed by (chain, address) so a second reader asking about the same address
+ * joins the existing answer instead of paying for a second fork.
+ */
+export const reportRequests = pgTable(
+  'report_requests',
+  {
+    chain: text('chain').notNull(),
+    address: text('address').notNull(),
+    /** 'pending' | 'running' | 'complete' | 'failed' */
+    status: text('status').notNull().default('pending'),
+    windowId: text('window_id'),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    agentsRun: integer('agents_run').notNull().default(0),
+    failureReason: text('failure_reason'),
+  },
+  (t) => [primaryKey({ columns: [t.chain, t.address] })],
+);
+
 export const scores = pgTable(
   'scores',
   {

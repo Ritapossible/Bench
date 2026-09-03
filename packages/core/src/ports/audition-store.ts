@@ -82,6 +82,14 @@ export interface AuditionStore {
    * so a reader can check the run rather than take the number on trust.
    */
   completedAuditions(chain: ChainName, limit?: number): Promise<readonly AuditionEvidence[]>;
+  /**
+   * Completed auditions for one window.
+   *
+   * On-demand reports run every agent against a window keyed by the reader's
+   * address, so this is how the page reads back what happened to *their*
+   * position rather than to the shared one.
+   */
+  auditionsForWindow(windowId: string, limit?: number): Promise<readonly AuditionEvidence[]>;
 
   putOutcome(outcome: OutcomeRecord, replayHash: string): Promise<void>;
   /**

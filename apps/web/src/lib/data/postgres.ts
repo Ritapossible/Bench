@@ -9,9 +9,11 @@ import {
   type CatalogStats,
   type ChainName,
   type Score,
+  redactError,
+  type LivePosition,
 } from '@bench/core';
 import { BscPositionReader } from '@bench/adapters';
-import { createDb, PgAuditionStore, PgCatalogRepository } from '@bench/db';
+import { createDb, PgAuditionStore, PgCatalogRepository, PgReportStore } from '@bench/db';
 import { buildAdvantageReport } from '@bench/services';
 import type { AddressReportResult, AgentDetail, AgentSummary, BenchData } from './types';
 
@@ -56,6 +58,7 @@ export function createPgData(connectionString: string): BenchData {
   const catalog = new PgCatalogRepository(db);
   const audition = new PgAuditionStore(db);
   const positions = new BscPositionReader({ chain: 'bsc-mainnet', rpcUrl: POSITION_RPC });
+  const reports = new PgReportStore(db);
 
   /** Attach the newest simulated score to each entry, in one round trip. */
   const withScores = async (entries: readonly CatalogEntry[]): Promise<readonly AgentSummary[]> => {
@@ -72,6 +75,84 @@ export function createPgData(connectionString: string): BenchData {
       score: scores.get(agentKey(entry.record.id)) ?? null,
       failedAuditions: failures.get(agentKey(entry.record.id)) ?? null,
     }));
+  };
+
+  /**
+   * The address report, read and optionally requested.
+   *
+   * This used to return `position-only` unconditionally: the position was read
+   * from chain and there was nothing to run against it, so the product's
+   * headline - "this agent would have saved you $340 on your position" -
+   * existed only in the fixtures. The counterfactual genuinely does require a
+   * run against *this* position, which is why nothing was ever derived from
+   * unrelated auditions; what was missing was the run, and it now exists.
+   */
+  const readReport = async (address: string, enqueue: boolean): Promise<AddressReportResult> => {
+    if (!ADDRESS.test(address)) return { status: 'invalid-address' };
+
+    let position: LivePosition;
+    try {
+      position = await positions.read(address as Address);
+    } catch (err) {
+      return {
+        status: 'unavailable',
+        reason: redactError(err),
+      };
+    }
+
+    const existing = enqueue
+      ? await reports.request(CHAIN, address)
+      : await reports.get(CHAIN, address);
+
+    if (existing === null) return { status: 'position-only', position };
+    if (existing.status === 'failed') {
+      return {
+        status: 'cannot-run',
+        position,
+        reason: existing.failureReason ?? 'the audition could not be completed',
+      };
+    }
+    if (existing.status !== 'complete' || existing.windowId === null) {
+      return { status: 'queued', position, requestedAt: existing.requestedAt };
+    }
+
+    const evidence = await audition.auditionsForWindow(existing.windowId, 50);
+    if (evidence.length === 0) {
+      return {
+        status: 'cannot-run',
+        position,
+        reason:
+          'no agent completed an audition against this position - the catalog has none that ' +
+          'could be driven right now',
+      };
+    }
+
+    const first = evidence[0];
+    return {
+      status: 'ok',
+      report: {
+        position,
+        address,
+        positionLabel: first?.run.position.label ?? 'your position',
+        positionValueUsd: position.valuedUsd,
+        windowLabel: first?.run.window.label ?? 'your position',
+        // Every run in this window shares one baseline, so it is the terminal
+        // value of any of them minus that run's own delta.
+        doNothingUsd:
+          first === undefined
+            ? position.valuedUsd
+            : first.outcome.terminal.valueUsd - first.outcome.deltaVsDoNothingUsd,
+        lines: evidence.map((e) => ({
+          agent: e.run.agent,
+          name: e.agentName ?? `agent ${e.run.agent.tokenId.toString()}`,
+          category: e.category,
+          deltaUsd: e.outcome.deltaVsDoNothingUsd,
+          actionCount: e.outcome.actionCount,
+          verifiedLive: true,
+        })),
+        computedAt: existing.completedAt ?? new Date(),
+      },
+    };
   };
 
   return {
@@ -212,22 +293,11 @@ export function createPgData(connectionString: string): BenchData {
     },
 
     async reportForAddress(address): Promise<AddressReportResult> {
-      if (!ADDRESS.test(address)) return { status: 'invalid-address' };
+      return readReport(address, false);
+    },
 
-      // The position half is a fact, so it is read rather than simulated, and
-      // it is read even when the counterfactual half cannot be produced yet.
-      // The counterfactual is a shadow run against *this* position on a forked
-      // chain, which needs an archive node and a worker; deriving a number from
-      // unrelated auditions instead would look like a result and be a guess.
-      try {
-        const position = await positions.read(address as Address);
-        return { status: 'position-only', position };
-      } catch (err) {
-        return {
-          status: 'unavailable',
-          reason: err instanceof Error ? err.message : 'could not reach a BSC node',
-        };
-      }
+    async requestReport(address): Promise<AddressReportResult> {
+      return readReport(address, true);
     },
   };
 }

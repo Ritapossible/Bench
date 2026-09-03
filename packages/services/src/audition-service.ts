@@ -109,7 +109,18 @@ export class AuditionService {
    * is what makes the comparison controlled rather than a post-hoc delta over
    * whichever agents happened to run when.
    */
-  async tick(window: AuditionWindow, position: PositionTemplate): Promise<AuditionTickResult> {
+  /**
+   * @param opts.ignoreRecency Audition every verified-live agent regardless of
+   * when it last ran. The 24-hour floor exists to stop the shared window
+   * re-auditioning the same agents four times an hour; an on-demand report is
+   * a different position that has never been run, and skipping agents as
+   * "audited recently" would return an empty report to a reader waiting on it.
+   */
+  async tick(
+    window: AuditionWindow,
+    position: PositionTemplate,
+    opts: { readonly ignoreRecency?: boolean } = {},
+  ): Promise<AuditionTickResult> {
     const page = await this.deps.catalog.query({
       chain: this.opts.chain,
       verifiedLiveOnly: true,
@@ -155,7 +166,8 @@ export class AuditionService {
         skip('not verified live on re-check');
         continue;
       }
-      const last = lastRunAt.get(agentKeyOf(entry.record.id)) ?? null;
+      const last =
+        opts.ignoreRecency === true ? null : (lastRunAt.get(agentKeyOf(entry.record.id)) ?? null);
       if (last !== null && last >= cutoff) {
         skip('audited recently');
         continue;

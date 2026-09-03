@@ -38,6 +38,12 @@ export {
   type CardResolverOptions,
 } from './catalog/card-resolver.js';
 export { HttpProbeClient, extractSseData, type ProbeOptions } from './probe/http-probe.js';
+export {
+  mirrorPosition,
+  reportWindowFor,
+  SEEDABLE_TOKENS,
+  type MirroredPosition,
+} from './shadow/windows.js';
 export { RpcGateway, type RpcGatewayOptions, type RpcRoute } from './shadow/rpc-gateway.js';
 export {
   checkArchiveRpc,

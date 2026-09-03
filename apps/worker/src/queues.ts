@@ -19,6 +19,7 @@ export const QUEUE = {
   audition: 'bench-audition',
   scorer: 'bench-scorer',
   crossref: 'bench-crossref',
+  report: 'bench-report',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
@@ -56,6 +57,15 @@ export const CADENCE_MS = {
    * render. Twice an hour is far inside any tier's daily quota.
    */
   crossref: 30 * 60_000,
+  /**
+   * On-demand reports. Short, because a person is watching a page wait.
+   *
+   * It is a poll rather than a push because the request arrives at the web app
+   * and the work happens in the worker, and the two share a database but not a
+   * process. Twenty seconds is the longest a reader should sit on "queued"
+   * before something starts.
+   */
+  report: 20_000,
 } as const;
 
 /**

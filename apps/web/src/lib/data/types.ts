@@ -83,6 +83,14 @@ export interface BenchData {
 
   /** An audition report against one position, for §3.8's pasted address. */
   reportForAddress(address: string): Promise<AddressReportResult>;
+  /**
+   * Ask for an audition against this position, and say where it got to.
+   *
+   * Split from the read because reading is a GET on a shareable URL and this
+   * is a state change: a page that queued work on every render would fork a
+   * chain for every crawler.
+   */
+  requestReport(address: string): Promise<AddressReportResult>;
 }
 
 /**
@@ -153,6 +161,23 @@ export type AddressReportResult =
    * is a fact, and it is most of what a reader came to see.
    */
   | { readonly status: 'position-only'; readonly position: LivePosition }
+  /**
+   * An audition against this position has been asked for and is running.
+   *
+   * Distinct from `position-only` because the reader is waiting on something
+   * rather than looking at a dead end, and the page says so and refreshes.
+   */
+  | {
+      readonly status: 'queued';
+      readonly position: LivePosition;
+      readonly requestedAt: Date;
+    }
+  /** The audition ran and could not produce a report. Names the reason. */
+  | {
+      readonly status: 'cannot-run';
+      readonly position: LivePosition;
+      readonly reason: string;
+    }
   | { readonly status: 'invalid-address' }
   /** A node was unreachable. Distinct from "you hold nothing". */
   | { readonly status: 'unavailable'; readonly reason: string };

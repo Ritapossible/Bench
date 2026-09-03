@@ -160,3 +160,129 @@ export function auditionWindows(opts: {
     },
   ];
 }
+
+/**
+ * Tokens whose `_balances` storage slot is known, so a reader's real holding
+ * can be mirrored onto a fork.
+ *
+ * Seeding an ERC-20 balance means writing the mapping slot directly - there is
+ * no mint to call on a token we do not own - and the slot is a property of the
+ * contract's layout, not of the standard. So it cannot be inferred, and a
+ * wrong guess writes into some unrelated variable and produces a position that
+ * silently is not the reader's.
+ *
+ * Every entry here was verified against BSC mainnet the same way slot 1 was
+ * for USDT: `balanceOf(holder)` equals the word at
+ * `keccak256(abi.encode(holder, slot))` for a large holder. Anything not in
+ * this table is reported as unmirrored rather than approximated - a report
+ * that quietly drops half of someone's position is worse than one that says
+ * which half it could not read.
+ */
+export const SEEDABLE_TOKENS: Readonly<
+  Record<
+    string,
+    { readonly symbol: string; readonly decimals: number; readonly balanceSlot: bigint }
+  >
+> = {
+  '0x55d398326f99059ff775485246999027b3197955': { symbol: 'USDT', decimals: 18, balanceSlot: 1n },
+  '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { symbol: 'USDC', decimals: 18, balanceSlot: 1n },
+  '0xe9e7cea3dedca5984780bafc599bd69add087d56': { symbol: 'BUSD', decimals: 18, balanceSlot: 1n },
+  '0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82': { symbol: 'CAKE', decimals: 18, balanceSlot: 1n },
+  // WBNB keeps balances at slot 3, not 1. Exactly the reason this is a table
+  // of verified facts rather than a default.
+  '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { symbol: 'WBNB', decimals: 18, balanceSlot: 3n },
+};
+
+/** What could and could not be mirrored, so the page can say which. */
+export interface MirroredPosition {
+  readonly template: PositionTemplate;
+  readonly mirroredSymbols: readonly string[];
+  readonly unmirroredSymbols: readonly string[];
+}
+
+/**
+ * Build an audition position from what an address actually holds.
+ *
+ * This is what makes `/report` a measurement rather than a projection. The
+ * page read the position and then had nothing to run against it, so it always
+ * returned `position-only` - the headline claim of the whole product, "this
+ * agent would have saved you $340 on your position", existed only in fixtures.
+ *
+ * The native balance is always mirrored. Of the ERC-20 holdings, the largest
+ * one whose slot is known becomes the token leg; the rest are named as
+ * unmirrored. One token because the seeder writes one mapping, and the
+ * alternative - mirroring nothing until every token is supported - is how this
+ * feature stayed unbuilt.
+ */
+export function mirrorPosition(
+  live: {
+    readonly address: string;
+    readonly holdings: readonly {
+      readonly token: string;
+      readonly symbol: string;
+      readonly amount: bigint;
+      readonly valuedUsd: number | null;
+    }[];
+    readonly nativeWei?: bigint;
+  },
+  forkChain: ChainName,
+): MirroredPosition | null {
+  const constants = SPOT_CONSTANTS[forkChain];
+  if (constants === undefined) return null;
+
+  const seedable = live.holdings
+    .filter((h) => h.amount > 0n && SEEDABLE_TOKENS[h.token.toLowerCase()] !== undefined)
+    .sort((a, b) => (b.valuedUsd ?? 0) - (a.valuedUsd ?? 0));
+
+  const leg = seedable[0];
+  const spec = leg === undefined ? undefined : SEEDABLE_TOKENS[leg.token.toLowerCase()];
+  const nativeWei = live.nativeWei ?? 0n;
+
+  // Nothing to seed at all is not a position worth auditioning against: every
+  // agent would be handed an empty account and score zero for it.
+  if (leg === undefined || spec === undefined) return null;
+
+  const unmirrored = live.holdings
+    .filter((h) => h.amount > 0n && h.token.toLowerCase() !== leg.token.toLowerCase())
+    .map((h) => h.symbol);
+
+  return {
+    template: {
+      kind: 'spot-balance',
+      label: `${leg.symbol} and BNB held by ${live.address.slice(0, 8)}…`,
+      params: {
+        nativeWei,
+        token: leg.token.toLowerCase() as `0x${string}`,
+        balanceSlot: spec.balanceSlot,
+        tokenAmount: leg.amount,
+        nativePriceUsd: constants.nativePriceUsd,
+        // Priced from what the reader's holding was actually worth, so the
+        // report is denominated in their position rather than in a default.
+        tokenPriceUsd:
+          leg.valuedUsd === null || leg.amount === 0n
+            ? constants.tokenPriceUsd
+            : leg.valuedUsd / (Number(leg.amount) / 10 ** spec.decimals),
+        tokenDecimals: spec.decimals,
+      },
+      capital: {
+        token: leg.token.toLowerCase() as `0x${string}`,
+        symbol: leg.symbol,
+        decimals: spec.decimals,
+        amount: leg.amount,
+      },
+    },
+    mirroredSymbols: [leg.symbol, ...(nativeWei > 0n ? ['BNB'] : [])],
+    unmirroredSymbols: unmirrored,
+  };
+}
+
+/** The window an on-demand report runs in. Keyed by address so runs are findable. */
+export const reportWindowFor = (address: string, forkBlock: bigint) =>
+  ({
+    id: `addr-${address.toLowerCase()}-${forkBlock.toString()}`,
+    label: 'Your position',
+    regime: 'live' as const,
+    forkBlock,
+    endBlock: forkBlock + 5_000n,
+    seed: `bench-addr-${address.toLowerCase()}-${forkBlock.toString()}`,
+  }) satisfies AuditionWindow;

@@ -7,6 +7,7 @@ export { PgCatalogRepository } from './catalog-repository.js';
 export { PgHireStore } from './hire-store.js';
 export { runMigrations, migrationUrl } from './migrate.js';
 export { PgAuditionStore } from './audition-store.js';
+export { PgReportStore, type ReportRequest } from './report-store.js';
 export type Db = ReturnType<typeof createDb>;
 
 /**

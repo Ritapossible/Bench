@@ -241,11 +241,36 @@ export class PgAuditionStore implements AuditionStore {
    * the catalog grows is the one that ends up in production.
    */
   async completedAuditions(chain: ChainName, limit = 10): Promise<readonly AuditionEvidence[]> {
+    return this.#evidence(
+      and(eq(schema.agents.chain, chain), eq(schema.shadowRuns.status, 'complete')),
+      limit,
+    );
+  }
+
+  async auditionsForWindow(windowId: string, limit = 50): Promise<readonly AuditionEvidence[]> {
+    return this.#evidence(
+      and(eq(schema.shadowRuns.windowId, windowId), eq(schema.shadowRuns.status, 'complete')),
+      limit,
+    );
+  }
+
+  /**
+   * Shared body for the two evidence reads.
+   *
+   * Extracted rather than copied: the mapper below turns eight joined tables
+   * into the shape the advantage report and the address report both consume,
+   * and two copies of it would drift the moment either gained a column.
+   */
+  async #evidence(
+    where: ReturnType<typeof and>,
+    limit: number,
+  ): Promise<readonly AuditionEvidence[]> {
     const rows = await this.db
       .select({
         run: schema.shadowRuns,
         window: schema.auditionWindows,
         outcome: schema.outcomeRecords,
+        chain: schema.agents.chain,
         tokenId: schema.agents.tokenId,
         card: schema.agents.card,
       })
@@ -253,14 +278,14 @@ export class PgAuditionStore implements AuditionStore {
       .innerJoin(schema.shadowRuns, eq(schema.shadowRuns.id, schema.outcomeRecords.runId))
       .innerJoin(schema.auditionWindows, eq(schema.auditionWindows.id, schema.shadowRuns.windowId))
       .innerJoin(schema.agents, eq(schema.agents.id, schema.shadowRuns.agentId))
-      .where(and(eq(schema.agents.chain, chain), eq(schema.shadowRuns.status, 'complete')))
+      .where(where)
       .orderBy(desc(schema.shadowRuns.startedAt))
       .limit(limit);
 
     const actions = await this.actionsForRuns(rows.map((r) => r.run.id));
 
-    return rows.map(({ run, window, outcome, tokenId, card }) => {
-      const agent: AgentId = { chain, tokenId: BigInt(tokenId) };
+    return rows.map(({ run, window, outcome, chain, tokenId, card }) => {
+      const agent: AgentId = { chain: chainOf(chain), tokenId: BigInt(tokenId) };
       const c = card as { name?: string; category?: AgentCategory } | null;
       return {
         run: {
