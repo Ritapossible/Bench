@@ -5,6 +5,7 @@ import {
   checkArchiveRpc,
   checkAuditionPreconditions,
   forkBlockFor,
+  McpShadowAgent,
   FORK_LAG_BLOCKS,
 } from '@bench/adapters';
 import { loadConfig, requireArchiveRpc } from '@bench/config';
@@ -127,13 +128,24 @@ async function main(): Promise<void> {
             // else returns null and is skipped rather than failed - it was never
             // auditionable, which is a different fact from having failed.
             agentFor: ({ agent }) => {
-              const a2a = agent.card?.endpoints.find((e) => e.protocol === 'a2a');
-              if (a2a === undefined) return null;
-              return new A2AShadowAgent({
-                id: agent.id,
-                name: agent.card?.name ?? `agent ${agent.id.tokenId}`,
-                endpoint: a2a,
-              });
+              const name = agent.card?.name ?? `agent ${agent.id.tokenId}`;
+              const endpoints = agent.card?.endpoints ?? [];
+
+              // A2A first where an agent declares both: it has a verb for
+              // "here is a task", where MCP has to be driven through its tools.
+              const a2a = endpoints.find((e) => e.protocol === 'a2a');
+              if (a2a !== undefined) {
+                return new A2AShadowAgent({ id: agent.id, name, endpoint: a2a });
+              }
+
+              // MCP agents used to fall through to null and be counted as
+              // skipped - about a third of the publicly-addressable endpoints
+              // in the registry, excluded without anything saying so.
+              const mcp = endpoints.find((e) => e.protocol === 'mcp');
+              if (mcp !== undefined) {
+                return new McpShadowAgent({ id: agent.id, name, endpoint: mcp });
+              }
+              return null;
             },
           },
           { chain: cfg.BENCH_CHAIN, archiveRpcUrl },
@@ -170,6 +182,14 @@ async function main(): Promise<void> {
     );
   }
 
+  /**
+   * What the tick in flight did, filled by the job body and read by the
+   * `completed` handler - BullMQ hands the handler the job, not the value the
+   * processor returned, and threading a return type through six queues to say
+   * one sentence is not worth it.
+   */
+  const lastResult = new Map<string, string>();
+
   const queues = [
     new Queue(QUEUE.indexer, redis),
     new Queue(QUEUE.prober, redis),
@@ -188,6 +208,12 @@ async function main(): Promise<void> {
         // and nothing before it; ownerOf and tokenURI are current state and
         // reach the whole registry. See Indexer.enumerationTick.
         const r = await indexer.enumerationTick();
+        lastResult.set(
+          QUEUE.indexer,
+          `tokens ${r.fromTokenId}-${r.lastTokenId} discovered=${r.discovered} ` +
+            `cards=${r.cardsResolved}/${r.cardsResolved + r.cardsFailed}` +
+            (r.resweeping ? ' re-sweeping' : ''),
+        );
         console.log(
           `[bench:indexer] tokens ${r.fromTokenId}-${r.lastTokenId} discovered=${r.discovered} ` +
             `cards ok=${r.cardsResolved} failed=${r.cardsFailed} upserted=${r.upserted}` +
@@ -210,6 +236,11 @@ async function main(): Promise<void> {
       QUEUE.prober,
       async () => {
         const r = await prober.tick();
+        lastResult.set(
+          QUEUE.prober,
+          `probed=${r.probed} reachable=${r.reachable} conformant=${r.conformant}` +
+            (r.reasons[0] === undefined ? '' : ` top=${r.reasons[0][1]}x ${r.reasons[0][0]}`),
+        );
         if (r.probed > 0) {
           console.log(
             `[bench:prober] probed=${r.probed} reachable=${r.reachable} ` +
@@ -263,10 +294,11 @@ async function main(): Promise<void> {
           return;
         }
         const r = await auditionService.tick(spec.window, spec.position);
-        console.log(
-          `[bench:audition] window=${r.window} auditioned=${r.auditioned} ` +
-            `ok=${r.succeeded} failed=${r.failed} skipped=${r.skipped}`,
-        );
+        const summary =
+          `window=${r.window} considered=${r.considered} auditioned=${r.auditioned} ` +
+          `ok=${r.succeeded} failed=${r.failed} skipped=${r.skipped}`;
+        lastResult.set(QUEUE.audition, summary);
+        console.log(`[bench:audition] ${summary}`);
       },
       // One at a time: each audition holds a forked chain per agent.
       { ...redis, concurrency: 1 },
@@ -281,6 +313,7 @@ async function main(): Promise<void> {
             category: e.record.card?.category ?? 'other',
           })),
         );
+        lastResult.set(QUEUE.scorer, `scored=${r.scored} skipped=${r.skipped} thin=${r.thin}`);
         console.log(
           `[bench:scorer] scored=${r.scored} skipped=${r.skipped} (no outcomes) thin=${r.thin}`,
         );
@@ -341,7 +374,7 @@ async function main(): Promise<void> {
       console.error(`[bench:worker] ${w.name} job ${job?.id ?? '?'} failed:`, err);
     });
     w.on('completed', () => {
-      heartbeat.mark(w.name);
+      heartbeat.mark(w.name, lastResult.get(w.name));
     });
   }
 

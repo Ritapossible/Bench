@@ -16,7 +16,7 @@ import { createServer, type Server } from 'node:http';
  * and the ages are in the body for a human or an alert to read.
  */
 export interface Heartbeat {
-  mark(queue: string): void;
+  mark(queue: string, result?: string): void;
   fail(queue: string, reason?: string): void;
 }
 
@@ -35,6 +35,15 @@ interface QueueState {
    * here.
    */
   lastFailReason: string | null;
+  /**
+   * What the last successful tick actually did.
+   *
+   * A tick that succeeds and accomplishes nothing is indistinguishable here
+   * from one that did the work - the audition queue ran forty times, reported
+   * zero failures, and auditioned no agent, and the counters said everything
+   * was fine. "Succeeded" is not an outcome; it is the absence of an error.
+   */
+  lastResult: string | null;
 }
 
 export function startHealthServer(port: number): { heartbeat: Heartbeat; server: Server } {
@@ -43,17 +52,25 @@ export function startHealthServer(port: number): { heartbeat: Heartbeat; server:
   const stateFor = (q: string): QueueState => {
     let s = queues.get(q);
     if (s === undefined) {
-      s = { lastOkAt: null, lastFailAt: null, ticks: 0, failures: 0, lastFailReason: null };
+      s = {
+        lastOkAt: null,
+        lastFailAt: null,
+        ticks: 0,
+        failures: 0,
+        lastFailReason: null,
+        lastResult: null,
+      };
       queues.set(q, s);
     }
     return s;
   };
 
   const heartbeat: Heartbeat = {
-    mark(queue) {
+    mark(queue, result) {
       const s = stateFor(queue);
       s.lastOkAt = Date.now();
       s.ticks += 1;
+      if (result !== undefined) s.lastResult = result.slice(0, 300);
     },
     fail(queue, reason) {
       const s = stateFor(queue);
@@ -80,6 +97,7 @@ export function startHealthServer(port: number): { heartbeat: Heartbeat; server:
             secondsSinceLastFailure:
               s.lastFailAt === null ? null : Math.round((now - s.lastFailAt) / 1000),
             lastFailure: s.lastFailReason,
+            lastResult: s.lastResult,
           },
         ]),
       ),

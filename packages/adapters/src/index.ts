@@ -88,6 +88,7 @@ export {
 export { InMemoryEgressGuard, type EgressGuardOptions } from './shadow/egress-guard.js';
 export { BscPositionReader, type PositionReaderOptions } from './chain/position-reader.js';
 export { A2AShadowAgent, type A2AShadowAgentOptions } from './agent/a2a-shadow-agent.js';
+export { McpShadowAgent, type McpShadowAgentOptions } from './agent/mcp-shadow-agent.js';
 export {
   auditionWindows,
   forkBlockFor,
