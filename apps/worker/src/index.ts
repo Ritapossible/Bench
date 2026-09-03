@@ -189,6 +189,12 @@ async function main(): Promise<void> {
    * one sentence is not worth it.
    */
   const lastResult = new Map<string, string>();
+  /**
+   * Whether the tick in flight achieved anything, not merely whether it threw.
+   * A queue that keeps completing without effect is the failure mode that cost
+   * the most here, and it is invisible unless the job says so.
+   */
+  const didWork = new Map<string, boolean>();
 
   const queues = [
     new Queue(QUEUE.indexer, redis),
@@ -208,6 +214,7 @@ async function main(): Promise<void> {
         // and nothing before it; ownerOf and tokenURI are current state and
         // reach the whole registry. See Indexer.enumerationTick.
         const r = await indexer.enumerationTick();
+        didWork.set(QUEUE.indexer, r.upserted > 0 || r.resweeping);
         lastResult.set(
           QUEUE.indexer,
           `tokens ${r.fromTokenId}-${r.lastTokenId} discovered=${r.discovered} ` +
@@ -236,6 +243,7 @@ async function main(): Promise<void> {
       QUEUE.prober,
       async () => {
         const r = await prober.tick();
+        didWork.set(QUEUE.prober, r.probed > 0);
         lastResult.set(
           QUEUE.prober,
           `probed=${r.probed} reachable=${r.reachable} conformant=${r.conformant}` +
@@ -297,6 +305,7 @@ async function main(): Promise<void> {
         const summary =
           `window=${r.window} considered=${r.considered} auditioned=${r.auditioned} ` +
           `ok=${r.succeeded} failed=${r.failed} skipped=${r.skipped}`;
+        didWork.set(QUEUE.audition, r.auditioned > 0);
         lastResult.set(QUEUE.audition, summary);
         console.log(`[bench:audition] ${summary}`);
       },
@@ -316,6 +325,7 @@ async function main(): Promise<void> {
         const r = await scorer.scoreAll(
           scorable.map((e) => ({ id: e.agent, category: e.category })),
         );
+        didWork.set(QUEUE.scorer, r.scored > 0);
         lastResult.set(QUEUE.scorer, `scored=${r.scored} skipped=${r.skipped} thin=${r.thin}`);
         console.log(
           `[bench:scorer] scored=${r.scored} skipped=${r.skipped} (no outcomes) thin=${r.thin}`,
@@ -330,6 +340,11 @@ async function main(): Promise<void> {
         // render: doing it per request made /registry a forty-second page.
         const summary = await summarizeAgreementFor(adapters.crossRef, repo, cfg.BENCH_CHAIN, 200);
         await audition.recordCrossReference(cfg.BENCH_CHAIN, summary);
+        didWork.set(QUEUE.crossref, summary.checked > 0);
+        lastResult.set(
+          QUEUE.crossref,
+          `${summary.status} checked=${summary.checked} confirmed=${summary.confirmed}`,
+        );
         console.log(
           `[bench:crossref] ${summary.status} checked=${summary.checked} ` +
             `confirmed=${summary.confirmed} agreement=${(summary.agreementBps / 100).toFixed(1)}%`,
@@ -377,7 +392,7 @@ async function main(): Promise<void> {
       console.error(`[bench:worker] ${w.name} job ${job?.id ?? '?'} failed:`, err);
     });
     w.on('completed', () => {
-      heartbeat.mark(w.name, lastResult.get(w.name));
+      heartbeat.mark(w.name, lastResult.get(w.name), didWork.get(w.name));
     });
   }
 

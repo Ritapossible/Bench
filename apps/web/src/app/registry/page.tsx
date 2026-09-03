@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { liveShareBps } from '@bench/core';
 import { data, isLiveData } from '@/lib/data/index';
 import { pct } from '@/lib/format';
@@ -97,6 +98,12 @@ export default async function RegistryPage() {
             </p>
           </div>
         )}
+
+        <p className="small">
+          The measurement below is only as current as the machinery producing it -{' '}
+          <Link href="/status">what the indexer, prober and audition queues are doing</Link> is on
+          its own page, including any queue that is completing without doing work.
+        </p>
 
         <div className="statgrid">
           <div className="statcell">

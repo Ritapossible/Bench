@@ -23,6 +23,9 @@ export function Footer() {
             <Link href="/report" className="small" style={{ textDecoration: 'none' }}>
               Your report
             </Link>
+            <Link href="/status" className="small" style={{ textDecoration: 'none' }}>
+              Status
+            </Link>
             <Link href="/docs" className="small" style={{ textDecoration: 'none' }}>
               Docs
             </Link>

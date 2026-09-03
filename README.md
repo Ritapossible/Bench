@@ -217,6 +217,10 @@ two audition runs.
 `DATABASE_URL` is the only variable it needs to serve real data; without it the catalog,
 registry and hire pages say on the page that they are serving fixtures.
 
+Set **`BENCH_WORKER_HEALTH_URL`** to the worker's public URL so `/status` can report the
+queues. The worker runs on a different host, so its state is not in the database; without
+this the page says the worker is unconfigured rather than implying it is fine.
+
 Set **`BENCH_COOKIE_SECRET`** in production. Hire ownership is a signed cookie, and without a
 configured secret the signing key is generated per process - so a redeploy stops recognising
 every cookie it previously issued, and each visitor silently loses the hires they created.
