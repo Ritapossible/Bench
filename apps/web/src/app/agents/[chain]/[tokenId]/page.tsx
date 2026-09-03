@@ -37,6 +37,9 @@ export default async function AgentPage({
 
   const { record, liveness, verifiedLive } = agent.entry;
   const card = record.card;
+  // An agent that could not be driven is the finding, so a failed run shows
+  // why rather than a dash in every numeric column.
+  const outcomeByRun = new Map(agent.outcomes.map((o) => [o.runId, o]));
 
   return (
     <section className="wrap section">
@@ -166,12 +169,18 @@ export default async function AgentPage({
                     <th className="num">vs do-nothing</th>
                     <th className="num">vs peers</th>
                     <th className="num">Max DD</th>
-                    <th>Run</th>
+                    <th>Outcome</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {agent.runs.map((r, i) => {
-                    const o = agent.outcomes[i];
+                  {agent.runs.map((r) => {
+                    // Keyed by run id, not by array index. The two lists are
+                    // ordered independently and a failed run has no outcome at
+                    // all, so index pairing silently showed one run's numbers
+                    // against another run's row - and the row most likely to be
+                    // mispaired is the failed one, which is the row that
+                    // matters most.
+                    const o = outcomeByRun.get(r.id);
                     return (
                       <tr key={r.id}>
                         <td>{r.window.label}</td>
@@ -193,7 +202,16 @@ export default async function AgentPage({
                             : '-'}
                         </td>
                         <td className="num mono">{o ? usd(o.maxDrawdownUsd) : '-'}</td>
-                        <td className="mono tiny">{r.id}</td>
+                        <td className="tiny">
+                          {r.status === 'complete' ? (
+                            <span className="badge badge-live">completed</span>
+                          ) : (
+                            <>
+                              <span className="badge badge-blocked">{r.status}</span>{' '}
+                              <span className="ink">{r.failureReason ?? 'no reason recorded'}</span>
+                            </>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

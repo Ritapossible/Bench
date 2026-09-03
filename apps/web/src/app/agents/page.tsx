@@ -34,6 +34,9 @@ export default async function AgentsPage() {
       name: record.card?.name ?? 'Unresolved agent card',
       description: record.card?.description ?? record.cardError ?? '',
       category: record.card?.category ?? 'other',
+      drivable: (record.card?.endpoints ?? []).some(
+        (e) => e.protocol === 'a2a' || e.protocol === 'mcp',
+      ),
       verifiedLive,
       conformant: liveness.conformant,
       uptimeBps: liveness.uptimeBps,

@@ -20,6 +20,16 @@ export interface AgentRow {
   readonly uptimeBps: number;
   readonly p95LatencyMs: number | null;
   readonly probeCount: number;
+  /**
+   * Whether Bench can drive this agent at all.
+   *
+   * An unranked agent said "Listed, probed, unranked" whether it was waiting
+   * its turn or could never be auditioned, and those are different facts about
+   * an agent. Derived from the card's endpoints, so it costs no storage: an
+   * agent declaring neither A2A nor MCP has no interface to be handed a task
+   * through, and no amount of waiting will change that.
+   */
+  readonly drivable: boolean;
   /** Null when the agent has no completed auditions. Never faked. */
   readonly deltaUsd: number | null;
   readonly sampleSize: number;
@@ -131,7 +141,13 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
                 {r.deltaUsd === null ? (
                   <>
                     <span className="small ink">No auditions yet</span>
-                    <span className="tiny">Listed, probed, unranked</span>
+                    <span className="tiny">
+                      {r.drivable
+                        ? r.verifiedLive
+                          ? 'Queued for audition'
+                          : 'Not verified live - cannot be auditioned yet'
+                        : 'No A2A or MCP endpoint to drive'}
+                    </span>
                   </>
                 ) : (
                   <>
