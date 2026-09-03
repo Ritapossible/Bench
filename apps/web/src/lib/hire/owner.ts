@@ -1,7 +1,7 @@
 import 'server-only';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
-import type { Address } from '@bench/core';
+import { BenchError, type Address } from '@bench/core';
 
 /**
  * Who the current visitor is, for the purposes of owning hires.
@@ -70,7 +70,12 @@ function secretOf(): string {
      * Failing here surfaces it at deploy time, when it is a one-line fix.
      */
     if (process.env['NODE_ENV'] === 'production') {
-      throw new Error(
+      // A BenchError, not a bare throw: the hire action turns domain refusals
+      // into a message on the page, and a bare Error reaches the visitor as a
+      // 500 with a stack trace. A deployment misconfiguration is still
+      // something a person is looking at.
+      throw new BenchError(
+        'MISCONFIGURED',
         'BENCH_COOKIE_SECRET is required in production. It signs the cookie that owns a hire, ' +
           'so without it ownership is lost on every restart and cannot be recovered. ' +
           'Generate one with `openssl rand -hex 32`.',

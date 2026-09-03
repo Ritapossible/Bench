@@ -96,7 +96,13 @@ export type BenchErrorCode =
   | 'FORK_UNAVAILABLE'
   /** A persisted decision trace no longer verifies against its own hash chain. */
   | 'TRACE_TAMPERED'
-  | 'NOT_SUPPORTED_BY_PROVIDER';
+  | 'NOT_SUPPORTED_BY_PROVIDER'
+  /**
+   * The deployment is missing something it needs. Not the caller's fault and
+   * not a bug - a variable somebody has to set - so it is a refusal a page can
+   * explain rather than a 500 with a stack trace in it.
+   */
+  | 'MISCONFIGURED';
 
 export class BenchError extends Error {
   constructor(

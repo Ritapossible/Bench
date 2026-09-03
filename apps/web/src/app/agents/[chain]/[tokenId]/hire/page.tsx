@@ -39,6 +39,10 @@ const REFUSAL: Record<string, string> = {
     'That ceiling is outside what this deployment allows. Lower it and try again.',
   SESSION_KEY_REVOKED: 'The session key backing this hire has been revoked. Start a new hire.',
   NOT_FOUND: 'That agent is no longer in the catalog.',
+  // A deployment problem rather than anything the visitor did, said plainly
+  // rather than as "something went wrong".
+  MISCONFIGURED:
+    'This deployment is missing the secret that signs hire ownership, so it will not create a hire it could not prove was yours. Nothing is wrong with your request - the operator needs to set BENCH_COOKIE_SECRET.',
 };
 
 export default async function HirePage({

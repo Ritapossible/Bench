@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isStalled,
   appendTrace,
   applySpend,
   assertTransition,
@@ -311,5 +312,32 @@ describe('human-readable amounts', () => {
     expect(d.explanation).toContain('2 USDT');
     // The unreadable form must not survive into something a person reads.
     expect(d.explanation).not.toContain('3000000000000000000');
+  });
+});
+
+describe('isStalled', () => {
+  const old = new Date(Date.now() - 10 * 60_000);
+  const now = new Date();
+
+  it('calls out a hire left mid-flight by a process that died', () => {
+    // A hire moves through these inside one request, so finding one here ten
+    // minutes later means nobody is coming back for it - and nothing retries
+    // or fails it, so it sits looking like work in progress forever.
+    expect(isStalled('quoted', old)).toBe(true);
+    expect(isStalled('authorized', old)).toBe(true);
+    expect(isStalled('funded', old)).toBe(true);
+  });
+
+  it('leaves a hire that is genuinely resting alone', () => {
+    // `active` and `settled` are where a hire is supposed to sit. Flagging
+    // those would make the warning meaningless within a day.
+    expect(isStalled('active', old)).toBe(false);
+    expect(isStalled('settled', old)).toBe(false);
+    expect(isStalled('revoked', old)).toBe(false);
+    expect(isStalled('failed', old)).toBe(false);
+  });
+
+  it('gives a hire in flight right now the benefit of the doubt', () => {
+    expect(isStalled('quoted', now)).toBe(false);
   });
 });

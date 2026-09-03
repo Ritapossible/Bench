@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { hireStore, hiresAreDurable } from '@/lib/hire/runtime';
 import { currentOwnerReadOnly } from '@/lib/hire/owner';
-import { remaining } from '@bench/core';
+import { isStalled, remaining } from '@bench/core';
 
 export const metadata = { title: 'Your hires - Bench' };
 export const dynamic = 'force-dynamic';
@@ -63,6 +63,14 @@ export default async function HiresPage() {
                     <div className="sumcard-head">
                       <h2 className="h4">Agent #{h.agent.tokenId.toString()}</h2>
                       <span className={STATE_BADGE[h.state] ?? 'badge badge-plain'}>{h.state}</span>
+                      {/* A hire moves through its opening states inside one
+                          request, so one still mid-flight minutes later means
+                          the process died partway. Nothing retries it, so the
+                          honest thing is to say so rather than show a state
+                          that reads as work in progress. */}
+                      {isStalled(h.state, h.createdAt) ? (
+                        <span className="badge badge-dead">did not finish</span>
+                      ) : null}
                     </div>
                     <div className="sumcard-score">
                       <span className="mono ink" style={{ fontWeight: 700 }}>

@@ -85,7 +85,11 @@ jobs:
       # marketplace unaided. Unit tests prove the orchestrator is correct; only
       # this proves a stranger can complete the journey in a browser.
       - run: npx playwright install --with-deps chromium
-      - run: npm run start -w @bench/web &
+      # Production mode, which is what the e2e is for - and production now
+      # refuses to create a hire without this rather than signing ownership
+      # with a key that dies at the next restart. CI sets it for the same
+      # reason a deployment does.
+      - run: BENCH_COOKIE_SECRET=ci-only-not-a-real-secret-0123456789 npm run start -w @bench/web &
       - run: npx wait-on http://127.0.0.1:3000 -t 60000
       - run: npm run test:e2e
         env:

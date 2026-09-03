@@ -200,3 +200,29 @@ export function confirmConsent(
 
 export const consentComplete = (confirmed: readonly ConsentStep[]): boolean =>
   nextConsentStep(confirmed) === null;
+
+/**
+ * States a hire passes through on its way to being live, rather than resting in.
+ *
+ * A hire moves through these inside one request, so finding one still here
+ * minutes later means the process died partway - between claiming the
+ * idempotency key and writing the funded state, say. Nothing retries it and
+ * nothing marks it failed, so it sits looking like work in progress forever.
+ *
+ * Exported so the UI can say "this hire did not finish" instead of showing a
+ * spinner for a request that ended some time ago. Naming the condition is the
+ * fix available without a reconciliation worker; a worker is the fix once
+ * settlement is real and a partial hire can have moved money.
+ */
+export const TRANSIENT_HIRE_STATES: readonly HireState[] = [
+  'draft',
+  'quoted',
+  'authorized',
+  'funded',
+];
+
+/** How long a hire may sit mid-flight before it is presented as abandoned. */
+export const HIRE_STALL_MS = 5 * 60_000;
+
+export const isStalled = (state: HireState, createdAt: Date, now: Date = new Date()): boolean =>
+  TRANSIENT_HIRE_STATES.includes(state) && now.getTime() - createdAt.getTime() > HIRE_STALL_MS;
