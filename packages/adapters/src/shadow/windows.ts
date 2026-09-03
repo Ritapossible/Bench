@@ -35,6 +35,19 @@ interface SpotConstants {
   readonly symbol: string;
   readonly decimals: number;
   readonly balanceSlot: bigint;
+  /**
+   * The valuation basis for the chain's native token, pinned per window.
+   *
+   * Pinned rather than fetched, and that is the point: a window's claim is that
+   * two agents auditioned days apart ran the same experiment. Valuing the same
+   * fork against a live price makes the same behaviour score differently
+   * depending on when it was replayed, which breaks the only comparison the
+   * audition exists to make. This is a unit of account, not a market quote -
+   * read from Chainlink's BNB/USD feed on BSC mainnet and fixed here.
+   */
+  readonly nativePriceUsd: number;
+  /** Stable-pegged, so the peg is the basis for the same reason. */
+  readonly tokenPriceUsd: number;
 }
 
 const SPOT_CONSTANTS: Partial<Record<ChainName, SpotConstants>> = {
@@ -43,6 +56,8 @@ const SPOT_CONSTANTS: Partial<Record<ChainName, SpotConstants>> = {
     symbol: 'USDT',
     decimals: 18,
     balanceSlot: 1n,
+    nativePriceUsd: 687.46,
+    tokenPriceUsd: 1,
   },
   // bsc-testnet is deliberately absent. Declining is the honest answer: a
   // testnet spot position would be denominated in a token nobody trades, over
@@ -117,6 +132,12 @@ export function auditionWindows(opts: {
       token: constants.token,
       balanceSlot: constants.balanceSlot,
       tokenAmount: capital.amount,
+      // The seeder needs these to value the position, and it refuses without
+      // them rather than guessing. Their absence is what made every audition
+      // fail in production with "position template is missing numeric param".
+      nativePriceUsd: constants.nativePriceUsd,
+      tokenPriceUsd: constants.tokenPriceUsd,
+      tokenDecimals: constants.decimals,
     },
     capital,
   };

@@ -73,3 +73,48 @@ describe('forkBlockFor', () => {
     expect(forkBlockFor(100n)).toBe(0n);
   });
 });
+
+describe('the window and the seeder agree', () => {
+  it('supplies every param the spot seeder requires', async () => {
+    // The seeder refuses a template missing a numeric param rather than
+    // guessing, and the window did not carry `nativePriceUsd` - so every
+    // audition in production failed with "position template is missing numeric
+    // param", after the fork had already been spawned. A unit test comparing
+    // two hand-written lists would drift; this asks the seeder itself.
+    const { SpotBalanceSeeder } = await import('../src/shadow/seeders.js');
+    const seeder = new SpotBalanceSeeder();
+    const [spec] = auditionWindows({ forkChain: 'bsc-mainnet', forkBlock: 40_000_000n });
+    expect(spec).toBeDefined();
+
+    const balances = new Map<string, bigint>();
+    const ctx = {
+      controller: '0x1111111111111111111111111111111111111111' as const,
+      rpc: async (method: string, params: readonly unknown[]): Promise<unknown> => {
+        if (method === 'eth_getBalance') return '0x2b5e3af16b1880000'; // 50 BNB
+        if (method === 'eth_getStorageAt') {
+          return `0x${(balances.get(String(params[1])) ?? 0n).toString(16).padStart(64, '0')}`;
+        }
+        if (method === 'anvil_setStorageAt') {
+          balances.set(String(params[1]), BigInt(String(params[2])));
+          return null;
+        }
+        return null;
+      },
+    };
+
+    const terminal = await seeder.seed(ctx, spec!.position);
+    // 50 BNB priced, plus 10,000 USDT at the peg.
+    expect(terminal.valueUsd).toBeGreaterThan(40_000);
+    expect(terminal.detail['nativeUsd']).toBeGreaterThan(0);
+  });
+
+  it('pins the valuation basis rather than leaving it to the day it runs', () => {
+    // A window's claim is that two agents auditioned days apart ran the same
+    // experiment. A live price makes identical behaviour score differently
+    // depending on when it was replayed.
+    const a = auditionWindows({ forkChain: 'bsc-mainnet', forkBlock: 40_000_000n });
+    const b = auditionWindows({ forkChain: 'bsc-mainnet', forkBlock: 40_000_000n });
+    expect(a[0]?.position.params['nativePriceUsd']).toBe(b[0]?.position.params['nativePriceUsd']);
+    expect(typeof a[0]?.position.params['nativePriceUsd']).toBe('number');
+  });
+});
