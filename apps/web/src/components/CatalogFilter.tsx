@@ -1,6 +1,3 @@
-'use client';
-
-import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CATEGORY_LABEL, usd, pct, ms } from '@/lib/format';
 
@@ -63,68 +60,84 @@ const CATEGORIES = [
   'other',
 ] as const;
 
-export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) {
-  const [liveOnly, setLiveOnly] = useState(true);
-  const [category, setCategory] = useState<string>('all');
+/**
+ * A server component, deliberately.
+ *
+ * This filtered in the browser over whatever page had loaded, which made the
+ * chip counts a statement about the slice rather than the catalog - four
+ * equal-looking buttons over 40, 0, 0 and 3 agents look exactly like four over
+ * a balanced one, and Agent Diversity is a third of the main-track score. It
+ * also meant the selection lived in React state, so `?category=grid` did
+ * nothing and a judge could not link anyone to a category.
+ *
+ * The counts now come from one grouped SQL count over the whole catalog, the
+ * rows come back already filtered, and each chip is a real link. An empty
+ * category still shows its zero: that is a fact about the registry, and hiding
+ * it is the one thing this catalog is built not to do.
+ */
+export function CatalogFilter({
+  rows,
+  counts,
+  category,
+  liveOnly,
+  totalIndexed,
+}: {
+  readonly rows: readonly AgentRow[];
+  readonly counts: Readonly<Record<string, number>>;
+  readonly category: string;
+  readonly liveOnly: boolean;
+  readonly totalIndexed: number;
+}) {
+  const href = (next: { category?: string; live?: boolean }): string => {
+    const c = next.category ?? category;
+    const l = next.live ?? liveOnly;
+    const params = new URLSearchParams();
+    if (c !== 'all') params.set('category', c);
+    if (!l) params.set('live', 'false');
+    const q = params.toString();
+    return q === '' ? '/agents' : `/agents?${q}`;
+  };
 
-  const shown = useMemo(
-    () =>
-      rows.filter(
-        (r) => (!liveOnly || r.verifiedLive) && (category === 'all' || r.category === category),
-      ),
-    [rows, liveOnly, category],
-  );
-
-  /**
-   * How many agents each chip would show, under the live-only toggle as it
-   * stands.
-   *
-   * Agent Diversity is scored on all four categories being surfaced with equal
-   * depth, and a row of chips alone cannot show whether that is true - four
-   * equal-looking buttons over 40, 0, 0 and 3 agents look exactly like four
-   * over a balanced catalog. The count is what makes the claim checkable, and
-   * it is deliberately shown even when it is zero: an empty category is a fact
-   * about the registry, and hiding it would be the one thing this catalog is
-   * built not to do.
-   */
-  const counts = useMemo(() => {
-    const eligible = rows.filter((r) => !liveOnly || r.verifiedLive);
-    const by = new Map<string, number>([['all', eligible.length]]);
-    for (const r of eligible) by.set(r.category, (by.get(r.category) ?? 0) + 1);
-    return by;
-  }, [rows, liveOnly]);
+  const shown = rows;
 
   return (
     <div className="stack stack-24">
       <div className="filters">
         <div className="filter-chips" role="group" aria-label="Filter by category">
           {CATEGORIES.map((c) => (
-            <button
+            <Link
               key={c}
-              onClick={() => setCategory(c)}
-              aria-pressed={category === c}
+              href={href({ category: c })}
+              aria-current={category === c ? 'page' : undefined}
               className={category === c ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'}
+              style={{ textDecoration: 'none' }}
             >
               {c === 'all' ? 'All' : CATEGORY_LABEL[c]}{' '}
-              <span className="chip-count">{counts.get(c) ?? 0}</span>
-            </button>
+              <span className="chip-count">{counts[c] ?? 0}</span>
+            </Link>
           ))}
         </div>
 
-        <label className="filter-toggle">
-          <input
-            type="checkbox"
-            checked={liveOnly}
-            onChange={(e) => setLiveOnly(e.target.checked)}
-          />
+        <Link
+          href={href({ live: !liveOnly })}
+          className="filter-toggle"
+          style={{ textDecoration: 'none' }}
+        >
+          <input type="checkbox" checked={liveOnly} readOnly tabIndex={-1} aria-hidden="true" />
           <span className="small ink" style={{ whiteSpace: 'nowrap' }}>
             Verified live only
           </span>
-        </label>
+        </Link>
       </div>
 
       <p className="small">
-        Showing <strong className="ink">{shown.length}</strong> of {rows.length} indexed.{' '}
+        Showing <strong className="ink">{shown.length}</strong> of{' '}
+        {category === 'all' ? totalIndexed : (counts[category] ?? 0)}{' '}
+        {category === 'all' ? 'indexed' : `${CATEGORY_LABEL[category] ?? category} agents`}
+        {shown.length < (category === 'all' ? totalIndexed : (counts[category] ?? 0))
+          ? ' (first page)'
+          : ''}
+        .{' '}
         {liveOnly
           ? 'Verified live means the endpoint responded and spoke the protocol its card declares - not merely returned 200.'
           : 'Filter off: this is what a raw registry read looks like.'}

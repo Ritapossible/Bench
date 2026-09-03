@@ -4,6 +4,7 @@ import {
   type Address,
   type AgentEndpoint,
   type AgentId,
+  type AgentCategory,
   type AgentRecord,
   type ProbeResult,
 } from '@bench/core';
@@ -30,14 +31,14 @@ const endpointFor = (tokenId: bigint): AgentEndpoint => ({
   url: `https://agent-${tokenId}.example/a2a`,
 });
 
-const record = (tokenId: bigint): AgentRecord => ({
+const record = (tokenId: bigint, category: AgentCategory = 'other'): AgentRecord => ({
   id: agent(tokenId),
   owner: OWNER,
   cardUri: `ipfs://card/${tokenId}`,
   card: {
     name: `agent ${tokenId}`,
     description: '',
-    category: 'other',
+    category,
     endpoints: [endpointFor(tokenId)],
     permissions: { contractAllowlist: [], requiresTokenApprovals: false },
     raw: {},
@@ -130,5 +131,63 @@ describeDb('dueForProbe scheduling', () => {
 
     const due = await catalog.dueForProbe(2, HOUR, BOOTSTRAP);
     expect(ids(due)).toEqual([2n, 3n]);
+  });
+
+  /**
+   * Nested inside the block above, not a second `describeDb`.
+   *
+   * `createDb` caches its pool by connection string, so two top-level blocks
+   * share one and the first `afterAll` closes it out from under the second -
+   * which fails as "Cannot use a pool after calling end on the pool" and looks
+   * like a database problem rather than a test-structure one.
+   */
+  describe('categoryCounts', () => {
+    beforeEach(async () => {
+      await db.delete(schema.probeResults);
+      await db.delete(schema.agentEndpoints);
+      await db.delete(schema.agents);
+    });
+
+    it('counts the whole catalog, not a page of it', async () => {
+      // The catalog page loaded 200 rows and tallied them in the browser, so the
+      // chips described the slice that happened to load. Agent Diversity is one
+      // of three main-track criteria, so that number has to be the real one.
+      await catalog.upsertAgents([
+        record(1n, 'grid'),
+        record(2n, 'grid'),
+        record(3n, 'rebalancing'),
+        record(4n, 'other'),
+      ]);
+
+      const counts = await catalog.categoryCounts('bsc-testnet');
+      expect(counts.grid).toBe(2);
+      expect(counts.rebalancing).toBe(1);
+      expect(counts.other).toBe(1);
+    });
+
+    it('reports an empty judged category as zero rather than omitting it', async () => {
+      // A missing key would let a caller render five chips instead of six and
+      // quietly drop the category with no agents - which is exactly the fact
+      // this catalog exists to report.
+      await catalog.upsertAgents([record(1n, 'grid')]);
+
+      const counts = await catalog.categoryCounts('bsc-testnet');
+      expect(counts['health-factor']).toBe(0);
+      expect(counts.yield).toBe(0);
+      expect(Object.keys(counts).sort()).toEqual(
+        ['grid', 'health-factor', 'monitoring', 'other', 'rebalancing', 'yield'].sort(),
+      );
+    });
+
+    it('counts only verified-live agents when asked, and none are without probes', async () => {
+      await catalog.upsertAgents([record(1n, 'grid'), record(2n, 'yield')]);
+
+      expect((await catalog.categoryCounts('bsc-testnet')).grid).toBe(1);
+      // No probes recorded, so nothing is verified live - which is the honest
+      // answer and the one the default view shows.
+      const live = await catalog.categoryCounts('bsc-testnet', { verifiedLiveOnly: true });
+      expect(live.grid).toBe(0);
+      expect(live.yield).toBe(0);
+    });
   });
 });

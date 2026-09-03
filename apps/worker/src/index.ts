@@ -9,7 +9,7 @@ import {
   FORK_LAG_BLOCKS,
 } from '@bench/adapters';
 import { loadConfig, requireArchiveRpc } from '@bench/config';
-import { redactError, redactSecrets } from '@bench/core';
+import { redactError } from '@bench/core';
 import { RpcGateway } from '@bench/adapters';
 import {
   PgAuditionStore,

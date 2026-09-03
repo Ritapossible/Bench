@@ -1,6 +1,7 @@
 import {
   summarizeProbes,
   isVerifiedLive,
+  AGENT_CATEGORIES,
   type Address,
   type AgentCard,
   type AgentCategory,
@@ -497,6 +498,17 @@ export const fixtureData: BenchData = {
     if (opts?.verifiedLiveOnly) out = out.filter((a) => a.entry.verifiedLive);
     if (opts?.category) out = out.filter((a) => a.entry.record.card?.category === opts.category);
     return [...out].sort((a, b) => (b.score?.normalized ?? -1) - (a.score?.normalized ?? -1));
+  },
+
+  async categoryCounts(opts) {
+    const pool = opts?.verifiedLiveOnly === true ? ALL.filter((a) => a.entry.verifiedLive) : ALL;
+    const out: Record<string, number> = {};
+    for (const c of AGENT_CATEGORIES) out[c] = 0;
+    for (const a of pool) {
+      const c = a.entry.record.card?.category ?? 'other';
+      out[c] = (out[c] ?? 0) + 1;
+    }
+    return out as Readonly<Record<AgentCategory, number>>;
   },
 
   async getAgent(chain, tokenId): Promise<AgentDetail | null> {

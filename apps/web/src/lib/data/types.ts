@@ -67,6 +67,18 @@ export interface BenchData {
     readonly category?: AgentCategory;
   }): Promise<readonly AgentSummary[]>;
 
+  /**
+   * Agents per category across the whole catalog, for the filter tabs.
+   *
+   * Separate from `listAgents` because the tabs must describe the catalog, not
+   * the page: filtering 200 loaded rows in the browser made "Rebalancing (3)"
+   * a statement about the slice that happened to load, on the criterion the
+   * main track scores as Agent Diversity.
+   */
+  categoryCounts(opts?: {
+    readonly verifiedLiveOnly?: boolean;
+  }): Promise<Readonly<Record<AgentCategory, number>>>;
+
   getAgent(chain: string, tokenId: string): Promise<AgentDetail | null>;
 
   /** An audition report against one position, for §3.8's pasted address. */

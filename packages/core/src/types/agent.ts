@@ -21,6 +21,16 @@ export type AgentCategory =
   | 'monitoring'
   | 'other';
 
+/** Every category, in presentation order. One list, so no caller invents its own. */
+export const AGENT_CATEGORIES = [
+  'rebalancing',
+  'grid',
+  'yield',
+  'health-factor',
+  'monitoring',
+  'other',
+] as const satisfies readonly AgentCategory[];
+
 /** The four the main track scores on Agent Diversity. Order is presentation order. */
 export const JUDGED_CATEGORIES = [
   'rebalancing',

@@ -1,4 +1,5 @@
 import type { AgentEndpoint, AgentId, AgentRecord, ProbeResult } from '../types/agent.js';
+import type { AgentCategory } from '../types/agent.js';
 import type { CatalogPage, CatalogQuery, CatalogStats, LivenessSummary } from '../types/catalog.js';
 import type { ChainName, Hex } from '../types/primitives.js';
 
@@ -66,6 +67,20 @@ export interface CatalogRepository {
 
   query(q: CatalogQuery): Promise<CatalogPage>;
   stats(chain: ChainName): Promise<CatalogStats>;
+  /**
+   * How many agents are in each category, over the whole catalog.
+   *
+   * Counted in SQL rather than by tallying a page. The catalog page loaded 200
+   * rows and filtered them in the browser, so the category tabs reported the
+   * composition of that page: a judge clicking "Rebalancing" saw three agents
+   * and had no way to tell whether that was the catalog or the slice. Agent
+   * Diversity is one of three main-track criteria, so the number behind it has
+   * to be the real one.
+   */
+  categoryCounts(
+    chain: ChainName,
+    opts?: { readonly verifiedLiveOnly?: boolean },
+  ): Promise<Readonly<Record<AgentCategory, number>>>;
 
   checkpoint(chain: ChainName): Promise<IndexerCheckpoint | null>;
   setCheckpoint(chain: ChainName, lastBlock: bigint): Promise<void>;

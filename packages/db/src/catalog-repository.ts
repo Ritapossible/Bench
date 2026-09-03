@@ -2,8 +2,10 @@ import {
   VERIFIED_LIVE,
   isVerifiedLive,
   redactSecrets,
+  AGENT_CATEGORIES,
   summarizeProbes,
   type AgentCard,
+  type AgentCategory,
   type AgentEndpoint,
   type AgentId,
   type AgentRecord,
@@ -462,6 +464,32 @@ export class PgCatalogRepository implements CatalogRepository {
       verifiedLive: live?.n ?? 0,
       computedAt: new Date(),
     };
+  }
+
+  async categoryCounts(
+    chain: ChainName,
+    opts: { readonly verifiedLiveOnly?: boolean } = {},
+  ): Promise<Readonly<Record<AgentCategory, number>>> {
+    // One grouped count over the catalog, not a tally of whatever page the UI
+    // happened to load. Every category is present in the result even at zero,
+    // so a caller rendering tabs does not have to know the category list twice.
+    const rows = await this.db
+      .select({ category: schema.agents.category, n: count() })
+      .from(schema.agents)
+      .leftJoin(schema.agentLiveness, eq(schema.agentLiveness.agentId, schema.agents.id))
+      .where(
+        opts.verifiedLiveOnly === true
+          ? and(eq(schema.agents.chain, chain), verifiedLiveSql())
+          : eq(schema.agents.chain, chain),
+      )
+      .groupBy(schema.agents.category);
+
+    const out: Record<string, number> = {};
+    for (const c of AGENT_CATEGORIES) out[c] = 0;
+    for (const r of rows) {
+      if (r.category in out) out[r.category] = r.n;
+    }
+    return out as Readonly<Record<AgentCategory, number>>;
   }
 
   async checkpoint(chain: ChainName): Promise<IndexerCheckpoint | null> {

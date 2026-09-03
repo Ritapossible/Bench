@@ -1,6 +1,8 @@
 import {
   BenchError,
   isVerifiedLive,
+  AGENT_CATEGORIES,
+  type AgentCategory,
   summarizeProbes,
   type AgentCard,
   type AgentId,
@@ -207,6 +209,24 @@ export class InMemoryCatalogRepository implements CatalogRepository {
     const nextOffset = offset + entries.length;
 
     return { entries, nextCursor: nextOffset < all.length ? String(nextOffset) : null };
+  }
+
+  async categoryCounts(
+    chain: ChainName,
+    opts: { readonly verifiedLiveOnly?: boolean } = {},
+  ): Promise<Readonly<Record<AgentCategory, number>>> {
+    const now = new Date();
+    const out: Record<string, number> = {};
+    for (const c of AGENT_CATEGORIES) out[c] = 0;
+    for (const r of this.#agents.values()) {
+      if (r.id.chain !== chain) continue;
+      if (opts.verifiedLiveOnly === true && !isVerifiedLive(await this.liveness(r.id), now)) {
+        continue;
+      }
+      const c = r.card?.category ?? 'other';
+      out[c] = (out[c] ?? 0) + 1;
+    }
+    return out as Readonly<Record<AgentCategory, number>>;
   }
 
   async stats(chain: ChainName): Promise<CatalogStats> {

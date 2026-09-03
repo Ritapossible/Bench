@@ -159,6 +159,14 @@ export function createPgData(connectionString: string): BenchData {
       });
     },
 
+    async categoryCounts(opts) {
+      return catalog.categoryCounts(CHAIN, {
+        ...(opts?.verifiedLiveOnly === undefined
+          ? {}
+          : { verifiedLiveOnly: opts.verifiedLiveOnly }),
+      });
+    },
+
     async advantage() {
       return buildAdvantageReport(audition, CHAIN, 10);
     },

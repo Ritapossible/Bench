@@ -1,4 +1,4 @@
-import { isThin } from '@bench/core';
+import { AGENT_CATEGORIES, isThin, type AgentCategory } from '@bench/core';
 import { data, isLiveData } from '@/lib/data/index';
 import { CatalogFilter, type AgentRow } from '@/components/CatalogFilter';
 import { agentHref } from '@/lib/format';
@@ -23,8 +23,30 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Catalog - Bench' };
 
-export default async function AgentsPage() {
-  const agents = await data.listAgents();
+export default async function AgentsPage({
+  searchParams,
+}: {
+  readonly searchParams: Promise<{ readonly category?: string; readonly live?: string }>;
+}) {
+  const params = await searchParams;
+
+  // Verified-live is the default view, and `?live=false` opts out. That way a
+  // shared link carries the filter it was shared under, which the old client
+  // state could not do.
+  const liveOnly = params.live !== 'false';
+  const category = AGENT_CATEGORIES.includes(params.category as never)
+    ? (params.category as AgentCategory)
+    : 'all';
+
+  const [agents, counts] = await Promise.all([
+    data.listAgents({
+      verifiedLiveOnly: liveOnly,
+      ...(category === 'all' ? {} : { category }),
+    }),
+    data.categoryCounts({ verifiedLiveOnly: liveOnly }),
+  ]);
+
+  const totalIndexed = Object.values(counts).reduce((a, b) => a + b, 0);
 
   const rows: AgentRow[] = agents.map((a) => {
     const { record, liveness, verifiedLive } = a.entry;
@@ -70,7 +92,13 @@ export default async function AgentsPage() {
           </p>
         </div>
 
-        <CatalogFilter rows={rows} />
+        <CatalogFilter
+          rows={rows}
+          counts={{ ...counts, all: totalIndexed }}
+          category={category}
+          liveOnly={liveOnly}
+          totalIndexed={totalIndexed}
+        />
       </div>
     </section>
   );
