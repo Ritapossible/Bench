@@ -53,3 +53,4 @@ export {
   type ShadowAgent,
   type ShadowAgentContext,
 } from './audition.js';
+export { buildAdvantageReport, type AdvantageReport, type AdvantageTask } from './advantage.js';

@@ -6,6 +6,20 @@ import type { InterceptedAction, OutcomeRecord, ShadowRun } from '../types/audit
 import type { Score, ScoreBasis } from '../types/score.js';
 
 /**
+ * One completed audition, with the run, its outcome, and what makes it
+ * checkable. `actions` is what the agent actually did, which is the "outputs
+ * attached" half of the report.
+ */
+export interface AuditionEvidence {
+  readonly run: ShadowRun;
+  readonly outcome: OutcomeRecord;
+  readonly replayHash: string;
+  readonly agentName: string | null;
+  readonly category: AgentCategory;
+  readonly actions: readonly InterceptedAction[];
+}
+
+/**
  * Where audition evidence lives - ARCHITECTURE.md 3.3.
  *
  * Separate from `CatalogRepository` because the two answer different questions
@@ -54,6 +68,20 @@ export interface AuditionStore {
     chain: ChainName,
     limit?: number,
   ): Promise<readonly { readonly agent: AgentId; readonly category: AgentCategory }[]>;
+
+  /**
+   * Completed auditions with everything needed to reproduce the comparison,
+   * newest first.
+   *
+   * The Agent Advantage Report is a required deliverable: three real tasks run
+   * with and without an agent, reporting time, cost and output quality with the
+   * outputs attached. An audition already *is* that comparison - the same
+   * position, the same window, the agent against a do-nothing baseline - so the
+   * report is generated from recorded evidence rather than written by hand.
+   * This is the query that makes that possible, and it returns the replay hash
+   * so a reader can check the run rather than take the number on trust.
+   */
+  completedAuditions(chain: ChainName, limit?: number): Promise<readonly AuditionEvidence[]>;
 
   putOutcome(outcome: OutcomeRecord, replayHash: string): Promise<void>;
   outcomesFor(agent: AgentId, limit?: number): Promise<readonly OutcomeRecord[]>;

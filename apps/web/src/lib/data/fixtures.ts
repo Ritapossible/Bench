@@ -568,6 +568,25 @@ export const fixtureData: BenchData = {
     return { ...found, runs, outcomes, actionsByRun, realized: null };
   },
 
+  /**
+   * Fixtures produce an empty report rather than an invented one.
+   *
+   * The whole point of this report is that every figure comes from a recorded
+   * run. Fabricating three plausible tasks so the page looks full would be the
+   * exact failure the report exists to guard against, and the page says the
+   * deployment has no auditions yet instead.
+   */
+  async advantage() {
+    return {
+      chain: 'bsc-testnet' as const,
+      generatedAt: new Date(),
+      tasks: [],
+      meetsTaskMinimum: false,
+      meetsCategoryRequirement: false,
+      totals: { tasks: 0, agentWins: 0, netDeltaUsd: 0, totalCostUsd: 0 },
+    };
+  },
+
   async reportForAddress(address): Promise<AddressReportResult> {
     if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return { status: 'invalid-address' };
     // Fixtures have no chain to read, so there is no real position to attach.

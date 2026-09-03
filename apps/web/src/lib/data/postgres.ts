@@ -12,6 +12,7 @@ import {
 } from '@bench/core';
 import { BscPositionReader } from '@bench/adapters';
 import { createDb, PgAuditionStore, PgCatalogRepository } from '@bench/db';
+import { buildAdvantageReport } from '@bench/services';
 import type { AddressReportResult, AgentDetail, AgentSummary, BenchData } from './types';
 
 /**
@@ -151,6 +152,10 @@ export function createPgData(connectionString: string): BenchData {
         if (a.entry.verifiedLive !== b.entry.verifiedLive) return a.entry.verifiedLive ? -1 : 1;
         return (b.score?.normalized ?? -1) - (a.score?.normalized ?? -1);
       });
+    },
+
+    async advantage() {
+      return buildAdvantageReport(audition, CHAIN, 10);
     },
 
     async getAgent(chain, tokenId): Promise<AgentDetail | null> {

@@ -10,6 +10,7 @@ import type {
   Score,
   ShadowRun,
 } from '@bench/core';
+import type { AdvantageReport } from '@bench/services';
 
 /**
  * Everything the web app needs, expressed once.
@@ -20,6 +21,14 @@ import type {
  * import a fixture directly.
  */
 export interface BenchData {
+  /**
+   * The Agent Advantage Report, generated from recorded auditions.
+   *
+   * A required submission deliverable, and one every other entrant will write
+   * by hand. Generated because an audition already is the comparison it asks
+   * for, and a hand-typed number is one nobody can check.
+   */
+  advantage(): Promise<AdvantageReport>;
   /** Catalog density - the ~4% claim, computed against what we actually indexed. */
   catalogStats(): Promise<CatalogStats>;
   /** Same measurement over time, for the public registry health dashboard. */

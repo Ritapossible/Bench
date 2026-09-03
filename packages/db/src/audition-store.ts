@@ -11,6 +11,7 @@ import {
   type CategoryMetric,
   type ChainName,
   type Address,
+  type AuditionEvidence,
   type Hex,
   type InterceptedAction,
   type OutcomeRecord,
@@ -222,6 +223,70 @@ export class PgAuditionStore implements AuditionStore {
       category: ((r.card as { category?: AgentCategory } | null)?.category ??
         'other') as AgentCategory,
     }));
+  }
+
+  /**
+   * Completed auditions and their evidence, newest first.
+   *
+   * One query for the runs and one for their actions, rather than a query per
+   * run: the report shows a handful of tasks, but the shape that gets slower as
+   * the catalog grows is the one that ends up in production.
+   */
+  async completedAuditions(chain: ChainName, limit = 10): Promise<readonly AuditionEvidence[]> {
+    const rows = await this.db
+      .select({
+        run: schema.shadowRuns,
+        window: schema.auditionWindows,
+        outcome: schema.outcomeRecords,
+        tokenId: schema.agents.tokenId,
+        card: schema.agents.card,
+      })
+      .from(schema.outcomeRecords)
+      .innerJoin(schema.shadowRuns, eq(schema.shadowRuns.id, schema.outcomeRecords.runId))
+      .innerJoin(schema.auditionWindows, eq(schema.auditionWindows.id, schema.shadowRuns.windowId))
+      .innerJoin(schema.agents, eq(schema.agents.id, schema.shadowRuns.agentId))
+      .where(and(eq(schema.agents.chain, chain), eq(schema.shadowRuns.status, 'complete')))
+      .orderBy(desc(schema.shadowRuns.startedAt))
+      .limit(limit);
+
+    const actions = await this.actionsForRuns(rows.map((r) => r.run.id));
+
+    return rows.map(({ run, window, outcome, tokenId, card }) => {
+      const agent: AgentId = { chain, tokenId: BigInt(tokenId) };
+      const c = card as { name?: string; category?: AgentCategory } | null;
+      return {
+        run: {
+          id: run.id,
+          agent,
+          window: {
+            id: window.id,
+            label: window.label,
+            regime: window.regime as AuditionWindow['regime'],
+            forkBlock: window.forkBlock,
+            endBlock: window.endBlock,
+            seed: window.seed,
+          },
+          position: decPosition(run.positionKind, run.positionParams as Json),
+          status: run.status as ShadowRunStatus,
+          startedAt: run.startedAt,
+          finishedAt: run.finishedAt,
+          egressSpentUsd: run.egressSpentUsd,
+          ...(run.failureReason === null ? {} : { failureReason: run.failureReason }),
+        },
+        outcome: {
+          runId: outcome.runId,
+          terminal: { valueUsd: outcome.terminalValueUsd, detail: outcome.terminalDetail as Json },
+          deltaVsDoNothingUsd: outcome.deltaVsDoNothingUsd,
+          deltaVsPeerMedianUsd: outcome.deltaVsPeerMedianUsd,
+          maxDrawdownUsd: outcome.maxDrawdownUsd,
+          actionCount: outcome.actionCount,
+        } as OutcomeRecord,
+        replayHash: outcome.replayHash,
+        agentName: c?.name ?? null,
+        category: (c?.category ?? 'other') as AgentCategory,
+        actions: actions.get(run.id) ?? [],
+      };
+    });
   }
 
   // --------------------------------------------------------------- outcomes
