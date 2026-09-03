@@ -42,8 +42,9 @@ export function Footer() {
         <p className="tiny">
           Built for BNB Chain’s{' '}
           <a href="https://www.bnbchain.org/en/hackathons/smart-money-era">The Smart Money Era</a>{' '}
-          hackathon. Testnet only - no real value has touched this deployment. Audition results are
-          simulated and labelled as such throughout.
+          hackathon. Testnet only - no real value has touched this deployment. Auditions run against
+          forked mainnet state and their transactions are never broadcast; the outcomes are
+          measured, not estimated.
         </p>
       </div>
     </footer>

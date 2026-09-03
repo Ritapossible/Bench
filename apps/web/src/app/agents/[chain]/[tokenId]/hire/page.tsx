@@ -64,7 +64,7 @@ export default async function HirePage({
   const summary =
     agent.score === null
       ? `${card?.name ?? 'This agent'} has no completed auditions. It is listed and probed, but there is no record to hire against - and no bound to derive from one.`
-      : `Across ${agent.score.sampleSize} auditions on the same position and window, ${card?.name} came out ${usd(delta ?? 0, { sign: true })} against doing nothing. Every figure is simulated and labelled as such.`;
+      : `Across ${agent.score.sampleSize} auditions on the same position and window, ${card?.name} came out ${usd(delta ?? 0, { sign: true })} against doing nothing. Every figure is measured from a run against forked mainnet state, not estimated.`;
 
   return (
     <section className="wrap section">
