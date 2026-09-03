@@ -57,8 +57,15 @@ class StubStore implements Partial<AuditionStore> {
   async outcomesFor(): Promise<readonly OutcomeRecord[]> {
     return this.outcomes;
   }
+  readonly deleted: AgentId[] = [];
+  /** Pretend a score is on file for every agent, so retraction is observable. */
+  scoresOnFile = 1;
   async putScore(s: Score): Promise<void> {
     this.written.push(s);
+  }
+  async deleteScores(agent: AgentId): Promise<number> {
+    this.deleted.push(agent);
+    return this.scoresOnFile;
   }
   async recordStats(_s: CatalogStats): Promise<void> {}
 }
@@ -190,6 +197,30 @@ describe('Scorer', () => {
     expect(store.written).toHaveLength(1);
     // One run is not a track record, and the caller is told so.
     expect(r.thin).toBe(1);
+  });
+
+  it('withdraws a score once the evidence behind it stops counting', async () => {
+    // Excluding auditions that failed left twenty agents with no evidence and
+    // a published score still on file. The scorer skipped them on every pass
+    // and the catalog went on showing a number it would no longer produce -
+    // re-running could not fix it, because nothing ever removed a row.
+    const store = new StubStore([], []);
+    const r = await build(store).scoreAll([{ id: AGENT, category: 'yield' }]);
+
+    expect(r.scored).toBe(0);
+    expect(r.skipped).toBe(1);
+    expect(r.retracted).toBe(1);
+    expect(store.deleted).toEqual([AGENT]);
+    expect(store.written).toHaveLength(0);
+  });
+
+  it('does not touch the score of an agent that still has evidence', async () => {
+    const at = new Date();
+    const store = new StubStore([run('r1', at, 10_000n)], [outcome('r1', 400)]);
+    const r = await build(store).scoreAll([{ id: AGENT, category: 'yield' }]);
+
+    expect(r.retracted).toBe(0);
+    expect(store.deleted).toEqual([]);
   });
 
   it('never merges realized into simulated', async () => {

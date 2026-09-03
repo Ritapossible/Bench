@@ -228,6 +228,24 @@ describeDb('PgAuditionStore', () => {
     expect(read?.capitalUsd).toBe(25_000);
   });
 
+  it("withdraws one agent's scores for one basis, and nobody else's", async () => {
+    await store.putScore(score(agent(1n), { basis: 'simulated' }));
+    await store.putScore(score(agent(1n), { basis: 'realized' }));
+    await store.putScore(score(agent(2n), { basis: 'simulated' }));
+
+    expect(await store.deleteScores(agent(1n), 'simulated')).toBe(1);
+
+    expect(await store.latestScore(agent(1n), 'simulated')).toBeNull();
+    // A retraction on one basis says nothing about the other: a backtest that
+    // stopped qualifying is not a settled job that stopped happening.
+    expect(await store.latestScore(agent(1n), 'realized')).not.toBeNull();
+    expect(await store.latestScore(agent(2n), 'simulated')).not.toBeNull();
+  });
+
+  it('reports nothing withdrawn when there was nothing on file', async () => {
+    expect(await store.deleteScores(agent(3n), 'simulated')).toBe(0);
+  });
+
   it('returns the newest score per agent in one query', async () => {
     await store.putScore(score(agent(1n)));
     await store.putScore(

@@ -194,24 +194,34 @@ export class Scorer {
   }
 
   /**
-   * Score many agents and persist the ones that have evidence.
+   * Score many agents, persist the ones that have evidence, and retract the
+   * ones that no longer do.
    *
    * Returns the agents it skipped as well as the ones it scored, because "no
    * outcomes yet" is the normal state for most of the catalog and a caller
    * logging only successes would make it look like the scorer was failing.
+   *
+   * The retraction is the part that is easy to leave out. When auditions that
+   * failed stopped counting as evidence, this loop began skipping twenty
+   * agents whose published scores stayed exactly where they were - the catalog
+   * kept showing a number the scorer would no longer produce, and no amount of
+   * re-running fixed it, because nothing here ever removed a row. A number that
+   * cannot be withdrawn is not a measurement.
    */
   async scoreAll(
     agents: readonly { readonly id: AgentId; readonly category: AgentCategory }[],
     basis: Score['basis'] = 'simulated',
-  ): Promise<{ scored: number; skipped: number; thin: number }> {
+  ): Promise<{ scored: number; skipped: number; thin: number; retracted: number }> {
     let scored = 0;
     let skipped = 0;
     let thin = 0;
+    let retracted = 0;
 
     for (const { id, category } of agents) {
       const result = await this.scoreAgent(id, category, basis);
       if (result.score === null) {
         skipped += 1;
+        retracted += await this.store.deleteScores(id, basis);
         continue;
       }
       if (isThin(result.score)) thin += 1;
@@ -219,7 +229,7 @@ export class Scorer {
       scored += 1;
     }
 
-    return { scored, skipped, thin };
+    return { scored, skipped, thin, retracted };
   }
 }
 

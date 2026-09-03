@@ -347,13 +347,27 @@ async function main(): Promise<void> {
         // Skipped here means "no outcomes recorded yet", which is the normal
         // state for most of the catalog. Candidates that were neither scored
         // nor skipped are not.
+        // Skipped here means "no outcomes that still count as evidence", the
+        // normal state for most of the catalog. Candidates that were neither
+        // scored nor skipped are not accounted for by anything.
         outcome.set(
           QUEUE.scorer,
-          r.scored > 0 ? 'worked' : scorable.length > r.skipped ? 'idle' : 'nothing-due',
+          r.scored > 0 || r.retracted > 0
+            ? 'worked'
+            : scorable.length > r.scored + r.skipped
+              ? 'idle'
+              : 'nothing-due',
         );
-        lastResult.set(QUEUE.scorer, `scored=${r.scored} skipped=${r.skipped} thin=${r.thin}`);
+        lastResult.set(
+          QUEUE.scorer,
+          `scored=${r.scored} skipped=${r.skipped} thin=${r.thin}` +
+            // Silent retraction would leave the catalog changing under a
+            // reader with nothing here to explain why.
+            (r.retracted > 0 ? ` retracted=${r.retracted}` : ''),
+        );
         console.log(
-          `[bench:scorer] scored=${r.scored} skipped=${r.skipped} (no outcomes) thin=${r.thin}`,
+          `[bench:scorer] scored=${r.scored} skipped=${r.skipped} (no evidence) ` +
+            `thin=${r.thin} retracted=${r.retracted}`,
         );
       },
       { ...redis, concurrency: 1 },

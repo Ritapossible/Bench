@@ -116,6 +116,17 @@ export interface AuditionStore {
   latestScores(agents: readonly AgentId[], basis: ScoreBasis): Promise<ReadonlyMap<string, Score>>;
 
   /**
+   * Withdraw an agent's scores for one basis. Returns how many rows went.
+   *
+   * A score has to be able to stop being true. `putScore` only ever writes, so
+   * when the rules changed to exclude auditions that failed, twenty agents kept
+   * showing a published number the scorer would no longer produce - evidence
+   * had been withdrawn and the conclusion stayed up. Anything that stops
+   * qualifying has to be retracted, not merely left unrefreshed.
+   */
+  deleteScores(agent: AgentId, basis: ScoreBasis): Promise<number>;
+
+  /**
    * Failed auditions per agent, keyed like `latestScores`.
    *
    * An agent whose every audition failed has no score, and without this it is

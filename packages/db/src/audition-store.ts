@@ -215,6 +215,10 @@ export class PgAuditionStore implements AuditionStore {
       .from(schema.outcomeRecords)
       .innerJoin(schema.shadowRuns, eq(schema.shadowRuns.id, schema.outcomeRecords.runId))
       .innerJoin(schema.agents, eq(schema.agents.id, schema.shadowRuns.agentId))
+      // Deliberately unfiltered by run status, unlike `outcomesFor`. An agent
+      // whose every audition failed has no score to compute but may well have
+      // one on file, and it has to be in this list for the scorer to retract
+      // it. Filtering here would make exactly the wrong scores unremovable.
       .where(eq(schema.agents.chain, chain))
       .orderBy(schema.agents.tokenId, desc(schema.shadowRuns.startedAt))
       .limit(limit);
@@ -419,6 +423,30 @@ export class PgAuditionStore implements AuditionStore {
       if (!out.has(key)) out.set(key, toScore(s, id));
     }
     return out;
+  }
+
+  async deleteScores(agent: AgentId, basis: ScoreBasis): Promise<number> {
+    const rows = await this.db
+      .delete(schema.scores)
+      .where(
+        and(
+          eq(schema.scores.basis, basis),
+          inArray(
+            schema.scores.agentId,
+            this.db
+              .select({ id: schema.agents.id })
+              .from(schema.agents)
+              .where(
+                and(
+                  eq(schema.agents.chain, agent.chain),
+                  eq(schema.agents.tokenId, agent.tokenId.toString()),
+                ),
+              ),
+          ),
+        ),
+      )
+      .returning({ agentId: schema.scores.agentId });
+    return rows.length;
   }
 
   async failedAuditions(agents: readonly AgentId[]): Promise<ReadonlyMap<string, FailedAuditions>> {
