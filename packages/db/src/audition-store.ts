@@ -193,6 +193,37 @@ export class PgAuditionStore implements AuditionStore {
     return out;
   }
 
+  /**
+   * Agents holding at least one outcome, most recently audited first.
+   *
+   * See the port for why the scorer is driven by this rather than by a page of
+   * the catalog. Distinct on the agent because an agent audited five times is
+   * one thing to score, not five.
+   */
+  async agentsWithOutcomes(
+    chain: ChainName,
+    limit = 200,
+  ): Promise<readonly { readonly agent: AgentId; readonly category: AgentCategory }[]> {
+    const rows = await this.db
+      .selectDistinctOn([schema.agents.tokenId], {
+        tokenId: schema.agents.tokenId,
+        card: schema.agents.card,
+        startedAt: schema.shadowRuns.startedAt,
+      })
+      .from(schema.outcomeRecords)
+      .innerJoin(schema.shadowRuns, eq(schema.shadowRuns.id, schema.outcomeRecords.runId))
+      .innerJoin(schema.agents, eq(schema.agents.id, schema.shadowRuns.agentId))
+      .where(eq(schema.agents.chain, chain))
+      .orderBy(schema.agents.tokenId, desc(schema.shadowRuns.startedAt))
+      .limit(limit);
+
+    return rows.map((r) => ({
+      agent: { chain, tokenId: BigInt(r.tokenId) },
+      category: ((r.card as { category?: AgentCategory } | null)?.category ??
+        'other') as AgentCategory,
+    }));
+  }
+
   // --------------------------------------------------------------- outcomes
 
   async putOutcome(outcome: OutcomeRecord, replayHash: string): Promise<void> {

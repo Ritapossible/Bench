@@ -1,4 +1,5 @@
 import type { AgentCategory, AgentId } from '../types/agent.js';
+import type { ChainName } from '../types/primitives.js';
 import type { CatalogStats } from '../types/catalog.js';
 import type { AgreementSummary } from './crossref.js';
 import type { InterceptedAction, OutcomeRecord, ShadowRun } from '../types/audition.js';
@@ -33,6 +34,26 @@ export interface AuditionStore {
   actionsForRuns(
     runIds: readonly string[],
   ): Promise<ReadonlyMap<string, readonly InterceptedAction[]>>;
+
+  /**
+   * Agents that have at least one recorded outcome, most recently audited
+   * first.
+   *
+   * The scorer used to take the first page of the catalog ordered by token id
+   * and ask each row for outcomes. With 2,066 agents registered and a limit of
+   * 500, it could only ever score tokens 0-499 - while auditions pick from
+   * verified-live agents, which are spread across the whole registry. The one
+   * agent that did audition successfully sat at #1581, so a working audition
+   * still produced no score and the catalog said "no auditions yet" forever.
+   *
+   * Scoring is driven by evidence rather than by position in a list, which is
+   * also the cheaper query: the agents with outcomes are a tiny fraction of the
+   * catalog, and asking the rest is work that can only return nothing.
+   */
+  agentsWithOutcomes(
+    chain: ChainName,
+    limit?: number,
+  ): Promise<readonly { readonly agent: AgentId; readonly category: AgentCategory }[]>;
 
   putOutcome(outcome: OutcomeRecord, replayHash: string): Promise<void>;
   outcomesFor(agent: AgentId, limit?: number): Promise<readonly OutcomeRecord[]>;

@@ -75,6 +75,15 @@ const run = (id: string, a: AgentId): ShadowRun => ({
   egressSpentUsd: 0.42,
 });
 
+const outcome = (runId: string): OutcomeRecord => ({
+  runId,
+  terminal: { valueUsd: 10_000, detail: {} },
+  deltaVsDoNothingUsd: 12.5,
+  deltaVsPeerMedianUsd: null,
+  maxDrawdownUsd: 4,
+  actionCount: 2,
+});
+
 const score = (a: AgentId, over: Partial<Score> = {}): Score => ({
   agent: a,
   category: 'rebalancing',
@@ -274,5 +283,47 @@ describeDb('PgAuditionStore', () => {
   it('omits a run with no recorded actions instead of inventing any', async () => {
     await store.putRun(run('r1', agent(1n)), []);
     expect((await store.actionsForRuns(['r1'])).get('r1')).toBeUndefined();
+  });
+
+  it('finds an audited agent regardless of where its token id sits', async () => {
+    // The scorer took the first page of the catalog ordered by token id, so it
+    // could only ever see the low ids. The one agent that audited successfully
+    // in production was #1581 of 2,066 and was never looked at, so a working
+    // audition still produced no score.
+    await store.putRun(run('r-high', agent(3n)), [action(0, 1n)]);
+    await store.putOutcome(outcome('r-high'), '0xhash');
+
+    const found = await store.agentsWithOutcomes('bsc-testnet');
+
+    expect(found.map((f) => f.agent.tokenId)).toContain(3n);
+  });
+
+  it('returns an agent once however many times it was audited', async () => {
+    await store.putRun(run('r-a', agent(1n)), []);
+    await store.putOutcome(outcome('r-a'), '0xhash');
+    await store.putRun(run('r-b', agent(1n)), []);
+    await store.putOutcome(outcome('r-b'), '0xhash');
+
+    const found = await store.agentsWithOutcomes('bsc-testnet');
+
+    expect(found.filter((f) => f.agent.tokenId === 1n)).toHaveLength(1);
+  });
+
+  it('leaves out an agent with a run but no outcome', async () => {
+    // A run that failed before producing an outcome is not evidence to score.
+    await store.putRun(run('r-none', agent(2n)), []);
+
+    const found = await store.agentsWithOutcomes('bsc-testnet');
+
+    expect(found.map((f) => f.agent.tokenId)).not.toContain(2n);
+  });
+
+  it('carries the category the scorer needs to pick a metric', async () => {
+    await store.putRun(run('r-cat', agent(1n)), []);
+    await store.putOutcome(outcome('r-cat'), '0xhash');
+
+    const found = await store.agentsWithOutcomes('bsc-testnet');
+
+    expect(found.find((f) => f.agent.tokenId === 1n)?.category).toBeDefined();
   });
 });

@@ -306,12 +306,15 @@ async function main(): Promise<void> {
     new Worker(
       QUEUE.scorer,
       async () => {
-        const page = await repo.query({ chain: cfg.BENCH_CHAIN, limit: 500 });
+        // Driven by evidence, not by a page of the catalog. Taking the first
+        // 500 rows ordered by token id meant the scorer could only ever see
+        // tokens 0-499, while auditions pick from verified-live agents spread
+        // across all 2,066 - so the one agent that did audition successfully,
+        // at #1581, was never looked at and the catalog said "no auditions
+        // yet" indefinitely.
+        const scorable = await audition.agentsWithOutcomes(cfg.BENCH_CHAIN, 500);
         const r = await scorer.scoreAll(
-          page.entries.map((e) => ({
-            id: e.record.id,
-            category: e.record.card?.category ?? 'other',
-          })),
+          scorable.map((e) => ({ id: e.agent, category: e.category })),
         );
         lastResult.set(QUEUE.scorer, `scored=${r.scored} skipped=${r.skipped} thin=${r.thin}`);
         console.log(
