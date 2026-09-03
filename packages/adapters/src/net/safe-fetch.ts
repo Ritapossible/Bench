@@ -219,6 +219,26 @@ function isBlockedIPv6(ip: string, allowLoopback: boolean): boolean {
     return isBlockedIPv4(dotted, allowLoopback);
   }
 
+  // 64:ff9b::/96 and 64:ff9b:1::/48 - the NAT64 well-known prefixes (RFC 6052,
+  // RFC 8215). On a NAT64 network `[64:ff9b::7f00:1]` is delivered to
+  // 127.0.0.1, so the embedded IPv4 decides, exactly as for a mapped address.
+  // This matters here rather than theoretically: Railway's private network is
+  // IPv6-only, which is the shape of deployment where NAT64 is present.
+  if (h[0] === 0x0064 && h[1] === 0xff9b) {
+    if (h[2] === 0 && h[3] === 0 && h[4] === 0 && h[5] === 0) {
+      const hi = h[6]!;
+      const lo = h[7]!;
+      return isBlockedIPv4(
+        `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`,
+        allowLoopback,
+      );
+    }
+    // The /48 form embeds the address across a different offset; rather than
+    // decode every variant, refuse the whole prefix. Nothing legitimate that
+    // Bench probes lives inside a translation range.
+    return true;
+  }
+
   if (addr === '::1') return !allowLoopback;
   if (addr === '::') return true;
   if (/^f[cd]/.test(addr)) return true; // fc00::/7 unique-local

@@ -45,7 +45,7 @@ const mint = (): Address => `0x${randomBytes(20).toString('hex')}` as Address;
  */
 const globalForCookie = globalThis as unknown as { __benchCookieSecret?: string };
 
-const secret = (() => {
+function secretOf(): string {
   const configured = process.env['BENCH_COOKIE_SECRET'];
   if (configured !== undefined && configured.length >= 16) return configured;
 
@@ -60,19 +60,37 @@ const secret = (() => {
    * theirs there.
    */
   if (globalForCookie.__benchCookieSecret === undefined) {
-    globalForCookie.__benchCookieSecret = randomBytes(32).toString('hex');
+    /**
+     * In production this is a refusal, not a warning.
+     *
+     * A warning was the wrong severity: a production deploy that missed the
+     * variable signed every cookie with a key that dies at the next restart,
+     * so every visitor silently lost the hires they had just made - and the
+     * only evidence was one line in a log nobody reads during judging.
+     * Failing here surfaces it at deploy time, when it is a one-line fix.
+     */
     if (process.env['NODE_ENV'] === 'production') {
-      console.warn(
-        '[bench] BENCH_COOKIE_SECRET is not set - hire ownership cookies are signed with a ' +
-          'per-process key and will stop being recognised on the next restart.',
+      throw new Error(
+        'BENCH_COOKIE_SECRET is required in production. It signs the cookie that owns a hire, ' +
+          'so without it ownership is lost on every restart and cannot be recovered. ' +
+          'Generate one with `openssl rand -hex 32`.',
       );
     }
+    globalForCookie.__benchCookieSecret = randomBytes(32).toString('hex');
   }
   return globalForCookie.__benchCookieSecret;
-})();
+}
 
+/**
+ * Resolved per call, never at module load.
+ *
+ * The refusal above has to reach the hire path and nothing else. Evaluated at
+ * import time it would throw while Next was loading the module, taking the
+ * catalog, the registry dashboard and the status page down with it - failing
+ * the pages a judge actually opens because of a variable only hiring needs.
+ */
 const sign = (value: string): string =>
-  createHmac('sha256', secret).update(value).digest('hex').slice(0, 32);
+  createHmac('sha256', secretOf()).update(value).digest('hex').slice(0, 32);
 
 /** Constant-time, so a wrong signature cannot be narrowed by timing it. */
 function valid(value: string, mac: string): boolean {

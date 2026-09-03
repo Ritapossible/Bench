@@ -34,9 +34,25 @@ export type WorkerHealth =
       readonly uptimeSeconds: number;
       readonly attention: readonly string[];
       readonly queues: readonly WorkerQueue[];
+      /**
+       * True when the worker served status but withheld per-queue detail
+       * because this deployment holds no health token.
+       *
+       * Surfaced rather than rendered as an empty table: "no queues" and "you
+       * were not shown the queues" are different claims, and the second one is
+       * a configuration problem someone can fix.
+       */
+      readonly detailWithheld: boolean;
     };
 
 const TIMEOUT_MS = 4_000;
+/**
+ * The worker withholds per-queue detail without this, because a failure
+ * message can carry the connection string that produced it.
+ */
+const TOKEN = process.env['BENCH_WORKER_HEALTH_TOKEN'];
+/** A worker that streamed forever would otherwise hang a page render. */
+const MAX_BYTES = 256 * 1024;
 
 export async function workerHealth(): Promise<WorkerHealth> {
   const url = process.env['BENCH_WORKER_HEALTH_URL'];
@@ -48,13 +64,22 @@ export async function workerHealth(): Promise<WorkerHealth> {
     const res = await fetch(url, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
       cache: 'no-store',
+      ...(TOKEN === undefined || TOKEN === ''
+        ? {}
+        : { headers: { authorization: `Bearer ${TOKEN}` } }),
     });
     if (!res.ok) return { status: 'unreachable', reason: `worker returned HTTP ${res.status}` };
 
-    const body = (await res.json()) as {
+    // Bounded read. Everything else that crosses a network boundary in Bench
+    // has a byte cap; this had none because the far end is our own worker -
+    // which is an argument about likelihood, not about what a page render
+    // should be willing to buffer.
+    const raw = await readCapped(res, MAX_BYTES);
+    const body = JSON.parse(raw) as {
       status?: string;
       uptimeSeconds?: number;
       attention?: string[];
+      detail?: string;
       queues?: Record<string, Omit<WorkerQueue, 'name'>>;
     };
 
@@ -62,6 +87,7 @@ export async function workerHealth(): Promise<WorkerHealth> {
       status: body.status === 'degraded' ? 'degraded' : 'up',
       uptimeSeconds: body.uptimeSeconds ?? 0,
       attention: body.attention ?? [],
+      detailWithheld: body.detail === 'withheld',
       queues: Object.entries(body.queues ?? {})
         .map(([name, q]) => ({
           name,
@@ -80,4 +106,26 @@ export async function workerHealth(): Promise<WorkerHealth> {
       reason: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/** Read a response body, refusing to buffer past `maxBytes`. */
+async function readCapped(res: Response, maxBytes: number): Promise<string> {
+  const reader = res.body?.getReader();
+  if (reader === undefined) return res.text();
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value !== undefined) {
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error(`worker health response exceeded ${maxBytes} bytes`);
+      }
+      chunks.push(value);
+    }
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }

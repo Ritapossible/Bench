@@ -219,3 +219,36 @@ describe('name resolution', () => {
     await expect(assertPublicUrl('http://localhost:1/')).rejects.toThrow(/blocked/);
   });
 });
+
+describe('NAT64 translation prefixes', () => {
+  /**
+   * 64:ff9b::/96 is not a destination, it is an instruction to a translator.
+   * `[64:ff9b::7f00:1]` on a NAT64 network is delivered to 127.0.0.1, so the
+   * embedded IPv4 has to decide - and it did not, which left a loopback route
+   * open on exactly the deployment shape Bench runs on: Railway's private
+   * network is IPv6-only, which is where NAT64 lives.
+   */
+  it('refuses a loopback address embedded in the well-known prefix', async () => {
+    await expect(assertPublicUrl('http://[64:ff9b::7f00:1]/')).rejects.toMatchObject({
+      code: 'ENDPOINT_UNREACHABLE',
+    });
+  });
+
+  it('refuses cloud metadata embedded in the well-known prefix', async () => {
+    await expect(assertPublicUrl('http://[64:ff9b::a9fe:a9fe]/')).rejects.toMatchObject({
+      code: 'ENDPOINT_UNREACHABLE',
+    });
+  });
+
+  it('refuses the whole /48 translation form rather than decoding each variant', async () => {
+    await expect(assertPublicUrl('http://[64:ff9b:1::1]/')).rejects.toMatchObject({
+      code: 'ENDPOINT_UNREACHABLE',
+    });
+  });
+
+  it('still allows a public address that merely starts with 64:', async () => {
+    // The prefix is two hextets, not one. Blocking on `64:` alone would refuse
+    // a legitimate 64xx::/16 address.
+    await expect(assertPublicUrl('http://[64:1::1]/')).resolves.toBeInstanceOf(URL);
+  });
+});

@@ -9,6 +9,7 @@ import {
   FORK_LAG_BLOCKS,
 } from '@bench/adapters';
 import { loadConfig, requireArchiveRpc } from '@bench/config';
+import { redactError, redactSecrets } from '@bench/core';
 import {
   PgAuditionStore,
   PgCatalogRepository,
@@ -427,7 +428,10 @@ async function main(): Promise<void> {
     // Without this, a throwing job prints an unhandled rejection and the
     // process keeps running as though the tick had succeeded.
     w.on('failed', (job, err) => {
-      heartbeat.fail(w.name, err instanceof Error ? err.message : String(err));
+      // Redacted at the boundary, not at the display: this string is stored,
+      // served by /health and rendered on a public page, and viem puts the
+      // whole archive-node URL - key included - in its message.
+      heartbeat.fail(w.name, redactError(err));
       console.error(`[bench:worker] ${w.name} job ${job?.id ?? '?'} failed:`, err);
     });
     w.on('completed', () => {

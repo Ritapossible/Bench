@@ -1,6 +1,7 @@
 import {
   VERIFIED_LIVE,
   isVerifiedLive,
+  redactSecrets,
   summarizeProbes,
   type AgentCard,
   type AgentEndpoint,
@@ -162,7 +163,10 @@ export class PgCatalogRepository implements CatalogRepository {
       reachable: result.reachable,
       latencyMs: result.latencyMs,
       conformant: result.conformant,
-      error: result.error ?? null,
+      // Redacted and bounded. This string comes from an endpoint a stranger
+      // registered, it is rendered on the public agent page, and an error
+      // raised while talking to our own infrastructure can carry its URL.
+      error: result.error === undefined ? null : redactSecrets(result.error, 500),
     });
 
     // Recompute rather than increment. Incremental updates to p95 and uptime

@@ -1,6 +1,7 @@
 import {
   BenchError,
   replayHash,
+  redactError,
   type AuditionWindow,
   type EgressGuard,
   type ForkProvider,
@@ -214,7 +215,9 @@ export class AuditionRunner {
         // An agent that throws still has a record: whatever it did before
         // failing is real behaviour, and the failure itself is a finding.
         failed = true;
-        failureReason = err instanceof Error ? err.message : String(err);
+        // Stored on the run and shown on the public agent page. The message
+        // can carry the fork's own RPC URL or an endpoint's error body.
+        failureReason = redactError(err);
       }
 
       const terminal = await fork.terminalState(req.position);

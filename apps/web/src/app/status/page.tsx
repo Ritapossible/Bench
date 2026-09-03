@@ -116,6 +116,17 @@ export default async function StatusPage() {
                 </div>
               )}
 
+              {health.detailWithheld ? (
+                <div className="notice notice-warn" role="status">
+                  <p className="small">
+                    The worker is up but withheld its per-queue detail, because this deployment
+                    holds no <span className="mono">BENCH_WORKER_HEALTH_TOKEN</span>. That detail
+                    includes each queue&rsquo;s last failure message, which is why it is not public
+                    by default.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="tablewrap">
                 <table className="table">
                   <thead>

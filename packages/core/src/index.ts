@@ -13,6 +13,7 @@ export * from './types/mandate.js';
 export * from './types/hire-flow.js';
 
 export * from './digest.js';
+export * from './redact.js';
 
 export * from './ports/catalog.js';
 export * from './ports/registry.js';
