@@ -77,10 +77,17 @@ export default async function AgentPage({
         </div>
 
         {/* the two columns, never merged */}
+        <p className="small" style={{ maxWidth: '44rem' }}>
+          An audition is a real measurement: this agent was driven at its own endpoint against a
+          fork of BNB Chain pinned to a real block, holding a real position at real market prices.
+          What is simulated is only that the transactions it produced were executed against that
+          fork rather than broadcast - which is the only way to measure a stranger&rsquo;s agent
+          without handing it money first.
+        </p>
         <div className="grid grid-2">
           <div className="slab on-dark stack stack-12">
             <div className="row-between">
-              <span className="eyebrow">Simulated</span>
+              <span className="eyebrow">From auditions</span>
               {agent.score ? <BasisBadge score={agent.score} /> : null}
             </div>
             {agent.score ? (
@@ -89,9 +96,18 @@ export default async function AgentPage({
                   {usd((agent.score.normalized - 0.5) * 800, { sign: true })}
                 </div>
                 <p className="small">
-                  vs do-nothing · {agent.score.window.start.toISOString().slice(0, 10)} →{' '}
-                  {agent.score.window.end.toISOString().slice(0, 10)} · n={agent.score.sampleSize}
-                  {isThin(agent.score) ? ' · thin sample' : ''}
+                  Against the same position left alone, over {agent.score.sampleSize} audition
+                  {agent.score.sampleSize === 1 ? '' : 's'} on a forked chain.
+                  {isThin(agent.score) ? ' Too few to be a track record yet.' : ''}
+                </p>
+                {/* The dates were rendered as a range and read as an error when
+                    there is one audition: "2026-09-03 → 2026-09-03". A single
+                    date is the truthful rendering of a single measurement. */}
+                <p className="tiny">
+                  {agent.score.window.start.toISOString().slice(0, 10) ===
+                  agent.score.window.end.toISOString().slice(0, 10)
+                    ? `Measured ${agent.score.window.end.toISOString().slice(0, 10)}`
+                    : `${agent.score.window.start.toISOString().slice(0, 10)} → ${agent.score.window.end.toISOString().slice(0, 10)}`}
                 </p>
               </>
             ) : (
@@ -104,13 +120,13 @@ export default async function AgentPage({
 
           <div className="card stack stack-12">
             <div className="row-between">
-              <span className="eyebrow">Realized</span>
+              <span className="eyebrow">From settled hires</span>
               <span className="badge badge-plain">n=0</span>
             </div>
             <div className="statnum ink">-</div>
             <p className="small">
-              No settled hires yet. Realized converges on simulated as real jobs settle; the two are
-              never merged into one number.
+              No settled hires yet. This column fills as real jobs settle and converges on the
+              audition figure; the two are never merged into one number.
             </p>
           </div>
         </div>

@@ -302,9 +302,16 @@ async function main(): Promise<void> {
           return;
         }
         const r = await auditionService.tick(spec.window, spec.position);
+        const why = Object.entries(r.skipReasons)
+          .sort((a, b) => b[1] - a[1])
+          .map(([reason, n]) => `${n}x ${reason}`)
+          .join(', ');
         const summary =
           `window=${r.window} considered=${r.considered} auditioned=${r.auditioned} ` +
-          `ok=${r.succeeded} failed=${r.failed} skipped=${r.skipped}`;
+          `ok=${r.succeeded} failed=${r.failed} skipped=${r.skipped}` +
+          // Without this, "skipped=20" says a tick did nothing and not whether
+          // the catalog is exhausted, undrivable, or broken.
+          (why === '' ? '' : ` (${why})`);
         didWork.set(QUEUE.audition, r.auditioned > 0);
         lastResult.set(QUEUE.audition, summary);
         console.log(`[bench:audition] ${summary}`);

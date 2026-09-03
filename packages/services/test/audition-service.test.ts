@@ -63,7 +63,7 @@ class StubStore implements Partial<AuditionStore> {
   readonly outcomes: OutcomeRecord[] = [];
   readonly actions: InterceptedAction[][] = [];
   constructor(private readonly existing: readonly ShadowRun[] = []) {}
-  async runsFor(): Promise<readonly ShadowRun[]> {
+  async runsFor(_agent?: unknown): Promise<readonly ShadowRun[]> {
     return this.existing;
   }
   async putRun(run: ShadowRun, actions: readonly InterceptedAction[]): Promise<void> {
@@ -235,5 +235,54 @@ describe('AuditionService', () => {
     ).tick(window_, position);
 
     expect(r.auditioned).toBe(2);
+  });
+});
+
+describe('AuditionService skip reasons', () => {
+  /**
+   * A tick reporting "considered 20, auditioned 0, skipped 20" and nothing else
+   * took four separate investigations to explain. `skipped` alone cannot
+   * distinguish an exhausted catalog from an undrivable one from a broken one,
+   * and those need three different responses.
+   */
+  it('names why each agent was skipped', async () => {
+    // Two with no drivable endpoint, one audited within the re-audition floor.
+    const recent: ShadowRun = {
+      id: 'r-recent',
+      agent: { chain: 'bsc-testnet', tokenId: 3n },
+      window: window_,
+      position,
+      status: 'complete',
+      startedAt: new Date(),
+      finishedAt: new Date(),
+      egressSpentUsd: 0,
+    };
+    // Agent-aware: the shared stub returns the same run for every agent, which
+    // would make all three read as recently audited and hide the reason under
+    // test.
+    class PerAgentStore extends StubStore {
+      override async runsFor(a: { readonly tokenId: bigint }): Promise<readonly ShadowRun[]> {
+        return a.tokenId === 3n ? [recent] : [];
+      }
+    }
+    const svc = build(
+      [agent(1n, false), agent(2n, false), agent(3n, true)],
+      new PerAgentStore(),
+      new FakeForks([10_000]),
+    );
+
+    const r = await svc.tick(window_, position);
+
+    expect(r.skipped).toBe(3);
+    expect(r.skipReasons['no drivable endpoint']).toBe(2);
+    expect(r.skipReasons['audited recently']).toBe(1);
+    expect(r.auditioned).toBe(0);
+  });
+
+  it('reports nothing to explain when nothing was skipped', async () => {
+    const svc = build([], new StubStore(), new FakeForks([]));
+    const r = await svc.tick(window_, position);
+    expect(r.skipped).toBe(0);
+    expect(r.skipReasons).toEqual({});
   });
 });

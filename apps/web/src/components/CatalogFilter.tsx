@@ -157,7 +157,10 @@ export function CatalogFilter({ rows }: { readonly rows: readonly AgentRow[] }) 
                     >
                       {usd(r.deltaUsd, { sign: true })}
                     </span>
-                    <span className="tiny">vs do-nothing · simulated · n={r.sampleSize}</span>
+                    <span className="tiny">
+                      vs doing nothing · {r.sampleSize} audition
+                      {r.sampleSize === 1 ? '' : 's'} on a forked chain
+                    </span>
                   </>
                 )}
               </div>

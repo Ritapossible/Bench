@@ -59,6 +59,16 @@ export interface AuditionTickResult {
   readonly succeeded: number;
   readonly failed: number;
   readonly skipped: number;
+  /**
+   * Why the skipped ones were skipped, grouped by cause.
+   *
+   * `skipped` alone reports that a tick did nothing without saying whether the
+   * catalog is exhausted, the agents cannot be driven, or something is wrong -
+   * three situations needing three different responses. A tick reporting
+   * "considered 20, auditioned 0, skipped 20" and nothing else took four
+   * separate investigations to explain.
+   */
+  readonly skipReasons: Readonly<Record<string, number>>;
 }
 
 const DEFAULTS = {
@@ -112,6 +122,11 @@ export class AuditionService {
 
     const candidates: { agent: (typeof page.entries)[number]['record']; shim: ShadowAgent }[] = [];
     let skipped = 0;
+    const skipReasons: Record<string, number> = {};
+    const skip = (why: string): void => {
+      skipped += 1;
+      skipReasons[why] = (skipReasons[why] ?? 0) + 1;
+    };
 
     /**
      * Last audition per candidate, in one round rather than one query each.
@@ -134,17 +149,20 @@ export class AuditionService {
       // The filter already applied this in SQL; re-checking keeps the two
       // definitions honest and costs nothing.
       if (!isVerifiedLive(entry.liveness, now)) {
-        skipped += 1;
+        // The SQL filter and this check are meant to agree; if this ever fires
+        // in volume, they have drifted and the catalog is showing agents the
+        // audition path will not touch.
+        skip('not verified live on re-check');
         continue;
       }
       const last = lastRunAt.get(agentKeyOf(entry.record.id)) ?? null;
       if (last !== null && last >= cutoff) {
-        skipped += 1;
+        skip('audited recently');
         continue;
       }
       const shim = this.deps.agentFor({ agent: entry.record });
       if (shim === null) {
-        skipped += 1;
+        skip('no drivable endpoint');
         continue;
       }
       candidates.push({ agent: entry.record, shim });
@@ -158,6 +176,7 @@ export class AuditionService {
         succeeded: 0,
         failed: 0,
         skipped,
+        skipReasons,
       };
     }
 
@@ -218,6 +237,7 @@ export class AuditionService {
       succeeded,
       failed,
       skipped,
+      skipReasons,
     };
   }
 }
