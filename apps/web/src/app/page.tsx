@@ -21,16 +21,17 @@ import { pct } from '@/lib/format';
  */
 export const dynamic = 'force-dynamic';
 
-const CHAINS = [
-  'BNB Smart Chain',
-  'PancakeSwap',
-  'Venus',
-  'ERC-8004',
-  'ERC-8183',
-  'Binance x402',
-  'Altana',
-  '8004scan',
-];
+/**
+ * Split, because a single strip of logos is a claim.
+ *
+ * Listing ERC-8183, x402 and Altana beside ERC-8004 and 8004scan implied Bench
+ * integrates all of them equally. Two of those it reads from every thirty
+ * seconds; three are interfaces it is built against with stub adapters behind
+ * them. A reader cannot tell those apart from a row of chips, and a logo strip
+ * that quietly overstates is the cheapest kind of dishonesty in a demo.
+ */
+const INTEGRATED = ['BNB Smart Chain', 'ERC-8004', '8004scan', 'Foundry / anvil'];
+const DESIGNED_FOR = ['ERC-8183', 'Binance x402', 'Altana', 'PancakeSwap', 'Venus'];
 
 const STEPS = [
   {
@@ -223,14 +224,28 @@ export default async function Home() {
       {/* ---------- chain strip ---------- */}
       <section className="wrap section-tight">
         <div className="strip">
-          {CHAINS.map((c) => (
+          {INTEGRATED.map((c) => (
             <span key={c} className="chip">
               {c}
             </span>
           ))}
         </div>
         <p className="small" style={{ textAlign: 'center', marginTop: '1.25rem' }}>
-          Built on BNB Smart Chain, on the registries and rails the ecosystem already ships.
+          Read from live, every tick: the ERC-8004 registry on BNB Smart Chain, cross-referenced
+          against 8004scan, replayed on a forked chain.
+        </p>
+
+        <div className="strip" style={{ marginTop: '2rem', opacity: 0.62 }}>
+          {DESIGNED_FOR.map((c) => (
+            <span key={c} className="chip">
+              {c}
+            </span>
+          ))}
+        </div>
+        <p className="small" style={{ textAlign: 'center', marginTop: '1.25rem' }}>
+          Built against, behind stub adapters: payment, escrow, session keys and the two position
+          types that need them. Separated from the row above on purpose - one row is what runs, the
+          other is what it is shaped for.
         </p>
       </section>
 
