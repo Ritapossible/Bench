@@ -69,12 +69,12 @@ describe('health: a queue that succeeds at nothing', () => {
     await new Promise((r) => server.once('listening', r));
     const port = (server.address() as { port: number }).port;
     try {
-      heartbeat.mark('bench-audition', 'auditioned=2', true);
+      heartbeat.mark('bench-audition', 'auditioned=2', 'worked');
       expect((await drain(port))['status']).toBe('up');
 
       // Five consecutive empty ticks: enough to notice within one cadence,
       // more than the single quiet tick that is normal once caught up.
-      for (let i = 0; i < 5; i++) heartbeat.mark('bench-audition', 'auditioned=0', false);
+      for (let i = 0; i < 5; i++) heartbeat.mark('bench-audition', 'auditioned=0', 'idle');
 
       const body = await drain(port);
       expect(body['status']).toBe('degraded');
@@ -89,11 +89,53 @@ describe('health: a queue that succeeds at nothing', () => {
     await new Promise((r) => server.once('listening', r));
     const port = (server.address() as { port: number }).port;
     try {
-      for (let i = 0; i < 6; i++) heartbeat.mark('bench-scorer', 'scored=0', false);
+      for (let i = 0; i < 6; i++) heartbeat.mark('bench-scorer', 'scored=0', 'idle');
       expect((await drain(port))['status']).toBe('degraded');
 
-      heartbeat.mark('bench-scorer', 'scored=21', true);
+      heartbeat.mark('bench-scorer', 'scored=21', 'worked');
       expect((await drain(port))['status']).toBe('up');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('stays up through a caught-up queue, however long it stays quiet', async () => {
+    // The prober probes every endpoint inside an hour and then has nothing due
+    // until the next window; the audition queue has its whole verified-live set
+    // inside the re-audition floor. Both used to trip the alert, so a healthy
+    // worker read "needs attention" - which is how a signal that had just found
+    // three real bugs starts getting ignored.
+    const { heartbeat, server } = startHealthServer(0);
+    await new Promise((r) => server.once('listening', r));
+    const port = (server.address() as { port: number }).port;
+    try {
+      for (let i = 0; i < 40; i++) heartbeat.mark('bench-prober', 'probed=0', 'nothing-due');
+      const body = await drain(port);
+      expect(body['status']).toBe('up');
+      expect(body['attention']).toBeUndefined();
+    } finally {
+      server.close();
+    }
+  });
+
+  it('does not let nothing-due ticks hide an unaccounted-for streak', async () => {
+    // A queue alternating between "nothing due" and "had candidates, did
+    // nothing" is not healthy, and the reset must not launder it. Only an
+    // unbroken run of unaccounted-for ticks alerts.
+    const { heartbeat, server } = startHealthServer(0);
+    await new Promise((r) => server.once('listening', r));
+    const port = (server.address() as { port: number }).port;
+    try {
+      for (let i = 0; i < 4; i++) {
+        heartbeat.mark('bench-audition', 'considered=6 auditioned=0 skipped=0', 'idle');
+        heartbeat.mark('bench-audition', 'considered=0', 'nothing-due');
+      }
+      expect((await drain(port))['status']).toBe('up');
+
+      for (let i = 0; i < 5; i++) {
+        heartbeat.mark('bench-audition', 'considered=6 auditioned=0 skipped=0', 'idle');
+      }
+      expect((await drain(port))['status']).toBe('degraded');
     } finally {
       server.close();
     }

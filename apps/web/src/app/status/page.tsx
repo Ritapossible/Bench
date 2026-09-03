@@ -40,9 +40,12 @@ export default async function StatusPage() {
           <span className="eyebrow">Status</span>
           <h1 className="h2">What the machinery is doing.</h1>
           <p className="lead">
-            Every queue reports what its last tick achieved, not that it ran. A queue that keeps
-            completing without doing anything is called out here rather than counted as healthy -
-            &ldquo;succeeded&rdquo; is the absence of an error, not an outcome.
+            Every queue reports what its last tick achieved, not that it ran -
+            &ldquo;succeeded&rdquo; is the absence of an error, not an outcome. A quiet queue is
+            normal: the prober probes every endpoint hourly and then has nothing due, and the
+            audition queue waits out its re-audition floor. What is called out here is a queue with
+            candidates it neither handled nor explained, which is the shape every real fault in this
+            worker has taken.
           </p>
         </div>
 
@@ -146,7 +149,7 @@ export default async function StatusPage() {
                             <>
                               {' '}
                               <span className="badge badge-blocked">
-                                {q.idleStreak} empty ticks
+                                {q.idleStreak} ticks unaccounted for
                               </span>
                             </>
                           ) : null}

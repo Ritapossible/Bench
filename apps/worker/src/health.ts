@@ -15,8 +15,26 @@ import { createServer, type Server } from 'node:http';
  * gap between two audition runs. A restart loop is worse than a slow queue,
  * and the ages are in the body for a human or an alert to read.
  */
+/**
+ * What a completed tick achieved.
+ *
+ * Three states, not two, because "did nothing" covers two opposite situations.
+ * A prober with every endpoint probed inside the last hour and an audition
+ * queue whose whole verified-live set is inside the re-audition floor are both
+ * doing exactly what they are supposed to; a scorer that cannot see the agent
+ * it is meant to score is not. Collapsing them made the status page report
+ * "needs attention" on a healthy worker, which is how an alert that had just
+ * found three real bugs starts getting ignored.
+ *
+ * - `worked`: the tick produced output.
+ * - `nothing-due`: the schedule legitimately had nothing for it.
+ * - `idle`: it had candidates it neither handled nor accounted for. This is
+ *   the shape every one of those bugs took, and the only one that alerts.
+ */
+export type TickOutcome = 'worked' | 'nothing-due' | 'idle';
+
 export interface Heartbeat {
-  mark(queue: string, result?: string, didWork?: boolean): void;
+  mark(queue: string, result?: string, outcome?: TickOutcome): void;
   fail(queue: string, reason?: string): void;
 }
 
@@ -47,9 +65,9 @@ interface QueueState {
 }
 
 /**
- * Consecutive empty ticks before a queue is called out. Low enough to notice
- * within one cadence of most queues, high enough that a single quiet tick -
- * which is normal for the prober once a catalog is caught up - is not noise.
+ * Consecutive unaccounted-for ticks before a queue is called out. Counts only
+ * `idle`, so a caught-up prober or audition queue never reaches it however
+ * long it stays quiet.
  */
 const IDLE_STREAK_ALERT = 5;
 
@@ -73,15 +91,15 @@ export function startHealthServer(port: number): { heartbeat: Heartbeat; server:
   };
 
   const heartbeat: Heartbeat = {
-    mark(queue, result, didWork) {
+    mark(queue, result, outcome) {
       const s = stateFor(queue);
       s.lastOkAt = Date.now();
       s.ticks += 1;
       if (result !== undefined) s.lastResult = result.slice(0, 300);
-      // Only tracked when the caller says whether the tick achieved anything.
-      // A queue that cannot answer that is left out rather than assumed busy.
-      if (didWork === true) idleStreak.set(queue, 0);
-      else if (didWork === false) idleStreak.set(queue, (idleStreak.get(queue) ?? 0) + 1);
+      // Only tracked when the caller classifies the tick. A queue that cannot
+      // answer is left out rather than assumed busy.
+      if (outcome === 'idle') idleStreak.set(queue, (idleStreak.get(queue) ?? 0) + 1);
+      else if (outcome !== undefined) idleStreak.set(queue, 0);
     },
     fail(queue, reason) {
       const s = stateFor(queue);
@@ -94,14 +112,15 @@ export function startHealthServer(port: number): { heartbeat: Heartbeat; server:
   };
 
   /**
-   * How many consecutive ticks a queue has completed while doing nothing.
+   * How many consecutive ticks a queue has completed with work it could not
+   * account for.
    *
    * The audition queue ran forty times, reported zero failures, and auditioned
    * no agent. Nothing was red; the queue was succeeding at nothing, and no
    * counter here could tell that from working. "Succeeded" is the absence of an
    * error, not an outcome - so a queue that keeps completing without effect is
-   * now visible as `idleStreak`, and the endpoint says overall that something
-   * needs looking at.
+   * visible as `idleStreak`, and the endpoint says overall that something needs
+   * looking at. Ticks the queue can explain do not count: see `TickOutcome`.
    */
   const idleStreak = new Map<string, number>();
 
@@ -115,7 +134,8 @@ export function startHealthServer(port: number): { heartbeat: Heartbeat; server:
         ? {}
         : {
             attention: stalled.map(
-              ([q, n]) => `${q} has completed ${n} consecutive ticks without doing any work`,
+              ([q, n]) =>
+                `${q} has completed ${n} consecutive ticks with work it did not account for`,
             ),
           }),
       uptimeSeconds: Math.round((now - startedAt) / 1000),

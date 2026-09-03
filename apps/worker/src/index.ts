@@ -26,7 +26,7 @@ import {
   summarizeAgreementFor,
 } from '@bench/services';
 import { Queue, Worker } from 'bullmq';
-import { startHealthServer } from './health.js';
+import { startHealthServer, type TickOutcome } from './health.js';
 import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
 
 /**
@@ -194,7 +194,7 @@ async function main(): Promise<void> {
    * A queue that keeps completing without effect is the failure mode that cost
    * the most here, and it is invisible unless the job says so.
    */
-  const didWork = new Map<string, boolean>();
+  const outcome = new Map<string, TickOutcome>();
 
   const queues = [
     new Queue(QUEUE.indexer, redis),
@@ -214,7 +214,9 @@ async function main(): Promise<void> {
         // and nothing before it; ownerOf and tokenURI are current state and
         // reach the whole registry. See Indexer.enumerationTick.
         const r = await indexer.enumerationTick();
-        didWork.set(QUEUE.indexer, r.upserted > 0 || r.resweeping);
+        // A registry with no token minted since the last tick is the normal
+        // steady state, not a stall.
+        outcome.set(QUEUE.indexer, r.upserted > 0 || r.resweeping ? 'worked' : 'nothing-due');
         lastResult.set(
           QUEUE.indexer,
           `tokens ${r.fromTokenId}-${r.lastTokenId} discovered=${r.discovered} ` +
@@ -243,7 +245,10 @@ async function main(): Promise<void> {
       QUEUE.prober,
       async () => {
         const r = await prober.tick();
-        didWork.set(QUEUE.prober, r.probed > 0);
+        // Nothing due once every endpoint has been probed inside the staleness
+        // window - that is the schedule working. Targets that were selected and
+        // then all failed to produce a result is the case worth flagging.
+        outcome.set(QUEUE.prober, r.probed > 0 ? 'worked' : r.failed > 0 ? 'idle' : 'nothing-due');
         lastResult.set(
           QUEUE.prober,
           `probed=${r.probed} reachable=${r.reachable} conformant=${r.conformant}` +
@@ -312,7 +317,14 @@ async function main(): Promise<void> {
           // Without this, "skipped=20" says a tick did nothing and not whether
           // the catalog is exhausted, undrivable, or broken.
           (why === '' ? '' : ` (${why})`);
-        didWork.set(QUEUE.audition, r.auditioned > 0);
+        // Every considered agent is either auditioned or skipped with a named
+        // reason. An agent that is neither is unaccounted for, and that is
+        // precisely the shape of the bug where MCP agents were dropped in
+        // silence: considered, never audited, never explained.
+        outcome.set(
+          QUEUE.audition,
+          r.auditioned > 0 ? 'worked' : r.considered > r.skipped ? 'idle' : 'nothing-due',
+        );
         lastResult.set(QUEUE.audition, summary);
         console.log(`[bench:audition] ${summary}`);
       },
@@ -332,7 +344,13 @@ async function main(): Promise<void> {
         const r = await scorer.scoreAll(
           scorable.map((e) => ({ id: e.agent, category: e.category })),
         );
-        didWork.set(QUEUE.scorer, r.scored > 0);
+        // Skipped here means "no outcomes recorded yet", which is the normal
+        // state for most of the catalog. Candidates that were neither scored
+        // nor skipped are not.
+        outcome.set(
+          QUEUE.scorer,
+          r.scored > 0 ? 'worked' : scorable.length > r.skipped ? 'idle' : 'nothing-due',
+        );
         lastResult.set(QUEUE.scorer, `scored=${r.scored} skipped=${r.skipped} thin=${r.thin}`);
         console.log(
           `[bench:scorer] scored=${r.scored} skipped=${r.skipped} (no outcomes) thin=${r.thin}`,
@@ -347,7 +365,7 @@ async function main(): Promise<void> {
         // render: doing it per request made /registry a forty-second page.
         const summary = await summarizeAgreementFor(adapters.crossRef, repo, cfg.BENCH_CHAIN, 200);
         await audition.recordCrossReference(cfg.BENCH_CHAIN, summary);
-        didWork.set(QUEUE.crossref, summary.checked > 0);
+        outcome.set(QUEUE.crossref, summary.checked > 0 ? 'worked' : 'nothing-due');
         lastResult.set(
           QUEUE.crossref,
           `${summary.status} checked=${summary.checked} confirmed=${summary.confirmed}`,
@@ -399,7 +417,7 @@ async function main(): Promise<void> {
       console.error(`[bench:worker] ${w.name} job ${job?.id ?? '?'} failed:`, err);
     });
     w.on('completed', () => {
-      heartbeat.mark(w.name, lastResult.get(w.name), didWork.get(w.name));
+      heartbeat.mark(w.name, lastResult.get(w.name), outcome.get(w.name));
     });
   }
 
