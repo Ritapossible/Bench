@@ -141,6 +141,58 @@ describeDb('dueForProbe scheduling', () => {
    * which fails as "Cannot use a pool after calling end on the pool" and looks
    * like a database problem rather than a test-structure one.
    */
+  describe('pruneProbeResults', () => {
+    beforeEach(async () => {
+      await db.delete(schema.probeResults);
+      await db.delete(schema.agentEndpoints);
+      await db.delete(schema.agents);
+      await catalog.upsertAgents([record(1n)]);
+    });
+
+    it('drops anchored results past the window and leaves recent ones', async () => {
+      // The prober writes up to two hundred rows a minute and nothing removed
+      // one, so the table grew without bound - filling a small plan in weeks
+      // and slowing every dueForProbe aggregate in the meantime.
+      const old = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+      await catalog.recordProbe(probeAt(1n, old));
+      await catalog.recordProbe(probeAt(1n, new Date()));
+
+      expect(await catalog.pruneProbeResults(30 * 24 * 60 * 60 * 1000)).toBe(1);
+      expect(await db.select().from(schema.probeResults)).toHaveLength(1);
+
+      // The rolling summary is recomputed when a probe is written, not when
+      // one is deleted, so it still reports the probe it has now forgotten the
+      // row for. That is deliberate: `probeCount` is how many probes were
+      // performed, and pruning storage should not retroactively claim fewer.
+      // The next probe recomputes it over what remains.
+      expect((await catalog.liveness(agent(1n))).probeCount).toBe(2);
+      await catalog.recordProbe(probeAt(1n, new Date()));
+      expect((await catalog.liveness(agent(1n))).probeCount).toBe(2);
+    });
+
+    it('keeps an unanchored result only while anchoring is actually running', async () => {
+      // The digest is a public claim and its evidence has to outlive the sweep
+      // - but only when there is a digest coming. Anchoring needs a signer and
+      // a validation registry and is off by default, so keeping unanchored
+      // rows unconditionally retained everything and looked like a fix.
+      const old = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+      await catalog.recordProbe(probeAt(1n, old));
+
+      const window = 30 * 24 * 60 * 60 * 1000;
+      expect(await catalog.pruneProbeResults(window, { keepUnanchored: true })).toBe(0);
+      expect(await catalog.pruneProbeResults(window, { keepUnanchored: false })).toBe(1);
+    });
+
+    it('bounds how much it removes in one pass', async () => {
+      const old = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+      for (let i = 0; i < 5; i += 1) await catalog.recordProbe(probeAt(1n, old));
+      // A neglected table is worked down over several ticks rather than in one
+      // statement that locks it.
+      expect(await catalog.pruneProbeResults(30 * 24 * 60 * 60 * 1000, { limit: 2 })).toBe(2);
+      expect(await catalog.pruneProbeResults(30 * 24 * 60 * 60 * 1000, { limit: 2 })).toBe(2);
+    });
+  });
+
   describe('categoryCounts', () => {
     beforeEach(async () => {
       await db.delete(schema.probeResults);

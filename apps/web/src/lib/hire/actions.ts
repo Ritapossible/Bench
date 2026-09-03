@@ -126,7 +126,17 @@ export async function createHire(form: FormData): Promise<void> {
     consent: form.getAll('consent').map(String) as ConsentStep[],
     taskSpec: input.taskSpec,
     price: usdt(input.price),
-    payTo: owner,
+    /**
+     * The agent's operator - the ERC-8004 identity NFT holder - not the hirer.
+     *
+     * This was `owner`, so every hire paid the person making it. Inert while
+     * payment is simulated, and wrong in two ways that would not have stayed
+     * inert: the settlement adapter would send funds to the wrong address the
+     * day it becomes real, and `spentAgainst` keys cumulative spend by payee,
+     * so a hirer's separate hires of different agents all metered against one
+     * bucket.
+     */
+    payTo: agent.entry.record.owner,
     disputeWindowSec: 3_600,
     envelope: deriveEnvelope(runs),
   });

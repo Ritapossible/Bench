@@ -36,6 +36,16 @@ import { startHealthServer, type TickOutcome } from './health.js';
 import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
 
 /**
+ * How long raw probe results are kept.
+ *
+ * Thirty days. Liveness reads a rolling summary recomputed on every write and
+ * `isVerifiedLive` looks at a short window, so older rows inform no answer -
+ * and only rows already anchored are dropped, because that digest is a public
+ * claim whose evidence has to outlive the sweep.
+ */
+const PROBE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
  * Worker entrypoint. Hosts the Phase 1 services — indexer, prober, anchor — as
  * three queues on one process. Split them out only if one starves the others;
  * at catalog scale it is a timer loop with network waits, not a CPU problem.
@@ -295,6 +305,20 @@ async function main(): Promise<void> {
       QUEUE.prober,
       async () => {
         const r = await prober.tick();
+        /**
+         * Retention, on the queue that creates the rows.
+         *
+         * The prober writes up to two hundred rows a minute and nothing ever
+         * removed one. Bounded per tick so a long-neglected table is worked
+         * down over several passes rather than in one statement that locks it.
+         */
+        const pruned = await repo.pruneProbeResults(PROBE_RETENTION_MS, {
+          // Only meaningful while anchoring runs. With it off, no row is ever
+          // anchored, so keeping unanchored rows would retain everything.
+          keepUnanchored: anchoringConfigured,
+        });
+        if (pruned > 0) console.log(`[bench:prober] pruned ${pruned} anchored probe results`);
+
         // Nothing due once every endpoint has been probed inside the staleness
         // window - that is the schedule working. Targets that were selected and
         // then all failed to produce a result is the case worth flagging.

@@ -76,23 +76,34 @@ export function metricFor(
     case 'rebalancing':
       return {
         kind: 'rebalancing',
-        // No tick data in the outcome record, so the honest proxy is how much
-        // of the run avoided drawdown. Replaced by real in-range time when the
-        // seeders record it.
-        inRangeBps: Math.round(
-          10_000 * (1 - Math.min(1, worstDrawdown / Math.max(1, Math.abs(delta) + worstDrawdown))),
-        ),
+        /**
+         * Zero until an LP position can be seeded, not a proxy.
+         *
+         * This was `1 - drawdown/(|delta|+drawdown)` scaled to basis points.
+         * That number is real arithmetic over real inputs, and it is not time
+         * in range: there is no tick range in a spot-balance position, which
+         * is the only kind Bench can currently seed. Reporting it under the
+         * name of an LP metric is the same mistake as rendering
+         * `(normalized - 0.5) * 800` as dollars - a true quantity wearing the
+         * label of a different one. `pcs-lp` is what makes this measurable.
+         */
+        inRangeBps: 0,
         rebalanceCount: Math.round(actions / n),
-        feesEarnedUsd: Math.max(0, delta),
+        /** Delta is not fee income. Zero until an LP position records fees. */
+        feesEarnedUsd: 0,
       };
     case 'grid':
       return {
         kind: 'grid',
         realizedPnlUsd: delta,
         maxDrawdownUsd: worstDrawdown,
-        fillQualityBps: Math.round(
-          10_000 * (actions === 0 ? 0 : Math.min(1, Math.abs(delta) / Math.max(1, actions * 10))),
-        ),
+        /**
+         * Zero rather than `|delta| / (actions * 10)`, which measured dollars
+         * per action against an arbitrary $10 and was reported as execution
+         * quality. Fill quality needs the price each order filled at against
+         * the price it was placed at, and the outcome record carries neither.
+         */
+        fillQualityBps: 0,
       };
     case 'yield':
       return {

@@ -54,6 +54,7 @@ export interface AuditionServiceOptions {
 
 export interface AuditionTickResult {
   readonly window: string;
+  /** Agents this tick examined. Not the page size - the loop stops at budget. */
   readonly considered: number;
   readonly auditioned: number;
   readonly succeeded: number;
@@ -155,8 +156,15 @@ export class AuditionService {
       }),
     );
 
+    // Counts agents this tick actually looked at, so `considered` is not a page
+    // size. The loop stops at the batch budget, and reporting the whole page as
+    // considered left `considered - auditioned - skipped` unexplained - the
+    // exact arithmetic the health check uses to decide a queue is failing
+    // silently.
+    let considered = 0;
     for (const entry of page.entries) {
       if (candidates.length >= budget) break;
+      considered += 1;
       // The filter already applied this in SQL; re-checking keeps the two
       // definitions honest and costs nothing.
       if (!isVerifiedLive(entry.liveness, now)) {
@@ -183,7 +191,7 @@ export class AuditionService {
     if (candidates.length === 0) {
       return {
         window: window.id,
-        considered: page.entries.length,
+        considered,
         auditioned: 0,
         succeeded: 0,
         failed: 0,
@@ -252,7 +260,7 @@ export class AuditionService {
 
     return {
       window: window.id,
-      considered: page.entries.length,
+      considered,
       auditioned: report.results.length,
       succeeded,
       failed,

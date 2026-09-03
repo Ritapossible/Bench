@@ -23,7 +23,19 @@ import {
   type ProbeResult,
   type ProbeTarget,
 } from '@bench/core';
-import { and, asc, count, eq, gte, isNull, notInArray, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  notInArray,
+  sql,
+} from 'drizzle-orm';
 import type { Db } from './index.js';
 import * as schema from './schema.js';
 
@@ -464,6 +476,57 @@ export class PgCatalogRepository implements CatalogRepository {
       verifiedLive: live?.n ?? 0,
       computedAt: new Date(),
     };
+  }
+
+  /**
+   * Drop probe results older than the retention window.
+   *
+   * The prober writes up to two hundred rows a minute and nothing ever removed
+   * one, so the table grew without bound - which fills a small Postgres plan in
+   * weeks and makes every `dueForProbe` aggregate slower in the meantime.
+   *
+   * Liveness does not need the history: `agent_liveness` is a rolling summary
+   * recomputed on every write, and `isVerifiedLive` looks at a short window, so
+   * older raw rows inform no answer.
+   */
+  async pruneProbeResults(
+    olderThanMs: number,
+    opts: { readonly keepUnanchored?: boolean; readonly limit?: number } = {},
+  ): Promise<number> {
+    const cutoff = new Date(Date.now() - olderThanMs);
+    /**
+     * Whether an unanchored row is still owed a digest.
+     *
+     * The first version kept every unanchored row unconditionally, which reads
+     * as caution and is a no-op: anchoring needs a signer and a validation
+     * registry, is off in every deployment so far, and so `anchored_digest` is
+     * null on every row ever written. Retention that never deletes anything is
+     * worse than none, because it looks like the problem is handled.
+     *
+     * So the caller says whether anchoring is actually running. When it is, an
+     * unanchored row is evidence still owed to a public claim and is kept
+     * however old it is. When it is not, nothing is ever going to anchor it and
+     * age alone governs.
+     */
+    const keepUnanchored = opts.keepUnanchored ?? false;
+    const doomed = await this.db
+      .select({ id: schema.probeResults.id })
+      .from(schema.probeResults)
+      .where(
+        keepUnanchored
+          ? and(lt(schema.probeResults.at, cutoff), isNotNull(schema.probeResults.anchoredDigest))
+          : lt(schema.probeResults.at, cutoff),
+      )
+      .limit(opts.limit ?? 20_000);
+
+    if (doomed.length === 0) return 0;
+    await this.db.delete(schema.probeResults).where(
+      inArray(
+        schema.probeResults.id,
+        doomed.map((d) => d.id),
+      ),
+    );
+    return doomed.length;
   }
 
   async categoryCounts(

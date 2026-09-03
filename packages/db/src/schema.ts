@@ -73,6 +73,11 @@ export const probeResults = pgTable(
     index('probe_agent_at_idx').on(t.agentId, t.at),
     // The anchor job scans for probes with no digest yet, oldest first.
     index('probe_unanchored_idx').on(t.anchoredDigest, t.at),
+    // `dueForProbe` groups this table by endpoint on every prober tick.
+    // Postgres does not index foreign keys for you, so that was a full pass
+    // over the whole probe history once a minute, getting slower for as long
+    // as the deployment stayed up.
+    index('probe_endpoint_at_idx').on(t.endpointId, t.at),
   ],
 );
 
@@ -162,7 +167,12 @@ export const shadowRuns = pgTable(
     gasSpentUsd: doublePrecision('gas_spent_usd').notNull().default(0),
     failureReason: text('failure_reason'),
   },
-  (t) => [index('runs_agent_window_idx').on(t.agentId, t.windowId)],
+  (t) => [
+    index('runs_agent_window_idx').on(t.agentId, t.windowId),
+    // `outcomesFor` and `failedAuditions` both filter on status and order by
+    // finish time; neither had an index to do it with.
+    index('runs_status_finished_idx').on(t.status, t.finishedAt),
+  ],
 );
 
 export const shadowActions = pgTable('shadow_actions', {

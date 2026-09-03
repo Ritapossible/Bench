@@ -18,10 +18,29 @@ export interface EgressGuardOptions {
  * Deny-by-default on both axes: an unlisted host is refused, and so is a call
  * that would take the run past its budget.
  */
+/**
+ * Runs to remember spending for.
+ *
+ * The map had no bound, so a long-lived worker accumulated one entry per
+ * audition for as long as it stayed up. Small entries, but this is a process
+ * meant to run for weeks, and "it only leaks slowly" is how a worker ends up
+ * restarting nightly for reasons nobody has looked into.
+ */
+const MAX_TRACKED_RUNS = 10_000;
+
 export class InMemoryEgressGuard implements EgressGuard {
   readonly #spent = new Map<string, number>();
 
   constructor(private readonly opts: EgressGuardOptions) {}
+
+  /** Oldest-first: Map preserves insertion order, so the first key is oldest. */
+  #evictIfFull(): void {
+    while (this.#spent.size >= MAX_TRACKED_RUNS) {
+      const oldest = this.#spent.keys().next();
+      if (oldest.done === true) return;
+      this.#spent.delete(oldest.value);
+    }
+  }
 
   async check(runId: string, host: string, estimatedCostUsd: number): Promise<EgressDecision> {
     if (!this.opts.allowlist.includes(host)) {
@@ -35,6 +54,7 @@ export class InMemoryEgressGuard implements EgressGuard {
   }
 
   async record(runId: string, costUsd: number): Promise<void> {
+    if (!this.#spent.has(runId)) this.#evictIfFull();
     const spent = (this.#spent.get(runId) ?? 0) + costUsd;
     this.#spent.set(runId, spent);
     if (spent > this.opts.budgetUsd) {
