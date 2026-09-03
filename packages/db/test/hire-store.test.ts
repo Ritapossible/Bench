@@ -97,7 +97,7 @@ const record = (over: Partial<HireRecord> = {}): HireRecord => {
 };
 
 describeDb('PgHireStore', () => {
-  const db = createDb(URL ?? '');
+  const db = createDb(URL ?? '', { isolate: true });
   const store = new PgHireStore(db);
 
   beforeAll(async () => {

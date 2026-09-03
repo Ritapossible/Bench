@@ -1,4 +1,5 @@
 import type { AuditionWindow, ChainName, PositionTemplate } from '@bench/core';
+import { VENUS } from './protocols.js';
 
 /**
  * The audition window library - ARCHITECTURE.md 3.3.
@@ -142,6 +143,26 @@ export function auditionWindows(opts: {
     capital,
   };
 
+  const venusBase = {
+    kind: 'venus-loan' as const,
+    label: 'Venus USDT loan at 1.5 health factor',
+    params: {
+      nativeWei: 10n ** 18n,
+      token: constants.token,
+      vToken: VENUS.vUSDT,
+      balanceSlot: constants.balanceSlot,
+      supplyAmount: capital.amount,
+      // Close enough to the liquidation threshold that managing it matters,
+      // far enough that a do-nothing baseline does not simply get liquidated
+      // and make every agent look good.
+      targetHealthFactor: 1.5,
+      nativePriceUsd: constants.nativePriceUsd,
+      tokenPriceUsd: constants.tokenPriceUsd,
+      tokenDecimals: constants.decimals,
+    },
+    capital,
+  };
+
   return [
     {
       window: {
@@ -158,6 +179,30 @@ export function auditionWindows(opts: {
       },
       position: { ...base, label: `10,000 ${constants.symbol} and 50 BNB, unmanaged` },
     },
+    /**
+     * A leveraged lending position, for the category that could not be
+     * auditioned at all.
+     *
+     * Health-factor agents were handed a spot balance - a position with no
+     * loan and therefore no health factor - and scored on what they did to it.
+     * One of the four categories the main track weighs, measured against the
+     * wrong thing. Only offered on chains whose Venus deployment this knows.
+     */
+    ...(opts.forkChain === 'bsc-mainnet'
+      ? [
+          {
+            window: {
+              id: `venus-live-${opts.forkChain}-${opts.forkBlock.toString()}`,
+              label: 'Leveraged lending',
+              regime: 'live' as const,
+              forkBlock: opts.forkBlock,
+              endBlock: opts.forkBlock + 5_000n,
+              seed: `bench-venus-live-${opts.forkBlock.toString()}`,
+            },
+            position: venusBase,
+          },
+        ]
+      : []),
   ];
 }
 

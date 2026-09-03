@@ -254,6 +254,8 @@ async function main(): Promise<void> {
    * the most here, and it is invisible unless the job says so.
    */
   const outcome = new Map<string, TickOutcome>();
+  /** Round-robin cursor over the audition windows. See the audition worker. */
+  let auditionTick = 0;
 
   const queues = [
     new Queue(QUEUE.indexer, redis),
@@ -463,16 +465,28 @@ async function main(): Promise<void> {
         // replay, and using it forked ~40 million blocks back - a year of
         // history, on a chain the registry is not even on.
         const status = await checkArchiveRpc(archiveRpcUrl, cfg.SHADOW_FORK_CHAIN, FORK_LAG_BLOCKS);
-        const [spec] = auditionWindows({
+        const specs = auditionWindows({
           forkChain: cfg.SHADOW_FORK_CHAIN,
           forkBlock: forkBlockFor(status.head),
         });
-        if (spec === undefined) {
+        if (specs.length === 0) {
           console.log(
             `[bench:audition] no window for ${cfg.SHADOW_FORK_CHAIN} - no seeder constants`,
           );
           return;
         }
+        /**
+         * Rotate through the windows rather than always taking the first.
+         *
+         * There is more than one position now - a spot balance and a leveraged
+         * Venus loan - and taking `[0]` would mean the lending position was
+         * never auditioned, so health-factor agents would keep being scored on
+         * a position with no health factor. Round-robin by tick, so each window
+         * gets its turn and the cadence per window is the queue's cadence times
+         * the number of windows.
+         */
+        const spec = specs[auditionTick % specs.length] as (typeof specs)[number];
+        auditionTick += 1;
         const r = await auditionService.tick(spec.window, spec.position);
         const why = Object.entries(r.skipReasons)
           .sort((a, b) => b[1] - a[1])

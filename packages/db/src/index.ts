@@ -42,13 +42,25 @@ export interface DbOptions {
   readonly max?: number;
   readonly idleTimeoutMillis?: number;
   readonly connectionTimeoutMillis?: number;
+  /**
+   * Skip the process-wide pool cache and return a pool of this client's own.
+   *
+   * For tests, and named for what it does rather than for who uses it. The
+   * cache is keyed by connection string and held on `globalThis`, which is
+   * right in a serverless deployment and wrong in a test runner that puts
+   * several files in one process: every file called `createDb` with the same
+   * URL, got the same pool, and the first `afterAll` to run closed it out from
+   * under the rest - which surfaces as "Cannot use a pool after calling end"
+   * in whichever file happened to go second, and looks like a database fault.
+   */
+  readonly isolate?: boolean;
 }
 
 const SERVERLESS =
   process.env['VERCEL'] !== undefined || process.env['AWS_LAMBDA_FUNCTION_NAME'] !== undefined;
 
 export function createDb(connectionString: string, opts: DbOptions = {}) {
-  let pool = pools.get(connectionString);
+  let pool = opts.isolate === true ? undefined : pools.get(connectionString);
   if (pool === undefined) {
     pool = new pg.Pool({
       connectionString,
@@ -62,7 +74,7 @@ export function createDb(connectionString: string, opts: DbOptions = {}) {
     pool.on('error', (err) => {
       console.error('[bench:db] idle client error (pool will recover):', err.message);
     });
-    pools.set(connectionString, pool);
+    if (opts.isolate !== true) pools.set(connectionString, pool);
   }
   return drizzle(pool, { schema });
 }

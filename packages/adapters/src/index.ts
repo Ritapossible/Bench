@@ -91,7 +91,7 @@ export {
   SpotBalanceSeeder,
   DEFAULT_SEEDERS,
   PCS_LP_SEEDER,
-  VENUS_LOAN_SEEDER,
+  VenusLoanSeeder,
 } from './shadow/seeders.js';
 export { InMemoryEgressGuard, type EgressGuardOptions } from './shadow/egress-guard.js';
 export { BscPositionReader, type PositionReaderOptions } from './chain/position-reader.js';

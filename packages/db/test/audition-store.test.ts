@@ -104,7 +104,7 @@ const score = (a: AgentId, over: Partial<Score> = {}): Score => ({
 });
 
 describeDb('PgAuditionStore', () => {
-  const db = createDb(URL ?? '');
+  const db = createDb(URL ?? '', { isolate: true });
   const store = new PgAuditionStore(db);
   const catalog = new PgCatalogRepository(db);
 

@@ -7,7 +7,7 @@ const describeDb = URL === undefined || URL === '' ? describe.skip : describe;
 const ADDR = '0x7a16ff8270133f063aab6c9977183d9e72835428';
 
 describeDb('PgReportStore', () => {
-  const db = createDb(URL ?? '');
+  const db = createDb(URL ?? '', { isolate: true });
   const store = new PgReportStore(db);
 
   beforeAll(async () => {

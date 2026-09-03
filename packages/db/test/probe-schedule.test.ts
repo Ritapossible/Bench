@@ -61,7 +61,7 @@ const ids = (targets: readonly { agent: AgentId }[]): bigint[] =>
   targets.map((t) => t.agent.tokenId).sort((a, b) => Number(a - b));
 
 describeDb('dueForProbe scheduling', () => {
-  const db = createDb(URL ?? '');
+  const db = createDb(URL ?? '', { isolate: true });
   const catalog = new PgCatalogRepository(db);
 
   beforeAll(async () => {

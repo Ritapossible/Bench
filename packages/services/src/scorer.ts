@@ -113,16 +113,34 @@ export function metricFor(
         ),
         maxDrawdownUsd: worstDrawdown,
       };
-    case 'health-factor':
+    case 'health-factor': {
+      /**
+       * Measured now that a Venus loan can actually be seeded.
+       *
+       * This reported zeros because the category could not be auditioned at
+       * all - `venus-loan` declined, so a health-factor agent was handed a
+       * spot balance with no loan in it. With a real leveraged position, the
+       * terminal state carries the health factor the agent left behind, and a
+       * run that ended below 1.0 is a liquidation the agent did not prevent.
+       *
+       * Lead time still needs per-block sampling the outcome record does not
+       * carry, so it stays zero rather than being estimated. An unmeasured
+       * field reads as unmeasured.
+       */
+      const withHealth = outcomes.filter(
+        (o) => typeof o.terminal.detail['healthFactor'] === 'number',
+      );
+      const missed = withHealth.filter((o) => {
+        const hf = o.terminal.detail['healthFactor'] ?? 0;
+        return hf > 0 && hf < 1;
+      }).length;
       return {
         kind: 'health-factor',
-        // Lead time and missed events need liquidation-event data the outcome
-        // record does not carry yet. Reported as zero/none rather than
-        // estimated, so the display shows an unmeasured field as unmeasured.
         medianLeadTimeSec: 0,
-        missedEvents: 0,
+        missedEvents: missed,
         falseAlarmRate: 0,
       };
+    }
     case 'monitoring':
       return { kind: 'monitoring', precision: 0, recall: 0, falseAlarmRate: 0 };
     default:
