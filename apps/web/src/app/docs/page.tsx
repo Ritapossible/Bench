@@ -501,7 +501,13 @@ export default function DocsPage() {
                   </td>
                 </tr>
                 <tr>
-                  <td>Hiring on chain - x402 settlement, ERC-8183 escrow, session keys</td>
+                  <td>Altana session keys - on-chain spend cap, call allowlist, revocation</td>
+                  <td>
+                    <span className="badge badge-thin">Built, needs a funded key</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Hiring on chain - x402 settlement, ERC-8183 escrow</td>
                   <td>
                     <span className="badge badge-dead">Not yet</span>
                   </td>

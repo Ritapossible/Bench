@@ -243,8 +243,8 @@ export default async function Home() {
           ))}
         </div>
         <p className="small" style={{ textAlign: 'center', marginTop: '1.25rem' }}>
-          Behind stub adapters: payment, escrow, session keys and the two position types that need
-          them. The row above is what runs; this is what it is shaped for.
+          Behind stub adapters: payment, escrow and the two position types that need them. The row
+          above is what runs; this is what it is shaped for.
         </p>
       </section>
 

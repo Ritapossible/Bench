@@ -25,7 +25,8 @@ tense is a claim.
 | Auditions on a forked chain, interception, scoring | **Runs.** Needs an archive node and a public origin for the fork RPC. |
 | On-demand report against a pasted address | **Runs.** Mirrors BNB plus one of USDT, USDC, BUSD, CAKE or WBNB. |
 | Behavioural envelope and the execution gate | **Runs.** Decides and records; nothing signs, because there is no wallet. |
-| x402 settlement, ERC-8183 escrow, Altana session keys | **Stubs.** The checkout uses in-process simulations and labels them. |
+| Altana session keys | **Implemented** against `@altananetwork/sdk` on BSC testnet: wallet creation, a grant carrying an on-chain call allowlist, spend cap and expiry, KeyStore registration, and revocation. Needs a funded admin key - `npx tsx scripts/altana-session.ts` proves it end to end. |
+| x402 settlement, ERC-8183 escrow | **Stubs.** The checkout uses in-process simulations and labels them. The SDK ships both; wiring them is the next step. |
 | `pcs-lp` and `venus-loan` positions | **Runs.** Both mint against the real protocols on a forked mainnet. |
 | Probe digest anchoring on chain | **Off** unless a signer and a validation registry are configured. |
 

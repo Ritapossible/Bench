@@ -11,11 +11,8 @@ import { Erc8004RegistryClient } from '../src/chain/erc8004-registry.js';
 import { Erc8183EscrowClient } from '../src/chain/erc8183-escrow.js';
 import { X402PaymentClient } from '../src/chain/x402-payment.js';
 import { FakeRegistryClient } from '../src/fakes.js';
-import {
-  AltanaWalletProvider,
-  EvmLocalWalletProvider,
-  TwakWalletProvider,
-} from '../src/wallet/providers.js';
+import { EvmLocalWalletProvider, TwakWalletProvider } from '../src/wallet/providers.js';
+import { AltanaWalletProvider, InMemorySessionStore } from '../src/wallet/altana.js';
 
 /**
  * A throwaway key. EvmLocalWalletProvider now takes one because it actually
@@ -57,7 +54,15 @@ describe('port conformance', () => {
   });
 
   it('narrows session-key support to Altana only', () => {
-    expect(supportsSessionKeys(new AltanaWalletProvider())).toBe(true);
+    expect(
+      supportsSessionKeys(
+        new AltanaWalletProvider({
+          adminPrivateKey: `0x${'11'.repeat(32)}`,
+          chain: 'bsc-testnet',
+          sessions: new InMemorySessionStore(),
+        }),
+      ),
+    ).toBe(true);
     expect(supportsSessionKeys(localWallet())).toBe(false);
     expect(supportsSessionKeys(new TwakWalletProvider())).toBe(false);
   });

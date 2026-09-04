@@ -240,7 +240,7 @@ export default async function AgentPage({
           <h2 className="h3">Bounded by what it just did.</h2>
           <p className="body" style={{ maxWidth: '44rem' }}>
             A mandate bounds spend, recipients and expiry; the envelope above bounds behaviour. Both
-            are enforced here. Payment, escrow and the signing key are simulated.
+            are enforced here. Payment and escrow are simulated.
           </p>
           <div className="row">
             <button

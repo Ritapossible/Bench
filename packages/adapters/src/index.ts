@@ -13,14 +13,11 @@ import { Erc8004RegistryClient } from './chain/erc8004-registry.js';
 import { Erc8183EscrowClient } from './chain/erc8183-escrow.js';
 import { X402PaymentClient } from './chain/x402-payment.js';
 import { HttpProbeClient } from './probe/http-probe.js';
+import { AltanaWalletProvider, InMemorySessionStore } from './wallet/altana.js';
 import { AnvilForkProvider } from './shadow/anvil-fork.js';
 import { RpcGateway } from './shadow/rpc-gateway.js';
 import { InMemoryEgressGuard } from './shadow/egress-guard.js';
-import {
-  AltanaWalletProvider,
-  EvmLocalWalletProvider,
-  TwakWalletProvider,
-} from './wallet/providers.js';
+import { EvmLocalWalletProvider, TwakWalletProvider } from './wallet/providers.js';
 
 export { Erc8004RegistryClient, type RegistryClientOptions } from './chain/erc8004-registry.js';
 export { Erc8183EscrowClient } from './chain/erc8183-escrow.js';
@@ -106,11 +103,14 @@ export {
   FORK_LAG_BLOCKS,
   type WindowSpec,
 } from './shadow/windows.js';
+export { EvmLocalWalletProvider, TwakWalletProvider } from './wallet/providers.js';
 export {
   AltanaWalletProvider,
-  EvmLocalWalletProvider,
-  TwakWalletProvider,
-} from './wallet/providers.js';
+  InMemorySessionStore,
+  type AltanaWalletOptions,
+  type SessionStore,
+  type StoredSession,
+} from './wallet/altana.js';
 export { FakeRegistryClient, InMemoryCatalogRepository } from './fakes.js';
 export { SDK_PINNED_VERSION, assertSdkVersion } from './sdk.js';
 
@@ -210,8 +210,24 @@ function buildWallet(cfg: BenchConfig): WalletProvider {
     }
     case 'twak':
       return new TwakWalletProvider();
-    case 'altana':
-      return new AltanaWalletProvider();
+    case 'altana': {
+      // The same key as evm-local: it is the wallet's admin authority rather
+      // than the account itself, and requiring a second variable for the same
+      // secret is how a deployment ends up with two.
+      if (cfg.BENCH_SIGNER_PRIVATE_KEY === undefined) {
+        throw new BenchError(
+          'INVALID_REQUEST',
+          'BENCH_WALLET_PROVIDER=altana needs BENCH_SIGNER_PRIVATE_KEY as the wallet admin key',
+        );
+      }
+      return new AltanaWalletProvider({
+        adminPrivateKey: cfg.BENCH_SIGNER_PRIVATE_KEY as `0x${string}`,
+        chain: cfg.BENCH_CHAIN,
+        // In-memory by default and loud about it: a session key lost before it
+        // is persisted leaves an on-chain grant nobody can use.
+        sessions: new InMemorySessionStore(),
+      });
+    }
     default: {
       const exhaustive: never = cfg.BENCH_WALLET_PROVIDER;
       throw new BenchError(
