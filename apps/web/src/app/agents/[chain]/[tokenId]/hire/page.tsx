@@ -88,19 +88,15 @@ export default async function HirePage({
               {refusal}
             </p>
           )}
-          <p className="lead">
-            Five confirmations, in order, and the last one shows all of them together. Nothing moves
-            until the final step - and a hired agent is still held to what it did in audition.
-          </p>
+          <p className="lead">Five confirmations, in order. Nothing moves until the final step.</p>
         </div>
 
         {agent.score === null ? (
           <div className="card stack stack-12">
             <p className="quote">This agent has no audition record yet.</p>
             <p className="body">
-              Bench will not offer a hire without one. There is nothing to rank it on, and nothing
-              to derive a behavioural bound from - which would leave the spend cap as the only thing
-              standing between the agent and your position.
+              Bench will not offer a hire without one: there is nothing to rank it on, and nothing
+              to derive a behavioural bound from.
             </p>
             <div>
               <Link href="/agents" className="btn btn-outline btn-sm">

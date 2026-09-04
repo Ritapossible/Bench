@@ -85,10 +85,8 @@ export default async function AgentsPage({
             </p>
           )}
           <p className="lead">
-            Ranked on the dollars each agent moved in audition against a do-nothing baseline, over
-            the same position and window. Agents with no completed auditions say so, and an agent
-            that was driven and failed says that instead of nothing - neither is ever given a
-            fabricated number.
+            Ranked on the dollars each agent moved against a do-nothing baseline, over the same
+            position and window. Agents with no result say which kind of nothing it was.
           </p>
         </div>
 

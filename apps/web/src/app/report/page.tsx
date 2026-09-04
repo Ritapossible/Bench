@@ -35,10 +35,7 @@ export default async function ReportPage({
         <div className="stack stack-16" style={{ maxWidth: '46rem' }}>
           <span className="eyebrow">No wallet · no signature</span>
           <h1 className="h2">What would an agent have done with your position?</h1>
-          <p className="lead">
-            The position is public state and the audition is a simulation, so nothing here needs you
-            to connect anything. Paste an address - the resulting report is a link you can share.
-          </p>
+          <p className="lead">Paste a BSC address. The report is a link you can share.</p>
         </div>
 
         {/* A plain GET form: the address lands in the URL, which is the point. */}
@@ -98,10 +95,8 @@ export default async function ReportPage({
             <input type="hidden" name="address" value={address ?? ''} />
             <h2 className="h3">Audition every live agent against this position</h2>
             <p className="body">
-              Bench mirrors what this address holds onto a forked chain and hands the same position
-              to every verified-live agent in the catalog, one fork each. Nothing is broadcast and
-              nothing here touches the real position - what comes back is what each agent actually
-              did, measured against the same position left alone.
+              Your balances are mirrored onto a forked chain and handed to every verified-live
+              agent, one fork each. Nothing is broadcast; the real position is untouched.
             </p>
             <div>
               <button className="btn btn-primary" type="submit">
@@ -118,8 +113,8 @@ export default async function ReportPage({
             <meta httpEquiv="refresh" content="15" />
             <p className="quote">Auditioning agents against this position.</p>
             <p className="body">
-              A fork per agent, seeded with what this address holds. Requested{' '}
-              {queued.requestedAt.toISOString().slice(11, 19)} UTC - this page refreshes itself.
+              Requested {queued.requestedAt.toISOString().slice(11, 19)} UTC. This page refreshes
+              itself.
             </p>
           </div>
         ) : null}
@@ -138,8 +133,8 @@ export default async function ReportPage({
             <h2 className="h3">Try it on a live position</h2>
             <p className="body">
               {isLiveData
-                ? 'Your position is read straight from BSC - balances from the token contracts, prices from Chainlink on chain. The agent comparison replays that position through every verified-live agent on a fork, which needs the shadow engine running; until it is, the report shows the position alone.'
-                : 'This deployment reads testnet fixtures while the shadow engine is being built, so any well-formed address returns a sample PancakeSwap LP position.'}
+                ? 'Balances come from the token contracts, prices from Chainlink on chain. Then every verified-live agent is auditioned against a mirror of that position.'
+                : 'This deployment reads fixtures, so any well-formed address returns a sample position.'}
             </p>
             <div>
               <Link
@@ -388,12 +383,9 @@ function PositionPanel({
           ) : null}
 
           <p className="small">
-            Balances read from the token contracts at block{' '}
-            <span className="mono">{position.blockNumber.toString()}</span>; prices from Chainlink
-            aggregators on BSC itself, not an off-chain quote. Every figure above is a fact you can
-            check against the chain. Liquidity positions are listed by pair and range rather than
-            valued, because valuing one means reconstructing amounts from the pool&rsquo;s tick and
-            a confident wrong number is worse than an honest omission.
+            Balances read at block <span className="mono">{position.blockNumber.toString()}</span>;
+            prices from Chainlink on BSC. LP positions are listed by pair and range rather than
+            valued - a confident wrong number is worse than an honest omission.
           </p>
         </>
       )}
@@ -409,16 +401,9 @@ function PositionPanel({
         <div className="card stack stack-8">
           <p className="quote">No agent has been auditioned against this position yet.</p>
           <p className="body">
-            That half is not a lookup. &ldquo;What would this agent have done with your
-            position?&rdquo; asks about something that did not happen - the agent never managed it,
-            so there is no record of it anywhere to read. The only way to answer is to fork BSC at a
-            past block, mirror this position into it, and let the real agent trade against real
-            history. That is what the button above starts: a fork per agent, in the worker, against
-            your actual balances.
-          </p>
-          <p className="body">
-            Meanwhile the <Link href="/agents">catalog</Link> shows what each agent has already been
-            auditioned on, against the same positions and windows for every agent.
+            There is no record to look up - the agent never managed this position. Running the
+            audition above is what creates one. The <Link href="/agents">catalog</Link> shows what
+            each agent has already been auditioned on.
           </p>
         </div>
       ) : null}

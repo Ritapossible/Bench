@@ -3,6 +3,7 @@ import {
   auditionWindows,
   BscPositionReader,
   MIN_AUDITIONABLE_USD,
+  NATIVE_TOKEN,
   mirrorPosition,
   reportWindowFor,
   buildAdapters,
@@ -45,6 +46,15 @@ import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
  * claim whose evidence has to outlive the sweep.
  */
 const PROBE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Agents an on-demand report will drive.
+ *
+ * Comfortably above the verified-live population, so "every verified-live
+ * agent" is true rather than aspirational, and still bounded - a fork per
+ * agent is real compute and this is triggered by anyone with a browser.
+ */
+const REPORT_BATCH_SIZE = 40;
 
 /**
  * Worker entrypoint. Hosts the Phase 1 services — indexer, prober, anchor — as
@@ -420,7 +430,10 @@ async function main(): Promise<void> {
                 amount: h.amount,
                 valuedUsd: h.usdValue,
               })),
-              nativeWei: live.holdings.find((h) => h.symbol === 'BNB')?.amount ?? 0n,
+              // By address, not by symbol: a symbol is a display label a token
+              // contract chooses, and two of them can say "BNB".
+              nativeWei:
+                live.holdings.find((h) => h.token.toLowerCase() === NATIVE_TOKEN)?.amount ?? 0n,
             },
             cfg.SHADOW_FORK_CHAIN,
           );
@@ -449,7 +462,14 @@ async function main(): Promise<void> {
             FORK_LAG_BLOCKS,
           );
           const window = reportWindowFor(req.address, forkBlockFor(status.head));
-          const r = await auditionService.tick(window, mirrored.template, { ignoreRecency: true });
+          const r = await auditionService.tick(window, mirrored.template, {
+            ignoreRecency: true,
+            // The shared window is paced at six agents a tick; a report is a
+            // person waiting on an answer about their own position, and
+            // auditioning six of twenty while the page says "every
+            // verified-live agent" would make that sentence false.
+            batchSize: REPORT_BATCH_SIZE,
+          });
 
           await reportStore.finish(cfg.BENCH_CHAIN, req.address, {
             ok: true,

@@ -107,9 +107,8 @@ export function HireCheckout(props: HireCheckoutProps) {
                   <>
                     <p className="body">{props.auditionSummary}</p>
                     <p className="small">
-                      This record is also the bound. A hired agent cannot do anything it did not do
-                      here - that is the envelope, and it is fixed at the moment you hire, so it
-                      cannot widen afterwards.
+                      This record is also the bound: a hired agent cannot do anything it did not do
+                      here. Fixed at the moment you hire.
                     </p>
                   </>
                 ) : null}
@@ -259,9 +258,8 @@ export function HireCheckout(props: HireCheckoutProps) {
             : `Complete all ${props.steps.length} steps to hire`}
         </button>
         <p className="tiny">
-          Settlement is simulated on this deployment - the mandate, consent, decision trace and both
-          bounds are the real implementations, and x402 and ERC-8183 replace the two stubbed
-          adapters without touching them.
+          Settlement is simulated here. The mandate, consent, decision trace and both bounds are
+          real; x402 and ERC-8183 replace two stubbed adapters when they land.
         </p>
       </div>
     </form>

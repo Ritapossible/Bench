@@ -263,6 +263,16 @@ export function auditionWindows(opts: {
  * that quietly drops half of someone's position is worse than one that says
  * which half it could not read.
  */
+/**
+ * How the position reader represents native BNB: a holding at the zero
+ * address, not a token contract.
+ *
+ * Named because two places depend on it and both matched on the symbol string
+ * instead - which is a display label a token contract chooses, and two of them
+ * can say "BNB".
+ */
+export const NATIVE_TOKEN = '0x0000000000000000000000000000000000000000';
+
 export const SEEDABLE_TOKENS: Readonly<
   Record<
     string,
@@ -350,10 +360,19 @@ export function mirrorPosition(
   const tokenUsd = leg?.valuedUsd ?? 0;
   if (nativeUsd + tokenUsd < MIN_AUDITIONABLE_USD) return null;
 
+  /**
+   * Holdings that will not be on the fork.
+   *
+   * Native BNB is excluded because it is always mirrored, and it arrives as a
+   * holding at the zero address rather than as a separate field - so without
+   * this a BNB-only position reported BNB as both mirrored and unmirrored.
+   */
   const unmirrored = live.holdings
     .filter(
       (h) =>
-        h.amount > 0n && (leg === undefined || h.token.toLowerCase() !== leg.token.toLowerCase()),
+        h.amount > 0n &&
+        h.token.toLowerCase() !== NATIVE_TOKEN &&
+        (leg === undefined || h.token.toLowerCase() !== leg.token.toLowerCase()),
     )
     .map((h) => h.symbol);
 

@@ -291,3 +291,32 @@ describe('AuditionService skip reasons', () => {
     expect(r.skipReasons).toEqual({});
   });
 });
+
+describe('per-call batch size', () => {
+  it('lets one caller cover more agents than the shared cadence does', async () => {
+    // The shared window is paced at six agents a tick. An on-demand report is
+    // a person waiting on an answer about their own position, and auditioning
+    // six of twenty while the page says "every verified-live agent" would make
+    // that sentence false.
+    const agents = Array.from({ length: 12 }, (_, i) => agent(BigInt(i + 1)));
+    const store = new StubStore([]);
+    const r = await build(agents, store, new FakeForks(Array(13).fill(10_000))).tick(
+      window_,
+      position,
+      { batchSize: 12 },
+    );
+
+    expect(r.auditioned).toBe(12);
+  });
+
+  it('still honours the default when no caller asks for more', async () => {
+    const agents = Array.from({ length: 12 }, (_, i) => agent(BigInt(i + 1)));
+    const store = new StubStore([]);
+    const r = await build(agents, store, new FakeForks(Array(13).fill(10_000))).tick(
+      window_,
+      position,
+    );
+
+    expect(r.auditioned).toBe(6);
+  });
+});

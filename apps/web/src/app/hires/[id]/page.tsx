@@ -58,9 +58,7 @@ export default async function HireDetail({
         <div className="stack stack-16" style={{ maxWidth: '40rem' }}>
           <h1 className="h2">No hire here.</h1>
           <p className="lead">
-            Either this hire does not exist, or it belongs to a different browser. Hires are scoped
-            to the browser that created them, so opening someone else&rsquo;s link shows you this
-            page.
+            Either this hire does not exist, or it belongs to a different browser.
           </p>
           <div>
             <Link href="/agents" className="btn btn-primary btn-sm">
@@ -120,8 +118,7 @@ export default async function HireDetail({
           */}
           {hire.mandateSignature === null ? (
             <p className="quote" style={{ borderColor: 'var(--blocked)' }}>
-              Unsigned. These bounds were set by the owner in this session but not signed by a
-              wallet, so they are enforced by Bench rather than authorised on chain.
+              Unsigned - set in this session and enforced by Bench, not authorised on chain.
             </p>
           ) : (
             <p className="quote">
@@ -160,9 +157,8 @@ export default async function HireDetail({
             </table>
           </div>
           <p className="tiny">
-            The agent carries this, not your key. Every action it proposes is checked against these
-            bounds and against what it did in audition, and must clear both. Nothing is signed or
-            broadcast here - the decision is what is real, and it is appended to the trace below.
+            The agent carries this, not your key. Every proposed action must clear both these bounds
+            and the audition envelope. Nothing is signed or broadcast here.
           </p>
         </div>
 
@@ -170,9 +166,8 @@ export default async function HireDetail({
           <div className="stack stack-8">
             <h2 className="h3">Put an action through the gate</h2>
             <p className="small">
-              Both bounds, evaluated against this agent&rsquo;s own audition behaviour and against
-              what this hire has already spent. Nothing is signed or broadcast - this deployment
-              holds no key - but the decision is real and is appended to the trace below.
+              Evaluated against this agent&rsquo;s audition behaviour and what this hire has already
+              spent. Nothing is signed here; the decision is appended to the trace below.
             </p>
           </div>
           {outcome === null ? null : (
@@ -255,16 +250,15 @@ export default async function HireDetail({
             ))}
           </div>
           <p className="tiny">
-            Each entry hashes the one before it, so editing any of them invalidates every entry
-            after. Recomputed on every page load - the badge above is the result, not a claim.
+            Each entry hashes the one before it, so an edit invalidates everything after. The badge
+            above is recomputed on load, not stored.
           </p>
         </div>
 
         <div className="slab on-dark stack stack-16">
           <h2 className="h3">Revoke</h2>
           <p className="body">
-            Ends the authority immediately. The mandate is marked revoked and every subsequent
-            transaction is refused, whether or not it would otherwise have been within bounds.
+            Ends the authority immediately. Every subsequent transaction is refused.
           </p>
           <form action={revokeHire}>
             <input type="hidden" name="hireId" value={hire.id} />

@@ -67,9 +67,8 @@ export default async function AdvantagePage() {
             </div>
           </div>
           <p className="small">
-            &ldquo;Won&rdquo; means the agent beat the baseline by more than it cost to run. An
-            agent that gains three dollars while spending five on data has not helped anyone, and
-            counting that as a win is how these reports usually flatter their subject.
+            &ldquo;Won&rdquo; means the agent beat the baseline by more than it cost to run -
+            gaining three dollars while spending five is not a win.
           </p>
         </div>
 
@@ -109,9 +108,8 @@ export default async function AdvantagePage() {
           <div className="card stack stack-12">
             <h2 className="h3">No completed auditions yet.</h2>
             <p className="body">
-              This page is generated from recorded runs, so it is empty until agents have been
-              auditioned. It is deliberately not padded with plausible-looking tasks: a report whose
-              numbers cannot be checked is worth less than no report.
+              Generated from recorded runs, so it is empty until agents have been auditioned rather
+              than padded with plausible-looking tasks.
             </p>
             <div>
               <Link href="/agents" className="btn btn-primary btn-sm">

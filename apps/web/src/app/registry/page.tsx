@@ -207,9 +207,8 @@ export default async function RegistryPage() {
           </div>
 
           <p className="tiny">
-            Supply is not the constraint. BNB Agent Studio mints a registered, wallet-owning agent
-            in about fifteen minutes - the registered line climbs while the verified-live line does
-            not.
+            Supply is not the constraint: the registered line climbs while the verified-live line
+            does not.
           </p>
         </div>
 
@@ -249,10 +248,9 @@ export default async function RegistryPage() {
           )}
 
           <p className="tiny">
-            One-directional by construction: looking agents up by the ids Bench already holds
-            measures corroboration, not coverage. It can never find agents 8004scan knows and Bench
-            does not, and it is labelled that way rather than presented as a completeness figure.
-            The chain remains the source of truth - this never gates the catalog.
+            One-directional by construction: looking up ids Bench already holds measures
+            corroboration, not coverage. The chain remains the source of truth; this never gates the
+            catalog.
           </p>
         </div>
 
@@ -275,9 +273,8 @@ export default async function RegistryPage() {
           <div className="slab on-dark stack stack-12">
             <h2 className="h3">Why publish it at all</h2>
             <p className="body">
-              This measurement is the input to Bench’s own ranking. Publishing it means the input is
-              auditable alongside the output, and it stays useful to the ecosystem whether or not a
-              single agent is ever hired through Bench.
+              This measurement is the input to Bench’s ranking, published so the input is auditable
+              alongside the output.
             </p>
             <p className="small">
               Recomputed daily · {latest.computedAt.toISOString().slice(0, 10)} · bsc-testnet

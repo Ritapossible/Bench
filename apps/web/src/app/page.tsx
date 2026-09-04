@@ -152,8 +152,8 @@ export default async function Home() {
             <a href="https://arxiv.org/abs/2606.26028" style={{ color: 'inherit' }}>
               arXiv 2606.26028
             </a>
-            . Reputation values are not comparable across agents, feedback rarely links to a
-            verifiable transaction, and manipulation costs almost nothing.
+            . Reputation is not comparable across agents, feedback rarely links to a verifiable
+            transaction, and manipulation costs almost nothing.
           </p>
         </div>
       </section>
@@ -165,8 +165,8 @@ export default async function Home() {
             <span className="eyebrow">The mechanism</span>
             <h2 className="h2">Auditions cost compute, not users.</h2>
             <p className="lead">
-              Which means a dense, honest track record on day one with zero paying customers - and a
-              controlled comparison rather than a noisy delta over a handful of settled jobs.
+              A dense track record on day one with zero paying customers, and a controlled
+              comparison rather than a noisy delta over a handful of jobs.
             </p>
           </div>
 
@@ -231,8 +231,8 @@ export default async function Home() {
           ))}
         </div>
         <p className="small" style={{ textAlign: 'center', marginTop: '1.25rem' }}>
-          Read from live, every tick: the ERC-8004 registry on BNB Smart Chain, cross-referenced
-          against 8004scan, replayed on a forked chain.
+          Read live every tick: the ERC-8004 registry on BNB Smart Chain, cross-referenced against
+          8004scan, replayed on a fork.
         </p>
 
         <div className="strip" style={{ marginTop: '2rem', opacity: 0.62 }}>
@@ -243,9 +243,8 @@ export default async function Home() {
           ))}
         </div>
         <p className="small" style={{ textAlign: 'center', marginTop: '1.25rem' }}>
-          Built against, behind stub adapters: payment, escrow, session keys and the two position
-          types that need them. Separated from the row above on purpose - one row is what runs, the
-          other is what it is shaped for.
+          Behind stub adapters: payment, escrow, session keys and the two position types that need
+          them. The row above is what runs; this is what it is shaped for.
         </p>
       </section>
 
@@ -259,8 +258,7 @@ export default async function Home() {
             See what an agent would have done with your money.
           </h2>
           <p className="lead" style={{ maxWidth: '32rem' }}>
-            Paste a BSC address. No connection, no signature, no listing fee - the position is
-            public and the audition is a simulation.
+            Paste a BSC address. No connection, no signature, no listing fee.
           </p>
           <Link href="/report" className="btn btn-primary">
             Read the report

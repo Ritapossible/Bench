@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MIN_AUDITIONABLE_USD,
   mirrorPosition,
+  NATIVE_TOKEN,
   reportWindowFor,
   SEEDABLE_TOKENS,
 } from '../src/shadow/windows.js';
@@ -82,6 +83,28 @@ describe('mirrorPosition', () => {
     expect(m?.template.params['token']).toBeUndefined();
     expect(m?.mirroredSymbols).toEqual(['BNB']);
     expect(m?.template.capital.symbol).toBe('BNB');
+  });
+
+  it('does not report native BNB as both mirrored and unmirrored', () => {
+    // The reader returns native BNB as a holding at the zero address rather
+    // than as a separate field, so the unmirrored list picked it up while the
+    // mirrored list already claimed it. The two contradicted each other on
+    // every BNB-only position.
+    const m = mirrorPosition(
+      {
+        address: ADDR,
+        nativeWei: 10n * 10n ** 18n,
+        holdings: [
+          { token: NATIVE_TOKEN, symbol: 'BNB', amount: 10n * 10n ** 18n, valuedUsd: 6_800 },
+          holding(UNKNOWN, 'MYSTERY', 5n * 10n ** 18n, 40),
+        ],
+      },
+      'bsc-mainnet',
+    );
+
+    expect(m?.mirroredSymbols).toEqual(['BNB']);
+    expect(m?.unmirroredSymbols).toEqual(['MYSTERY']);
+    expect(m?.unmirroredSymbols).not.toContain('BNB');
   });
 
   it('refuses a position too small for an agent to act on', () => {

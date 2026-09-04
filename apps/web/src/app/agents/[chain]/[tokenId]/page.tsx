@@ -78,11 +78,9 @@ export default async function AgentPage({
 
         {/* the two columns, never merged */}
         <p className="small" style={{ maxWidth: '44rem' }}>
-          An audition is a real measurement: this agent was driven at its own endpoint against a
-          fork of BNB Chain pinned to a real block, holding a real position at real market prices.
-          What is simulated is only that the transactions it produced were executed against that
-          fork rather than broadcast - which is the only way to measure a stranger&rsquo;s agent
-          without handing it money first.
+          Driven at its own endpoint against a fork of BNB Chain pinned to a real block, holding a
+          real position at real prices. Only the execution is simulated: transactions ran against
+          the fork rather than being broadcast.
         </p>
         <div className="grid grid-2">
           <div className="slab on-dark stack stack-12">
@@ -241,11 +239,8 @@ export default async function AgentPage({
           <span className="eyebrow">Hiring</span>
           <h2 className="h3">Bounded by what it just did.</h2>
           <p className="body" style={{ maxWidth: '44rem' }}>
-            Authority is bounded by a mandate - a spend cap, a contract allowlist and an expiry -
-            and every action the agent proposes is checked against it and against the envelope it
-            established above. Both bounds are real and enforced on this deployment. Payment, escrow
-            and the session key that would sign a cleared action are simulated, and labelled as such
-            wherever they appear.
+            A mandate bounds spend, recipients and expiry; the envelope above bounds behaviour. Both
+            are enforced here. Payment, escrow and the signing key are simulated.
           </p>
           <div className="row">
             <button

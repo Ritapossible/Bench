@@ -120,17 +120,20 @@ export class AuditionService {
   async tick(
     window: AuditionWindow,
     position: PositionTemplate,
-    opts: { readonly ignoreRecency?: boolean } = {},
+    opts: { readonly ignoreRecency?: boolean; readonly batchSize?: number } = {},
   ): Promise<AuditionTickResult> {
+    // Per call, so an on-demand report can cover the whole verified-live set
+    // rather than the six the shared window is paced at.
+    const budget = opts.batchSize ?? this.opts.batchSize ?? DEFAULTS.batchSize;
+
     const page = await this.deps.catalog.query({
       chain: this.opts.chain,
       verifiedLiveOnly: true,
-      limit: (this.opts.batchSize ?? DEFAULTS.batchSize) * 4,
+      limit: budget * 4,
     });
 
     const now = this.now();
     const cutoff = now.getTime() - (this.opts.reauditionAfterMs ?? DEFAULTS.reauditionAfterMs);
-    const budget = this.opts.batchSize ?? DEFAULTS.batchSize;
 
     const candidates: { agent: (typeof page.entries)[number]['record']; shim: ShadowAgent }[] = [];
     let skipped = 0;

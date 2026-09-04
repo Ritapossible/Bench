@@ -40,12 +40,8 @@ export default async function StatusPage() {
           <span className="eyebrow">Status</span>
           <h1 className="h2">What the machinery is doing.</h1>
           <p className="lead">
-            Every queue reports what its last tick achieved, not that it ran -
-            &ldquo;succeeded&rdquo; is the absence of an error, not an outcome. A quiet queue is
-            normal: the prober probes every endpoint hourly and then has nothing due, and the
-            audition queue waits out its re-audition floor. What is called out here is a queue with
-            candidates it neither handled nor explained, which is the shape every real fault in this
-            worker has taken.
+            Every queue reports what its last tick achieved, not that it ran. A quiet queue is
+            normal; one with work it neither handled nor explained is flagged.
           </p>
         </div>
 
@@ -91,9 +87,9 @@ export default async function StatusPage() {
 
           {health.status === 'unconfigured' ? (
             <p className="body">
-              No worker health endpoint is configured for this deployment, so the queues cannot be
-              reported here. The worker runs as a separate long-lived process - the one thing a
-              serverless deployment cannot be - and publishes its own status.
+              No worker health endpoint is configured, so queues cannot be reported here. The worker
+              is a separate long-lived process - the one thing a serverless deployment cannot be -
+              and publishes its own status.
             </p>
           ) : health.status === 'unreachable' ? (
             <p className="notice notice-warn" role="status">
@@ -186,10 +182,8 @@ export default async function StatusPage() {
         </div>
 
         <p className="small">
-          A queue registers only when the things it needs exist - auditions stay off without an
-          archive node, and probe anchoring without a funded signer - so a missing queue here is a
-          feature that is switched off rather than one that is broken. The worker says which at
-          startup.
+          A queue registers only when its dependencies exist - auditions need an archive node,
+          anchoring needs a funded signer - so a missing queue is switched off, not broken.
         </p>
       </div>
     </section>

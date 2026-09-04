@@ -41,6 +41,7 @@ export { HttpProbeClient, extractSseData, type ProbeOptions } from './probe/http
 export {
   MIN_AUDITIONABLE_USD,
   mirrorPosition,
+  NATIVE_TOKEN,
   reportWindowFor,
   SEEDABLE_TOKENS,
   type MirroredPosition,
