@@ -116,6 +116,17 @@ export default async function StatusPage() {
                 </div>
               )}
 
+              {health.rpcRoutable === false ? (
+                <div className="notice notice-warn" role="status">
+                  <p className="small">
+                    Auditions are running but the fork RPC has no public origin, so every agent is
+                    handed an endpoint it cannot reach and will measure{' '}
+                    <span className="mono">$0.00</span> whatever it would have done. Set{' '}
+                    <span className="mono">BENCH_PUBLIC_RPC_BASE_URL</span> on the worker.
+                  </p>
+                </div>
+              ) : null}
+
               {health.detailWithheld ? (
                 <div className="notice notice-warn" role="status">
                   <p className="small">

@@ -128,9 +128,29 @@ export type ExtraHandler = (
   res: ServerResponse,
 ) => boolean | Promise<boolean>;
 
+/**
+ * Facts about the deployment that decide whether the work is real.
+ *
+ * Reported because the alternative is inferring them. Whether auditions can
+ * reach an agent depends on one environment variable, and with it unset every
+ * agent scores exactly $0.00 while every queue stays green - so "is it set?"
+ * was answerable only from a boot log nobody can read from outside. A
+ * capability the system depends on and cannot report is a capability that gets
+ * silently lost.
+ *
+ * Booleans and names only, never values: this endpoint is reachable without
+ * the token.
+ */
+export interface Capabilities {
+  /** False means every audition hands the agent an RPC it cannot reach. */
+  readonly auditionRpcPubliclyRoutable: boolean;
+  readonly auditionsEnabled: boolean;
+}
+
 export function startHealthServer(
   port: number,
   extra?: ExtraHandler,
+  capabilities?: () => Capabilities,
 ): { heartbeat: Heartbeat; server: Server } {
   const startedAt = Date.now();
   const queues = new Map<string, QueueState>();
@@ -220,6 +240,7 @@ export function startHealthServer(
             ),
           }),
       uptimeSeconds: Math.round((now - startedAt) / 1000),
+      ...(capabilities === undefined ? {} : { capabilities: capabilities() }),
       // Set when the caller could not prove it should see queue detail, so a
       // reader can tell "nothing is running" from "you were not shown it".
       ...(detailed ? {} : { detail: 'withheld' as const }),

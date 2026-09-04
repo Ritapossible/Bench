@@ -215,3 +215,48 @@ describe('health: what the endpoint is willing to say to a stranger', () => {
     }
   });
 });
+
+describe('health: what the deployment can actually do', () => {
+  it('reports the capability that decides whether auditions mean anything', async () => {
+    // With no public origin every agent is handed a loopback RPC it cannot
+    // reach, so every one measures exactly $0.00 while every queue stays
+    // green. That was answerable only from a boot log, which is not reachable
+    // from outside the host - so the single most consequential setting in the
+    // deployment was invisible.
+    const { server } = startHealthServer(0, undefined, () => ({
+      auditionRpcPubliclyRoutable: false,
+      auditionsEnabled: true,
+    }));
+    await new Promise((r) => server.once('listening', r));
+    const port = (server.address() as { port: number }).port;
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/health`);
+      const body = (await res.json()) as { capabilities?: Record<string, boolean> };
+      expect(body.capabilities?.['auditionRpcPubliclyRoutable']).toBe(false);
+      expect(body.capabilities?.['auditionsEnabled']).toBe(true);
+    } finally {
+      server.close();
+    }
+  });
+
+  it('says so without needing the token, since it names no values', async () => {
+    // Deliberately outside the authenticated section: these are booleans about
+    // configuration, not the failure messages that carry connection strings.
+    const { server } = startHealthServer(0, undefined, () => ({
+      auditionRpcPubliclyRoutable: true,
+      auditionsEnabled: true,
+    }));
+    await new Promise((r) => server.once('listening', r));
+    const port = (server.address() as { port: number }).port;
+    try {
+      const body = (await (await fetch(`http://127.0.0.1:${port}/health`)).json()) as {
+        detail?: string;
+        capabilities?: Record<string, boolean>;
+      };
+      expect(body.detail).toBe('withheld');
+      expect(body.capabilities?.['auditionRpcPubliclyRoutable']).toBe(true);
+    } finally {
+      server.close();
+    }
+  });
+});

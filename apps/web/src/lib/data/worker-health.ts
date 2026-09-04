@@ -43,6 +43,14 @@ export type WorkerHealth =
        * a configuration problem someone can fix.
        */
       readonly detailWithheld: boolean;
+      /**
+       * Whether an audition can hand an agent an RPC it can actually reach.
+       *
+       * Null when the worker is too old to report it. False is the state where
+       * every agent scores exactly $0.00 regardless of what it would have
+       * done, with nothing else on the page looking wrong.
+       */
+      readonly rpcRoutable: boolean | null;
     };
 
 const TIMEOUT_MS = 4_000;
@@ -80,6 +88,7 @@ export async function workerHealth(): Promise<WorkerHealth> {
       uptimeSeconds?: number;
       attention?: string[];
       detail?: string;
+      capabilities?: { auditionRpcPubliclyRoutable?: boolean };
       queues?: Record<string, Omit<WorkerQueue, 'name'>>;
     };
 
@@ -88,6 +97,7 @@ export async function workerHealth(): Promise<WorkerHealth> {
       uptimeSeconds: body.uptimeSeconds ?? 0,
       attention: body.attention ?? [],
       detailWithheld: body.detail === 'withheld',
+      rpcRoutable: body.capabilities?.auditionRpcPubliclyRoutable ?? null,
       queues: Object.entries(body.queues ?? {})
         .map(([name, q]) => ({
           name,

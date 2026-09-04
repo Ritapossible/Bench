@@ -80,9 +80,22 @@ async function main(): Promise<void> {
    */
   const rpcGateway = new RpcGateway({ publicBaseUrl: cfg.BENCH_PUBLIC_RPC_BASE_URL });
 
+  /**
+   * Set once auditions are known to be runnable, and read by /health.
+   *
+   * A closure rather than a value because the archive check happens after the
+   * server is listening - the server has to answer "the process is up" while a
+   * bad DATABASE_URL is still hanging.
+   */
+  let auditionsEnabled = false;
+
   const { heartbeat, server: health } = startHealthServer(
     Number(process.env['PORT'] ?? 8080),
     (req, res) => rpcGateway.handle(req, res),
+    () => ({
+      auditionRpcPubliclyRoutable: rpcGateway.publiclyRoutable,
+      auditionsEnabled,
+    }),
   );
 
   // Migrations before anything opens a pool. The worker boots ahead of the web
@@ -226,6 +239,8 @@ async function main(): Promise<void> {
    * is zero - not because the agent chose to do nothing, but because it was
    * never given a chain it could touch. Every score was that zero.
    */
+  auditionsEnabled = auditionService !== null;
+
   if (auditionService !== null && !rpcGateway.publiclyRoutable) {
     console.warn(
       '[bench:worker] BENCH_PUBLIC_RPC_BASE_URL is not set - auditions will hand agents a ' +
