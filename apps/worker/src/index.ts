@@ -2,6 +2,7 @@ import {
   A2AShadowAgent,
   auditionWindows,
   BscPositionReader,
+  MIN_AUDITIONABLE_USD,
   mirrorPosition,
   reportWindowFor,
   buildAdapters,
@@ -431,8 +432,11 @@ async function main(): Promise<void> {
             await reportStore.finish(cfg.BENCH_CHAIN, req.address, {
               ok: false,
               reason:
-                'nothing in this position can be mirrored onto a fork yet - Bench seeds BNB plus ' +
-                'one of USDT, USDC, BUSD, CAKE or WBNB',
+                `this position is under $${MIN_AUDITIONABLE_USD}, or holds nothing Bench can ` +
+                "mirror onto a fork. The seeded balance is also the agent's gas budget, so " +
+                'below that an agent cannot afford to act and every result would say more about ' +
+                'the position than the agent. Bench mirrors BNB plus one of USDT, USDC, BUSD, ' +
+                'CAKE or WBNB.',
             });
             outcome.set(QUEUE.report, 'worked');
             lastResult.set(QUEUE.report, `${req.address.slice(0, 10)}… not mirrorable`);

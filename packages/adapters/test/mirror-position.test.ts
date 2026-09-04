@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { mirrorPosition, reportWindowFor, SEEDABLE_TOKENS } from '../src/shadow/windows.js';
+import {
+  MIN_AUDITIONABLE_USD,
+  mirrorPosition,
+  reportWindowFor,
+  SEEDABLE_TOKENS,
+} from '../src/shadow/windows.js';
 
 const USDT = '0x55d398326f99059ff775485246999027b3197955';
 const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
@@ -62,13 +67,49 @@ describe('mirrorPosition', () => {
     expect(m?.template.params['tokenPriceUsd']).toBeCloseTo(2.5, 6);
   });
 
+  it('mirrors a position that is only native BNB', () => {
+    // The most ordinary thing an address on this chain holds. Requiring an
+    // ERC-20 leg reported it as unmirrorable, and the seeder had always
+    // handled an absent token - it writes the balance and skips the storage
+    // write - so there was never anything to refuse.
+    const m = mirrorPosition(
+      { address: ADDR, nativeWei: 2n * 10n ** 18n, holdings: [] },
+      'bsc-mainnet',
+    );
+
+    expect(m).not.toBeNull();
+    expect(m?.template.params['nativeWei']).toBe(2n * 10n ** 18n);
+    expect(m?.template.params['token']).toBeUndefined();
+    expect(m?.mirroredSymbols).toEqual(['BNB']);
+    expect(m?.template.capital.symbol).toBe('BNB');
+  });
+
+  it('refuses a position too small for an agent to act on', () => {
+    // The seeded balance is also the agent's gas budget, so below a few
+    // dollars every agent fails for a reason that is about the position rather
+    // than the agent - and this project exists not to publish that as a
+    // finding. A real address holding $0.59 of BNB is what surfaced it.
+    const dust = mirrorPosition(
+      { address: ADDR, nativeWei: 822_759_217_783_039n, holdings: [] },
+      'bsc-mainnet',
+    );
+    expect(dust).toBeNull();
+
+    // Just over the line is fine, so the rule is a floor and not a filter on
+    // anything but size.
+    const enough = Math.ceil((MIN_AUDITIONABLE_USD / 687.46) * 1e18) + 1e15;
+    expect(
+      mirrorPosition({ address: ADDR, nativeWei: BigInt(enough), holdings: [] }, 'bsc-mainnet'),
+    ).not.toBeNull();
+  });
+
   it('refuses a position it cannot seed rather than approximating one', () => {
     // Naming the limit is the point. An empty audition against a token whose
     // layout is unknown would score every agent at zero and read as a finding
     // about the agents.
     expect(
       mirrorPosition(
-        { address: ADDR, nativeWei: 10n ** 18n, holdings: [holding(UNKNOWN, 'MYSTERY', 500n, 12)] },
+        { address: ADDR, nativeWei: 10n ** 15n, holdings: [holding(UNKNOWN, 'MYSTERY', 500n, 12)] },
         'bsc-mainnet',
       ),
     ).toBeNull();
@@ -83,7 +124,7 @@ describe('mirrorPosition', () => {
   it('ignores a zero balance in a token it could otherwise seed', () => {
     expect(
       mirrorPosition(
-        { address: ADDR, nativeWei: 10n ** 18n, holdings: [holding(USDT, 'USDT', 0n, 0)] },
+        { address: ADDR, nativeWei: 10n ** 15n, holdings: [holding(USDT, 'USDT', 0n, 0)] },
         'bsc-mainnet',
       ),
     ).toBeNull();

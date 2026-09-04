@@ -39,6 +39,7 @@ export {
 } from './catalog/card-resolver.js';
 export { HttpProbeClient, extractSseData, type ProbeOptions } from './probe/http-probe.js';
 export {
+  MIN_AUDITIONABLE_USD,
   mirrorPosition,
   reportWindowFor,
   SEEDABLE_TOKENS,

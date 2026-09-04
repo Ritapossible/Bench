@@ -286,6 +286,18 @@ export interface MirroredPosition {
 }
 
 /**
+ * Least a position can be worth and still be worth auditioning.
+ *
+ * Not arbitrary: the seeder sets the controller's balance to the position's
+ * own native holding, so that balance is also the gas budget. A swap on BSC
+ * costs roughly 0.0006 BNB, so below a few dollars an agent cannot afford to
+ * act at all - and every agent would fail for a reason that has nothing to do
+ * with the agent, which is exactly the kind of result this project exists not
+ * to publish. Refused by name instead.
+ */
+export const MIN_AUDITIONABLE_USD = 25;
+
+/**
  * Build an audition position from what an address actually holds.
  *
  * This is what makes `/report` a measurement rather than a projection. The
@@ -323,40 +335,68 @@ export function mirrorPosition(
   const spec = leg === undefined ? undefined : SEEDABLE_TOKENS[leg.token.toLowerCase()];
   const nativeWei = live.nativeWei ?? 0n;
 
-  // Nothing to seed at all is not a position worth auditioning against: every
-  // agent would be handed an empty account and score zero for it.
-  if (leg === undefined || spec === undefined) return null;
+  /**
+   * A native-only position is mirrorable, and refusing it was a bug.
+   *
+   * This required an ERC-20 leg, so an address holding nothing but BNB - the
+   * most ordinary thing an address on this chain holds - was reported as
+   * unmirrorable. The seeder has always handled an absent token: it writes the
+   * native balance and skips the storage write. There was never anything to
+   * refuse.
+   */
+  if (leg === undefined && nativeWei === 0n) return null;
+
+  const nativeUsd = (Number(nativeWei) / 1e18) * constants.nativePriceUsd;
+  const tokenUsd = leg?.valuedUsd ?? 0;
+  if (nativeUsd + tokenUsd < MIN_AUDITIONABLE_USD) return null;
 
   const unmirrored = live.holdings
-    .filter((h) => h.amount > 0n && h.token.toLowerCase() !== leg.token.toLowerCase())
+    .filter(
+      (h) =>
+        h.amount > 0n && (leg === undefined || h.token.toLowerCase() !== leg.token.toLowerCase()),
+    )
     .map((h) => h.symbol);
+
+  const tokenParams =
+    leg === undefined || spec === undefined
+      ? {}
+      : {
+          token: leg.token.toLowerCase() as `0x${string}`,
+          balanceSlot: spec.balanceSlot,
+          tokenAmount: leg.amount,
+          // Priced from what the reader's holding was actually worth, so the
+          // report is denominated in their position rather than in a default.
+          tokenPriceUsd:
+            leg.valuedUsd === null || leg.amount === 0n
+              ? constants.tokenPriceUsd
+              : leg.valuedUsd / (Number(leg.amount) / 10 ** spec.decimals),
+          tokenDecimals: spec.decimals,
+        };
+
+  const label =
+    leg === undefined
+      ? `BNB held by ${live.address.slice(0, 8)}…`
+      : `${leg.symbol} and BNB held by ${live.address.slice(0, 8)}…`;
 
   return {
     template: {
       kind: 'spot-balance',
-      label: `${leg.symbol} and BNB held by ${live.address.slice(0, 8)}…`,
-      params: {
-        nativeWei,
-        token: leg.token.toLowerCase() as `0x${string}`,
-        balanceSlot: spec.balanceSlot,
-        tokenAmount: leg.amount,
-        nativePriceUsd: constants.nativePriceUsd,
-        // Priced from what the reader's holding was actually worth, so the
-        // report is denominated in their position rather than in a default.
-        tokenPriceUsd:
-          leg.valuedUsd === null || leg.amount === 0n
-            ? constants.tokenPriceUsd
-            : leg.valuedUsd / (Number(leg.amount) / 10 ** spec.decimals),
-        tokenDecimals: spec.decimals,
-      },
-      capital: {
-        token: leg.token.toLowerCase() as `0x${string}`,
-        symbol: leg.symbol,
-        decimals: spec.decimals,
-        amount: leg.amount,
-      },
+      label,
+      params: { nativeWei, nativePriceUsd: constants.nativePriceUsd, ...tokenParams },
+      capital:
+        leg === undefined || spec === undefined
+          ? { token: constants.token, symbol: 'BNB', decimals: 18, amount: nativeWei }
+          : {
+              token: leg.token.toLowerCase() as `0x${string}`,
+              symbol: leg.symbol,
+              decimals: spec.decimals,
+              amount: leg.amount,
+            },
     },
-    mirroredSymbols: [leg.symbol, ...(nativeWei > 0n ? ['BNB'] : [])],
+    mirroredSymbols: [
+      ...(leg === undefined ? [] : [leg.symbol]),
+      ...(nativeWei > 0n ? ['BNB'] : []),
+    ],
     unmirroredSymbols: unmirrored,
   };
 }

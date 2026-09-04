@@ -28,7 +28,6 @@ export default async function ReportPage({
   // whether anything has been auditioned against it yet.
   const position =
     result !== null && 'position' in result ? result.position : (report?.position ?? null);
-  const auditioned = result?.status === 'ok';
 
   return (
     <section className="wrap section">
@@ -88,7 +87,9 @@ export default async function ReportPage({
           </div>
         ) : null}
 
-        {position !== null ? <PositionPanel position={position} auditioned={auditioned} /> : null}
+        {position !== null ? (
+          <PositionPanel position={position} awaitingRequest={result?.status === 'position-only'} />
+        ) : null}
 
         {/* The action that turns a position into a measurement. Everything
             above this point is a reading; below it, agents actually run. */}
@@ -261,10 +262,18 @@ export default async function ReportPage({
  */
 function PositionPanel({
   position,
-  auditioned,
+  awaitingRequest,
 }: {
   readonly position: LivePosition;
-  readonly auditioned: boolean;
+  /**
+   * True only where nothing has been asked for yet.
+   *
+   * This was `auditioned`, and the explainer below rendered on `!auditioned` -
+   * which is also true when a request ran and was refused, so the "nobody has
+   * auditioned this" text sat directly above the card saying why this position
+   * could not be run, and the page argued with itself.
+   */
+  readonly awaitingRequest: boolean;
 }) {
   const empty = position.holdings.length === 0 && position.lpPositions.length === 0;
 
@@ -389,7 +398,14 @@ function PositionPanel({
         </>
       )}
 
-      {auditioned ? null : (
+      {/* Shown only where there is genuinely nothing yet. This block used to
+          render whenever a report was absent, and said the shadow engine
+          "needs an archive node and a worker process, neither of which runs
+          inside a web request" - true when it was written, and false since the
+          audition became something a reader can ask for. It sat directly above
+          the card explaining why this particular position was refused, so the
+          page contradicted itself. */}
+      {awaitingRequest ? (
         <div className="card stack stack-8">
           <p className="quote">No agent has been auditioned against this position yet.</p>
           <p className="body">
@@ -397,15 +413,15 @@ function PositionPanel({
             position?&rdquo; asks about something that did not happen - the agent never managed it,
             so there is no record of it anywhere to read. The only way to answer is to fork BSC at a
             past block, mirror this position into it, and let the real agent trade against real
-            history. That is the shadow engine, and it needs an archive node and a worker process,
-            neither of which runs inside a web request.
+            history. That is what the button above starts: a fork per agent, in the worker, against
+            your actual balances.
           </p>
           <p className="body">
-            Until then: the <Link href="/agents">catalog</Link> shows what each agent has already
-            been auditioned on, against the same positions and windows for every agent.
+            Meanwhile the <Link href="/agents">catalog</Link> shows what each agent has already been
+            auditioned on, against the same positions and windows for every agent.
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
