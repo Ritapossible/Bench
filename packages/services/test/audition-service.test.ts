@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { describeEmptyTick } from '../src/audition-service.js';
 import type {
   AgentRecord,
   AuditionStore,
@@ -318,5 +319,48 @@ describe('per-call batch size', () => {
     );
 
     expect(r.auditioned).toBe(6);
+  });
+});
+
+describe('describeEmptyTick', () => {
+  const tick = (over: Partial<Parameters<typeof describeEmptyTick>[0]>) =>
+    describeEmptyTick({
+      window: 'w',
+      considered: 0,
+      auditioned: 0,
+      succeeded: 0,
+      failed: 0,
+      skipped: 0,
+      skipReasons: {},
+      ...over,
+    });
+
+  it('separates an empty catalog from an undrivable one', () => {
+    expect(tick({})).toContain('no agent in the catalog is verified live');
+    expect(tick({ considered: 22, skipped: 22, skipReasons: { 'no drivable endpoint': 22 } })).toBe(
+      'none of the 22 verified-live agents could be driven against this position ' +
+        '(22 no drivable endpoint)',
+    );
+  });
+
+  it('says agents ran when agents ran, rather than blaming the catalog', () => {
+    // The case the old copy got wrong: 22 agents driven, 22 failures, and the
+    // page told the reader the catalog had nothing drivable.
+    const said = tick({ considered: 22, auditioned: 22, failed: 22 });
+    expect(said).toBe(
+      '22 verified-live agents were driven against this position and all 22 failed to complete ' +
+        'a run, so there is no measured outcome to report',
+    );
+    expect(said).not.toContain('could be driven');
+  });
+
+  it('orders skip reasons by how many agents each accounts for', () => {
+    expect(
+      tick({
+        considered: 10,
+        skipped: 10,
+        skipReasons: { 'audited recently': 3, 'no drivable endpoint': 7 },
+      }),
+    ).toContain('(7 no drivable endpoint, 3 audited recently)');
   });
 });

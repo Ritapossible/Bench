@@ -72,6 +72,42 @@ export interface AuditionTickResult {
   readonly skipReasons: Readonly<Record<string, number>>;
 }
 
+/**
+ * Why a tick produced no usable audition, in the tick's own numbers.
+ *
+ * /report used to answer an empty result with "the catalog has none that could
+ * be driven right now". Nothing had established that. The web layer sees only
+ * that the evidence table is empty for this window; the three situations that
+ * produce that - nothing verified live, nothing drivable, everything driven and
+ * everything failed - need three different responses, and it was picking one of
+ * them and stating it as fact to a reader who had waited for the answer.
+ *
+ * This is the only place that holds the numbers, so this is where the sentence
+ * gets written.
+ */
+export function describeEmptyTick(r: AuditionTickResult): string {
+  if (r.considered === 0) {
+    return (
+      'no agent in the catalog is verified live on this chain right now, so there was nothing ' +
+      'to audition against this position'
+    );
+  }
+  if (r.auditioned === 0) {
+    const why = Object.entries(r.skipReasons)
+      .sort(([, a], [, b]) => b - a)
+      .map(([reason, n]) => `${n} ${reason}`)
+      .join(', ');
+    return (
+      `none of the ${r.considered} verified-live agents could be driven against this position ` +
+      `(${why === '' ? 'no reason recorded' : why})`
+    );
+  }
+  return (
+    `${r.auditioned} verified-live agents were driven against this position and all ${r.failed} ` +
+    'failed to complete a run, so there is no measured outcome to report'
+  );
+}
+
 const DEFAULTS = {
   batchSize: 6,
   maxConcurrentForks: 3,

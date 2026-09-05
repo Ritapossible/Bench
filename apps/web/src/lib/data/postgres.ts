@@ -121,9 +121,14 @@ export function createPgData(connectionString: string): BenchData {
       return {
         status: 'cannot-run',
         position,
+        // Deliberately vague, because from here it genuinely is. The worker
+        // finishes a tick that succeeded at nothing as `failed` with the
+        // numbers behind it, so this branch is now only reachable when a
+        // report was marked complete and its runs went missing - a state
+        // nothing here can explain, and naming a cause would be inventing one.
         reason:
-          'no agent completed an audition against this position - the catalog has none that ' +
-          'could be driven right now',
+          'this report was recorded as complete but no run was stored against its window; ' +
+          'the queue that produced it is on the status page',
       };
     }
 

@@ -18,6 +18,7 @@ export {
 export { summarizeAgreementFor } from './crossref.js';
 export {
   AuditionService,
+  describeEmptyTick,
   type AuditionServiceDeps,
   type AuditionServiceOptions,
   type AuditionTickResult,

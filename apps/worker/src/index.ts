@@ -27,6 +27,7 @@ import {
 import {
   AuditionRunner,
   AuditionService,
+  describeEmptyTick,
   Indexer,
   ProbeAnchor,
   Prober,
@@ -471,11 +472,29 @@ async function main(): Promise<void> {
             batchSize: REPORT_BATCH_SIZE,
           });
 
-          await reportStore.finish(cfg.BENCH_CHAIN, req.address, {
-            ok: true,
-            windowId: window.id,
-            agentsRun: r.succeeded,
-          });
+          /**
+           * A tick that succeeded at nothing is not a completed report.
+           *
+           * This recorded `ok: true` with `agentsRun: 0`, and the page - which
+           * can only see that the evidence table is empty - filled the silence
+           * with "the catalog has none that could be driven right now". That
+           * sentence was a guess. The numbers that would settle it exist here
+           * and were being discarded one line above, so the reader got a
+           * confident cause nobody had measured. Now the tick says what it did
+           * and the page repeats it.
+           */
+          if (r.succeeded === 0) {
+            await reportStore.finish(cfg.BENCH_CHAIN, req.address, {
+              ok: false,
+              reason: describeEmptyTick(r),
+            });
+          } else {
+            await reportStore.finish(cfg.BENCH_CHAIN, req.address, {
+              ok: true,
+              windowId: window.id,
+              agentsRun: r.succeeded,
+            });
+          }
           outcome.set(QUEUE.report, 'worked');
           lastResult.set(
             QUEUE.report,
