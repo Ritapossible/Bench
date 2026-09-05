@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { formatBaseUnits, type LivePosition } from '@bench/core';
+import { formatBaseUnits, looksLikeTestRegistration, type LivePosition } from '@bench/core';
 import { data, isLiveData } from '@/lib/data/index';
 import { requestReport } from '@/lib/report/actions';
 import { CATEGORY_LABEL, usd, agentHref } from '@/lib/format';
@@ -31,6 +31,38 @@ export default async function ReportPage({
   // A failed report is still a runnable position, so both states offer the run.
   const retry = cannotRun !== null;
   const canRun = result?.status === 'position-only' || retry;
+
+  /**
+   * The table a reader is meant to act on, ranked.
+   *
+   * Two things happen here and neither is a judgement about an agent's
+   * numbers. Scaffolding is dropped - registrations that call themselves a
+   * demo, a test or a starter, or still carry a builder tool's default name -
+   * because the first report opened with `studio-agent` four times over and
+   * four `(demo)` entries, and an agent a reader might actually hire was below
+   * the fold. They are still indexed, probed, auditioned and counted in every
+   * registry figure; this is a presentation rule for one page.
+   *
+   * Then the sort gets a tie-break. Delta has always been the ranking, but
+   * every delta in the first real report was $0.00, and a table of identical
+   * zeros fell back to whatever order the catalog returned - which reads as a
+   * ranking and is not one. Action count breaks the tie, because an agent that
+   * traded and came out level is a different finding from one that did
+   * nothing, and name breaks that, so the order is stable across reloads
+   * rather than dependent on row order in a query.
+   */
+  const listed =
+    report === null
+      ? []
+      : [...report.lines]
+          .filter((l) => !looksLikeTestRegistration(l.name))
+          .sort(
+            (a, b) =>
+              b.deltaUsd - a.deltaUsd ||
+              b.actionCount - a.actionCount ||
+              a.name.localeCompare(b.name),
+          );
+  const excluded = report === null ? 0 : report.lines.length - listed.length;
 
   return (
     <section className="wrap section">
@@ -193,8 +225,11 @@ export default async function ReportPage({
                     className="mono"
                     style={{ fontSize: 'clamp(1.15rem, 5vw, 1.5rem)', fontWeight: 700 }}
                   >
-                    {report.lines.length}
+                    {listed.length}
                   </span>
+                  {excluded > 0 ? (
+                    <span className="tiny">{excluded} more auditioned, listed on the catalog</span>
+                  ) : null}
                 </div>
               </div>
               <p className="small mono break">{report.address}</p>
@@ -221,29 +256,27 @@ export default async function ReportPage({
                     <td className="num mono">{usd(0, { sign: true })}</td>
                     <td></td>
                   </tr>
-                  {[...report.lines]
-                    .sort((a, b) => b.deltaUsd - a.deltaUsd)
-                    .map((l) => (
-                      <tr key={l.agent.tokenId.toString()}>
-                        <td>{l.name}</td>
-                        <td className="small">{CATEGORY_LABEL[l.category] ?? l.category}</td>
-                        <td className="num mono">{l.actionCount}</td>
-                        <td
-                          className="num mono"
-                          style={{
-                            fontWeight: 700,
-                            color: l.deltaUsd < 0 ? 'var(--blocked)' : 'var(--ink)',
-                          }}
-                        >
-                          {usd(l.deltaUsd, { sign: true })}
-                        </td>
-                        <td>
-                          <Link href={agentHref(l.agent.chain, l.agent.tokenId)} className="small">
-                            Report →
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
+                  {listed.map((l) => (
+                    <tr key={l.agent.tokenId.toString()}>
+                      <td>{l.name}</td>
+                      <td className="small">{CATEGORY_LABEL[l.category] ?? l.category}</td>
+                      <td className="num mono">{l.actionCount}</td>
+                      <td
+                        className="num mono"
+                        style={{
+                          fontWeight: 700,
+                          color: l.deltaUsd < 0 ? 'var(--blocked)' : 'var(--ink)',
+                        }}
+                      >
+                        {usd(l.deltaUsd, { sign: true })}
+                      </td>
+                      <td>
+                        <Link href={agentHref(l.agent.chain, l.agent.tokenId)} className="small">
+                          Report →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -261,8 +294,21 @@ export default async function ReportPage({
               real block, holding a mirror of this position at real prices, and its transactions
               were executed by the EVM against that fork rather than broadcast. Same position, same
               window, every agent in parallel plus a do-nothing baseline - a controlled comparison,
-              not a post-hoc delta. Computed {report.computedAt.toISOString().slice(0, 10)}.
+              not a post-hoc delta. Ranked by that delta, then by how much the agent did to earn it.
+              Computed {report.computedAt.toISOString().slice(0, 10)}.
             </p>
+            {excluded > 0 ? (
+              // A filter on a measurement page is stated, or it is not honest.
+              <p className="small">
+                {excluded} further {excluded === 1 ? 'registration was' : 'registrations were'}{' '}
+                auditioned against this position and are not listed above: they name themselves a
+                demo, a test or a starter, or still carry the default name their builder tool
+                generated. They remain indexed, probed and counted in every figure on{' '}
+                <Link href="/registry">registry health</Link>, and the{' '}
+                <Link href="/agents">catalog</Link> lists them. Nothing here is hidden for scoring
+                badly.
+              </p>
+            ) : null}
             <p className="small">
               What a fork cannot reproduce is the market reacting: no competing flow, no MEV, and
               nobody else moving the price while the agent works. These are the outcomes the agent
