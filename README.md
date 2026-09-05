@@ -25,10 +25,30 @@ tense is a claim.
 | Auditions on a forked chain, interception, scoring | **Runs.** Needs an archive node and a public origin for the fork RPC. |
 | On-demand report against a pasted address | **Runs.** Mirrors BNB plus one of USDT, USDC, BUSD, CAKE or WBNB. |
 | Behavioural envelope and the execution gate | **Runs.** Decides and records; nothing signs, because there is no wallet. |
-| Altana session keys | **Implemented** against `@altananetwork/sdk` on BSC testnet: wallet creation, a grant carrying an on-chain call allowlist, spend cap and expiry, KeyStore registration, and revocation. Needs a funded admin key - `npx tsx scripts/altana-session.ts` proves it end to end. |
+| Altana session keys | **Implemented and proven on chain.** `@altananetwork/sdk` on BSC testnet: wallet creation, a grant carrying an on-chain call allowlist, spend cap and expiry, KeyStore registration, and revocation. See [the run below](#altana-session-keys-on-chain); reproduce with `npx tsx scripts/altana-session.mts` and a faucet-funded key. |
 | x402 settlement, ERC-8183 escrow | **Stubs.** The checkout uses in-process simulations and labels them. The SDK ships both; wiring them is the next step. |
 | `pcs-lp` and `venus-loan` positions | **Runs.** Both mint against the real protocols on a forked mainnet. |
 | Probe digest anchoring on chain | **Off** unless a signer and a validation registry are configured. |
+
+### Altana session keys, on chain
+
+Run 5 Sep 2026 on BSC testnet (chain 97). Every line is checkable by anyone.
+
+| | |
+| --- | --- |
+| Wallet (EIP-7702 smart account) | [`0x9CA0DFd6…37024D4`](https://testnet.bscscan.com/address/0x9CA0DFd64Eb8887A2caFcdE1a3c566D4937024D4) |
+| Grant, with KeyStore registration | [`0x6c53c005…e808924`](https://testnet.bscscan.com/tx/0x6c53c005bc5cc91aa3e15bc2ec36317121e1a879019d9b7feb8f37b61e808924) - block 129185735 |
+| Revocation | [`0xa115bbce…c6b12d2c`](https://testnet.bscscan.com/tx/0xa115bbcec89e5460b94014209921c8c98517979eb577a471bfff1014c6b12d2c) - block 129185769 |
+
+The session carried a call allowlist of one contract, a rolling daily spend cap
+of 1 USDT, and a one-hour expiry. All three are enforced by the account
+contract rather than by Bench: a call outside the allowlist reverts at
+validation whether or not Bench is running. That is the difference between this
+and the behavioural envelope elsewhere in the system - the envelope decides
+what Bench forwards, this decides what the chain will accept.
+
+The account address carries `0xef0100…` delegation code, which is what makes it
+a smart account rather than a plain EOA.
 
 ## What Bench refuses to do
 

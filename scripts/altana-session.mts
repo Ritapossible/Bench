@@ -7,7 +7,7 @@
  * refuses before it reaches the relay; they cannot show the chain accepting a
  * grant and then rejecting a call outside it. This does.
  *
- *   BENCH_SIGNER_PRIVATE_KEY=0x… npx tsx scripts/altana-session.ts
+ *   BENCH_SIGNER_PRIVATE_KEY=0x… npx tsx scripts/altana-session.mts
  *
  * The admin key needs BNB on BSC testnet - https://testnet.bnbchain.org/faucet-smart.
  * Everything it prints is checkable: wallet address, grant transaction, the

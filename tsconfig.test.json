@@ -18,6 +18,7 @@
     "apps/worker/src/**/*.ts",
     "apps/worker/test/**/*.ts",
     "scripts/audition-demo.ts",
+    "scripts/altana-session.mts",
     "scripts/gate-demo.ts"
   ]
 }
