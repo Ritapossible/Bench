@@ -46,6 +46,24 @@ cast send 0x86e9197CC0F76E4e4aaa7082180945196bBAb5D3 "requestTokens()" \
 `allowedToWithdraw(address)` reports whether a claim is currently permitted.
 The buyer needs test BNB for gas as well - https://testnet.bnbchain.org/faucet-smart.
 
+### A hire, settled on chain
+
+`npx tsx scripts/hire-e2e-onchain.mts` runs the real `HireOrchestrator` - the
+same consent checklist, mandate, envelope, decision trace and idempotency the
+checkout uses - with `Erc8183EscrowClient` in place of the simulation. Run 5 Sep
+2026 on BSC testnet:
+
+| | |
+| --- | --- |
+| Job | `996`, status `FUNDED`, budget 1 $U |
+| Client | `0x9CA0DFd6…37024D4` |
+| Escrow held by | AgenticCommerce kernel `0xa206c051…2A33B0DE` |
+
+Both refusals fire: an incomplete consent list is rejected by the domain before
+any money moves, and the kernel itself reverts a settle attempted before the
+seller has delivered. The buyer's $U balance falls by the budget, and the
+kernel's rises by it.
+
 ### Altana session keys, on chain
 
 Run 5 Sep 2026 on BSC testnet (chain 97). Every line is checkable by anyone.

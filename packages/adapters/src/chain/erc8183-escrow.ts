@@ -82,7 +82,10 @@ export class Erc8183EscrowClient implements EscrowClient {
    * because mapping a provider address back to a token id is a registry scan
    * that can return more than one answer.
    */
-  readonly #opened = new Map<string, { agent: JobSpec['agent']; amount: TokenAmount }>();
+  readonly #opened = new Map<
+    string,
+    { agent: JobSpec['agent']; amount: TokenAmount; fundedBy: Hex }
+  >();
 
   constructor(opts: Erc8183EscrowOptions) {
     this.#network = opts.chain === 'bsc-mainnet' ? BNB : BNB_TESTNET;
@@ -121,7 +124,8 @@ export class Erc8183EscrowClient implements EscrowClient {
     );
 
     const id = result.jobId.toString();
-    this.#opened.set(id, { agent: spec.agent, amount: spec.amount });
+    const fundedBy = requireHash(result, `open job for ${spec.provider}`);
+    this.#opened.set(id, { agent: spec.agent, amount: spec.amount, fundedBy });
 
     return {
       id,
@@ -136,12 +140,20 @@ export class Erc8183EscrowClient implements EscrowClient {
   }
 
   /**
-   * Confirm the escrow holds the money.
+   * Confirm the escrow holds the money, and name the transaction that put it
+   * there.
    *
-   * Sends nothing, so it reports no transaction of its own. Returning a fresh
-   * hash would describe a payment that did not happen - the correction the
-   * simulated escrow needed when it returned receipts for state changes it had
-   * not made.
+   * Sends nothing - the hire batch already funded the job - so it reports that
+   * batch's hash rather than one of its own. The first version returned the
+   * job id zero-padded to 32 bytes, which is not a transaction and rendered in
+   * the hire's trace as `escrow 995 funded (0x0000…3e3)`: something a reader
+   * would take to a block explorer and not find. A receipt for a payment that
+   * did not happen is exactly the failure the simulated escrow was corrected
+   * for, and this was the same shape with a real payment behind it.
+   *
+   * A job opened by another process is refused rather than answered with a
+   * placeholder: recovering the funding transaction means scanning logs, and
+   * inventing one is what this comment exists to prevent.
    */
   async fund(jobId: string): Promise<Hex> {
     const job = await this.#job(jobId);
@@ -151,7 +163,15 @@ export class Erc8183EscrowClient implements EscrowClient {
         `ERC-8183 job ${jobId} exists but is not funded; the hire batch did not complete`,
       );
     }
-    return `0x${job.id.toString(16).padStart(64, '0')}` as Hex;
+    const known = this.#opened.get(jobId);
+    if (known === undefined) {
+      throw new BenchError(
+        'NOT_FOUND',
+        `job ${jobId} is funded on chain but was opened by another process, so this one holds ` +
+          `no funding transaction for it`,
+      );
+    }
+    return known.fundedBy;
   }
 
   async deliver(_jobId: string, _proof: Hex): Promise<Hex> {

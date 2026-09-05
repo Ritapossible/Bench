@@ -17,8 +17,17 @@
     "packages/*/test/**/*.ts",
     "apps/worker/src/**/*.ts",
     "apps/worker/test/**/*.ts",
-    "scripts/audition-demo.ts",
-    "scripts/altana-session.mts",
-    "scripts/gate-demo.ts"
-  ]
+    // Globbed, not listed. Three separate defects reached a run because a
+    // script was outside this include and therefore typechecked by nothing -
+    // most recently `record.status` on a type whose field is `state`. A list
+    // is a thing somebody has to remember to append to; a glob is not.
+    "scripts/**/*.ts",
+    "scripts/**/*.mts"
+  ],
+  // `seed-catalog` imports the web app's fixtures, which need Next's ambient
+  // types (its `fetch` init accepts a `cache` field the plain DOM lib does
+  // not). Pulling apps/web into this project to satisfy one script would make
+  // every script depend on the web app's type environment. It is covered by
+  // `tsc -p apps/web/tsconfig.json` instead.
+  "exclude": ["scripts/seed-catalog.ts"]
 }
