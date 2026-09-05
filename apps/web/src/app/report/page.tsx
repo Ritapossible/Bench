@@ -28,6 +28,9 @@ export default async function ReportPage({
   // whether anything has been auditioned against it yet.
   const position =
     result !== null && 'position' in result ? result.position : (report?.position ?? null);
+  // A failed report is still a runnable position, so both states offer the run.
+  const retry = cannotRun !== null;
+  const canRun = result?.status === 'position-only' || retry;
 
   return (
     <section className="wrap section">
@@ -88,24 +91,6 @@ export default async function ReportPage({
           <PositionPanel position={position} awaitingRequest={result?.status === 'position-only'} />
         ) : null}
 
-        {/* The action that turns a position into a measurement. Everything
-            above this point is a reading; below it, agents actually run. */}
-        {position !== null && result?.status === 'position-only' ? (
-          <form action={requestReport} className="card stack stack-12">
-            <input type="hidden" name="address" value={address ?? ''} />
-            <h2 className="h3">Audition every live agent against this position</h2>
-            <p className="body">
-              Your balances are mirrored onto a forked chain and handed to every verified-live
-              agent, one fork each. Nothing is broadcast; the real position is untouched.
-            </p>
-            <div>
-              <button className="btn btn-primary" type="submit">
-                Run the audition
-              </button>
-            </div>
-          </form>
-        ) : null}
-
         {queued !== null ? (
           // Refreshes itself: the work happens in the worker, and a reader
           // watching a page should not have to know that.
@@ -126,6 +111,36 @@ export default async function ReportPage({
             </p>
             <p className="body">{cannotRun.reason}</p>
           </div>
+        ) : null}
+
+        {/* The action that turns a position into a measurement. Everything
+            above this point is a reading; below it, agents actually run.
+
+            Offered after a failure as well as before a first run. It used to
+            render only for `position-only`, so a reader whose report came back
+            unauditioned was left on a dead end: the one thing they would want
+            to do next - try again, once the catalog has agents that can be
+            driven - had no control on the page, and re-requesting means
+            editing the URL back to a state the page no longer shows. Nothing
+            about a failed audition makes the position less runnable. */}
+        {position !== null && canRun ? (
+          <form action={requestReport} className="card stack stack-12">
+            <input type="hidden" name="address" value={address ?? ''} />
+            <h2 className="h3">
+              {retry
+                ? 'Try this position again'
+                : 'Audition every live agent against this position'}
+            </h2>
+            <p className="body">
+              Your balances are mirrored onto a forked chain and handed to every verified-live
+              agent, one fork each. Nothing is broadcast; the real position is untouched.
+            </p>
+            <div>
+              <button className="btn btn-primary" type="submit">
+                {retry ? 'Run it again' : 'Run the audition'}
+              </button>
+            </div>
+          </form>
         ) : null}
 
         {!address ? (
