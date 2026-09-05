@@ -95,6 +95,11 @@ export {
   type PositionReaderOptions,
 } from './chain/position-reader.js';
 export { A2AShadowAgent, type A2AShadowAgentOptions } from './agent/a2a-shadow-agent.js';
+export {
+  looksLikeAgentCard,
+  resolveA2AServiceUrl,
+  serviceUrlFromCard,
+} from './agent/a2a-service-url.js';
 export { McpShadowAgent, type McpShadowAgentOptions } from './agent/mcp-shadow-agent.js';
 export {
   auditionWindows,

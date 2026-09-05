@@ -180,3 +180,65 @@ describe('name resolution under audition load', () => {
     expect(seen[0]?.dnsTimeoutMs ?? 0).toBeLessThan(seen[0]?.timeoutMs ?? 0);
   });
 });
+
+describe('a registration that points at the agent card', () => {
+  it('posts the task to the service the card names, not to the card', async () => {
+    /**
+     * The bug this pins, from BSC testnet agent 1825: the registration's A2A
+     * `endpoint` is the well-known card path, and the card there carries the
+     * JSON-RPC address. Bench POSTed `message/send` at the card file, a static
+     * JSON file refused POST, and the catalog recorded "agent returned HTTP
+     * 404 to the audition task". The agent answers `message/send` on its real
+     * url; it was alive the whole time.
+     */
+    const card = 'https://proofera-lp.tangvu.dev/.well-known/agent-card.json';
+    const service = 'https://proofera-lp.tangvu.dev/';
+    const calls: { url: string; method: string | undefined }[] = [];
+
+    const agent = new A2AShadowAgent({
+      id: { chain: 'bsc-testnet', tokenId: 1825n },
+      name: 'ProofEra LP Risk Evidence Agent',
+      endpoint: { protocol: 'a2a', url: card },
+      fetchImpl: (async (url: string, opts?: { method?: string }) => {
+        calls.push({ url, method: opts?.method });
+        // The card file: readable, and refuses the POST an audition makes.
+        if (url === card) {
+          return opts?.method === 'POST'
+            ? { status: 404, body: '', headers: new Headers(), truncated: false, latencyMs: 1 }
+            : {
+                status: 200,
+                body: JSON.stringify({ name: 'ProofEra', url: service }),
+                headers: new Headers(),
+                truncated: false,
+                latencyMs: 1,
+              };
+        }
+        return {
+          status: 200,
+          body: '{"jsonrpc":"2.0","id":1,"result":{"kind":"message"}}',
+          headers: new Headers(),
+          truncated: false,
+          latencyMs: 1,
+        };
+      }) as never,
+    });
+
+    await agent.run({
+      rpcUrl: 'http://127.0.0.1:1',
+      controller: `0x${'11'.repeat(20)}`,
+      window: { id: 'w', label: 'w', regime: 'live', forkBlock: 1n, endBlock: 2n, seed: 's' },
+      position: {
+        kind: 'spot-balance',
+        label: 'p',
+        params: {},
+        capital: { token: `0x${'22'.repeat(20)}`, symbol: 'U', decimals: 18, amount: 1n },
+      },
+      fetch: (async () => new Response('{}')) as never,
+    });
+
+    expect(calls).toEqual([
+      { url: card, method: 'GET' },
+      { url: service, method: 'POST' },
+    ]);
+  });
+});

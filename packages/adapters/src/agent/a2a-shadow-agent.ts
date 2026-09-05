@@ -1,6 +1,7 @@
 import { BenchError, type AgentEndpoint, type AgentId } from '@bench/core';
 import type { ShadowAgent, ShadowAgentContext } from '@bench/core';
 import { safeFetch } from '../net/safe-fetch.js';
+import { resolveA2AServiceUrl } from './a2a-service-url.js';
 
 /**
  * Drives a registered A2A agent through an audition.
@@ -105,7 +106,23 @@ export class A2AShadowAgent implements ShadowAgent {
     });
 
     const fetchOne = this.opts.fetchImpl ?? safeFetch;
-    const res = await fetchOne(this.opts.endpoint.url, {
+    /**
+     * The registered endpoint is usually the agent card, not the service.
+     *
+     * Driving it directly is what produced `HTTP 404` and `HTTP 405` on every
+     * A2A agent in the catalog: a static card file answers GET and refuses
+     * POST. The card names the JSON-RPC address in its own `url`, so this
+     * follows it; a registration that already points at a service is returned
+     * unchanged and costs nothing.
+     */
+    const target = await resolveA2AServiceUrl(this.opts.endpoint.url, {
+      timeoutMs: this.opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      dnsTimeoutMs: this.opts.dnsTimeoutMs ?? DEFAULT_DNS_TIMEOUT_MS,
+      ...(this.opts.allowLoopback === true ? { allowLoopback: true } : {}),
+      fetchImpl: fetchOne,
+    });
+
+    const res = await fetchOne(target, {
       method: 'POST',
       timeoutMs: this.opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       dnsTimeoutMs: this.opts.dnsTimeoutMs ?? DEFAULT_DNS_TIMEOUT_MS,
