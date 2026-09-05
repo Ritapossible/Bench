@@ -7,7 +7,9 @@ import { proposeAction, revokeHire } from '@/lib/hire/actions';
 export const metadata = { title: 'Hire - Bench' };
 export const dynamic = 'force-dynamic';
 
-const tokens = (n: bigint) => `${(Number(n) / 1e18).toFixed(2)} USDT`;
+// The symbol comes from the hire's own mandate, so a record settled in $U does
+// not render as USDT because a constant said so.
+const tokens = (n: bigint, symbol = 'USDT') => `${(Number(n) / 1e18).toFixed(2)} ${symbol}`;
 
 /** What the last gate decision, or a refusal to reach one, is called. */
 const OUTCOME: Record<string, { readonly kind: 'ok' | 'warn'; readonly text: string }> = {
@@ -95,7 +97,7 @@ export default async function HireDetail({
 
         <div className="grid grid-3">
           {[
-            ['Spend remaining', tokens(left.spend)],
+            ['Spend remaining', tokens(left.spend, hire.mandate.bounds.totalSpendCap.symbol)],
             ['Actions remaining', String(left.actions)],
             ['Expires', hire.mandate.bounds.expiresAt.toISOString().slice(0, 16).replace('T', ' ')],
           ].map(([k, v]) => (
@@ -131,11 +133,21 @@ export default async function HireDetail({
               <tbody>
                 <tr>
                   <td>Total ceiling</td>
-                  <td className="num mono">{tokens(hire.mandate.bounds.totalSpendCap.amount)}</td>
+                  <td className="num mono">
+                    {tokens(
+                      hire.mandate.bounds.totalSpendCap.amount,
+                      hire.mandate.bounds.totalSpendCap.symbol,
+                    )}
+                  </td>
                 </tr>
                 <tr>
                   <td>Per transaction</td>
-                  <td className="num mono">{tokens(hire.mandate.bounds.perTxCap.amount)}</td>
+                  <td className="num mono">
+                    {tokens(
+                      hire.mandate.bounds.perTxCap.amount,
+                      hire.mandate.bounds.perTxCap.symbol,
+                    )}
+                  </td>
                 </tr>
                 <tr>
                   <td>Max actions</td>

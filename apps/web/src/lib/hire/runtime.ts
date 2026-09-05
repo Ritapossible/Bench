@@ -2,7 +2,7 @@ import 'server-only';
 import { HireOrchestrator, InMemoryHireStore } from '@bench/services';
 import { createDb, PgHireStore } from '@bench/db';
 import { Erc8183EscrowClient } from '@bench/adapters';
-import { signerFromPrivateKey } from '@altananetwork/sdk';
+import { erc8183Addresses, signerFromPrivateKey } from '@altananetwork/sdk';
 import { BenchError } from '@bench/core';
 import type {
   Address,
@@ -168,6 +168,27 @@ function realEscrow(): EscrowClient | null {
 export const escrowIsReal = (): boolean => realEscrow() !== null;
 
 /**
+ * The token a hire is priced and settled in.
+ *
+ * Follows the escrow rather than being a constant, because the two cannot
+ * disagree. The checkout priced every hire in USDT - a mainnet address, on a
+ * testnet deployment - while the ERC-8183 kernel escrows $U and refuses
+ * anything else. Turning real escrow on therefore made every hire fail at the
+ * moment money should have moved, with a correct refusal from the adapter and
+ * no way for the user to satisfy it. A hardcoded settlement token is only
+ * harmless while nothing settles.
+ */
+export function settlementToken(): {
+  readonly token: Address;
+  readonly symbol: string;
+  readonly decimals: number;
+} {
+  if (!escrowIsReal()) return { token: USDT, symbol: 'USDT', decimals: 18 };
+  const chainId = (process.env['BENCH_CHAIN'] ?? 'bsc-testnet') === 'bsc-mainnet' ? 56 : 97;
+  return { token: erc8183Addresses(chainId).paymentToken, symbol: 'U', decimals: 18 };
+}
+
+/**
  * The store, chosen the same way `lib/data` chooses its catalog source.
  *
  * With `DATABASE_URL` set, hires are rows in Postgres: they survive a restart,
@@ -217,4 +238,8 @@ export const hireOrchestrator = (): HireOrchestrator => runtime().orchestrator;
 export const hiresAreDurable = (): boolean => runtime().durable;
 export type { HireRecord };
 
+/**
+ * Kept for the simulated path and for callers that only need an address shape.
+ * Anything that prices or settles a hire must use `settlementToken()`.
+ */
 export const SETTLEMENT_TOKEN = USDT;

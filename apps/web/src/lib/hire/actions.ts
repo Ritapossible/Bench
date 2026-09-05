@@ -5,15 +5,27 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { BenchError, deriveEnvelope, type Address, type ConsentStep } from '@bench/core';
 import { data } from '@/lib/data/index';
-import { SETTLEMENT_TOKEN, hireOrchestrator, hireStore } from '@/lib/hire/runtime';
+import { SETTLEMENT_TOKEN, hireOrchestrator, hireStore, settlementToken } from '@/lib/hire/runtime';
 import { currentOwner } from '@/lib/hire/owner';
 
-const usdt = (whole: number) => ({
-  token: SETTLEMENT_TOKEN,
-  symbol: 'USDT',
-  decimals: 18,
-  amount: BigInt(Math.round(whole * 1e6)) * 10n ** 12n,
-});
+/**
+ * A settlement amount, in whatever token this deployment actually settles in.
+ *
+ * Was hardcoded to USDT. The ERC-8183 kernel escrows $U and refuses anything
+ * else, so with real escrow enabled every hire failed at the moment money
+ * should have moved - correctly refused by the adapter, and impossible for the
+ * user to satisfy. Six decimal places of precision then scaled to 18, so a
+ * price a person typed cannot arrive as a rounding artefact.
+ */
+const settlementAmount = (whole: number) => {
+  const { token, symbol, decimals } = settlementToken();
+  return {
+    token,
+    symbol,
+    decimals,
+    amount: BigInt(Math.round(whole * 1e6)) * 10n ** BigInt(decimals - 6),
+  };
+};
 
 /**
  * The form, validated.
@@ -34,7 +46,12 @@ const hireForm = z.object({
   idempotencyKey: z.string().min(1).max(128),
   totalCap: z.coerce.number().finite().positive().max(1_000_000).default(50),
   perTxCap: z.coerce.number().finite().positive().max(1_000_000).default(10),
-  price: z.coerce.number().finite().nonnegative().max(1_000_000).default(5),
+  /**
+   * Default kept small because a live deployment settles from a faucet-fed
+   * wallet: $U arrives at 10 per thirty minutes, so a default of 5 meant the
+   * first visitor consumed half the balance and the second was refused.
+   */
+  price: z.coerce.number().finite().nonnegative().max(1_000_000).default(1),
   expiryHours: z.coerce
     .number()
     .finite()
@@ -117,15 +134,15 @@ export async function createHire(form: FormData): Promise<void> {
     owner,
     agent: agent.entry.record.id,
     bounds: {
-      totalSpendCap: usdt(input.totalCap),
-      perTxCap: usdt(input.perTxCap),
+      totalSpendCap: settlementAmount(input.totalCap),
+      perTxCap: settlementAmount(input.perTxCap),
       contractAllowlist: allowlist,
       expiresAt: new Date(Date.now() + input.expiryHours * 3_600_000),
       maxActions: input.maxActions,
     },
     consent: form.getAll('consent').map(String) as ConsentStep[],
     taskSpec: input.taskSpec,
-    price: usdt(input.price),
+    price: settlementAmount(input.price),
     /**
      * The agent's operator - the ERC-8004 identity NFT holder - not the hirer.
      *

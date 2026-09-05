@@ -30,9 +30,18 @@ export interface HireCheckoutProps {
   readonly steps: readonly ConsentStepView[];
   /** True when escrow settles on the ERC-8183 kernel rather than in memory. */
   readonly escrowOnChain: boolean;
+  /** Symbol of the token this deployment actually settles in. */
+  readonly settlementSymbol: string;
 }
 
-const usd = (n: number) => `${n.toFixed(2)} USDT`;
+/**
+ * Amounts carry the symbol this deployment settles in, not a constant.
+ *
+ * "USDT" was hardcoded while the ERC-8183 kernel escrows $U, so with real
+ * escrow on, every number on this page named a token the hire would be refused
+ * for using.
+ */
+const amount = (n: number, symbol: string) => `${n.toFixed(2)} ${symbol}`;
 
 export function HireCheckout(props: HireCheckoutProps) {
   const [done, setDone] = useState<string[]>([]);
@@ -205,15 +214,17 @@ export function HireCheckout(props: HireCheckoutProps) {
                           </tr>
                           <tr>
                             <td>Price</td>
-                            <td className="num mono">{usd(props.price)}</td>
+                            <td className="num mono">
+                              {amount(props.price, props.settlementSymbol)}
+                            </td>
                           </tr>
                           <tr>
                             <td>Total ceiling</td>
-                            <td className="num mono">{usd(totalCap)}</td>
+                            <td className="num mono">{amount(totalCap, props.settlementSymbol)}</td>
                           </tr>
                           <tr>
                             <td>Per transaction</td>
-                            <td className="num mono">{usd(perTxCap)}</td>
+                            <td className="num mono">{amount(perTxCap, props.settlementSymbol)}</td>
                           </tr>
                           <tr>
                             <td>Max actions</td>

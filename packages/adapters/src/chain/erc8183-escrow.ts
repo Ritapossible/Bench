@@ -21,6 +21,7 @@ import {
   type Signer,
   type Wallet,
 } from '@altananetwork/sdk';
+import { createPublicClient, http, parseAbi } from 'viem';
 
 /**
  * ============================================================================
@@ -109,6 +110,23 @@ export class Erc8183EscrowClient implements EscrowClient {
     }
     if (spec.amount.amount <= 0n) {
       throw new BenchError('INVALID_REQUEST', 'escrow budget must be positive');
+    }
+
+    /**
+     * Checked before the batch, not discovered inside it.
+     *
+     * The hire batch approves and funds in one intent, so an underfunded buyer
+     * reverts on chain - after paying gas, with a bare custom-error selector
+     * and nothing a user can act on. This is a read, and it turns that into a
+     * sentence naming the shortfall.
+     */
+    const held = await this.#balance(this.#opts.wallet.address);
+    if (held < spec.amount.amount) {
+      throw new BenchError(
+        'INSUFFICIENT_FUNDS',
+        `escrow needs ${spec.amount.amount.toString()} of $U but the buyer holds ` +
+          `${held.toString()}. Top up ${this.#opts.wallet.address} from the $U faucet.`,
+      );
     }
 
     const result = await hireErc8183Agent(
@@ -233,6 +251,16 @@ export class Erc8183EscrowClient implements EscrowClient {
       disputeWindowEndsAt: new Date(Number(job.expiredAt) * 1000),
       deliveryProof: isEmptyBytes32(job.deliverable) ? null : job.deliverable,
     };
+  }
+
+  async #balance(who: Address): Promise<bigint> {
+    const client = createPublicClient({ transport: http(this.#network.publicRpcUrl) });
+    return client.readContract({
+      address: this.paymentToken,
+      abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+      functionName: 'balanceOf',
+      args: [who],
+    });
   }
 
   async #job(jobId: string): Promise<Erc8183Job> {
