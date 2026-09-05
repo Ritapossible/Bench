@@ -1,8 +1,6 @@
 import { rpcUrlFor, type BenchConfig } from '@bench/config';
 import {
   BenchError,
-  type EscrowClient,
-  type PaymentClient,
   type CrossReferenceSource,
   type ProbeClient,
   type RegistryClient,
@@ -121,17 +119,6 @@ export interface Adapters {
   readonly registry: RegistryClient;
   readonly probe: ProbeClient;
   /**
-   * Settlement, built on demand.
-   *
-   * Thunks rather than instances because both need an Altana wallet and an
-   * admin key, and most deployments have neither - the indexer, prober and
-   * audition queues run perfectly well without settling anything. Constructing
-   * them eagerly made every worker boot depend on configuration only the hire
-   * path uses, and returned objects nothing ever called.
-   */
-  readonly payment: () => PaymentClient;
-  readonly escrow: () => EscrowClient;
-  /**
    * Built on demand, not at boot.
    *
    * Signing needs a key, and the worker - which indexes, probes and auditions,
@@ -142,6 +129,19 @@ export interface Adapters {
    * acted on.
    */
   readonly wallet: () => WalletProvider;
+  /**
+   * Settlement is deliberately absent.
+   *
+   * `payment` and `escrow` used to sit here. Both need an Altana wallet and an
+   * admin key that the indexer, prober and audition queues do not have and do
+   * not want, so they became thunks that threw on the way to being called -
+   * which is a stub wearing a different shape, and nothing called them anyway.
+   *
+   * The hire runtime in apps/web builds `Erc8183EscrowClient` where it holds
+   * the key and can decide whether to settle for real. Anything else that
+   * needs to settle should do the same, at the point where it has the
+   * configuration to do it honestly.
+   */
   readonly fork: AnvilForkProvider;
   /**
    * Publishes each fork's RPC under a per-run token. Exposed so the worker can
@@ -182,20 +182,6 @@ export function buildAdapters(cfg: BenchConfig, gateway?: RpcGateway): Adapters 
     // much as whether it was alive. DNS gets its own budget on top - see
     // SafeFetchOptions.dnsTimeoutMs.
     probe: new HttpProbeClient({ timeoutMs: 10_000, dnsTimeoutMs: 3_000, allowLoopback: false }),
-    payment: () => {
-      throw new BenchError(
-        'INVALID_REQUEST',
-        'x402 payments need an Altana session key. Build X402PaymentClient with one - see ' +
-          'AltanaWalletProvider.sessionFor.',
-      );
-    },
-    escrow: () => {
-      throw new BenchError(
-        'INVALID_REQUEST',
-        'ERC-8183 escrow needs an Altana wallet and admin signer. Build Erc8183EscrowClient ' +
-          'with them - see the hire runtime in apps/web.',
-      );
-    },
     wallet: () => buildWallet(cfg),
     fork: new AnvilForkProvider({ gateway: rpcGateway }),
     egress: new InMemoryEgressGuard({
