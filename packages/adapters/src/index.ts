@@ -10,8 +10,6 @@ import {
 } from '@bench/core';
 import { buildCrossReference } from './catalog/scan-8004.js';
 import { Erc8004RegistryClient } from './chain/erc8004-registry.js';
-import { Erc8183EscrowClient } from './chain/erc8183-escrow.js';
-import { X402PaymentClient } from './chain/x402-payment.js';
 import { HttpProbeClient } from './probe/http-probe.js';
 import { AltanaWalletProvider, InMemorySessionStore } from './wallet/altana.js';
 import { AnvilForkProvider } from './shadow/anvil-fork.js';
@@ -20,8 +18,8 @@ import { InMemoryEgressGuard } from './shadow/egress-guard.js';
 import { EvmLocalWalletProvider, TwakWalletProvider } from './wallet/providers.js';
 
 export { Erc8004RegistryClient, type RegistryClientOptions } from './chain/erc8004-registry.js';
-export { Erc8183EscrowClient } from './chain/erc8183-escrow.js';
-export { X402PaymentClient } from './chain/x402-payment.js';
+export { Erc8183EscrowClient, type Erc8183EscrowOptions } from './chain/erc8183-escrow.js';
+export { X402PaymentClient, type X402PaymentOptions } from './chain/x402-payment.js';
 export {
   IDENTITY_REGISTRY_ABI,
   REGISTERED_EVENT,
@@ -122,8 +120,17 @@ export { SDK_PINNED_VERSION, assertSdkVersion } from './sdk.js';
 export interface Adapters {
   readonly registry: RegistryClient;
   readonly probe: ProbeClient;
-  readonly payment: PaymentClient;
-  readonly escrow: EscrowClient;
+  /**
+   * Settlement, built on demand.
+   *
+   * Thunks rather than instances because both need an Altana wallet and an
+   * admin key, and most deployments have neither - the indexer, prober and
+   * audition queues run perfectly well without settling anything. Constructing
+   * them eagerly made every worker boot depend on configuration only the hire
+   * path uses, and returned objects nothing ever called.
+   */
+  readonly payment: () => PaymentClient;
+  readonly escrow: () => EscrowClient;
   /**
    * Built on demand, not at boot.
    *
@@ -175,8 +182,20 @@ export function buildAdapters(cfg: BenchConfig, gateway?: RpcGateway): Adapters 
     // much as whether it was alive. DNS gets its own budget on top - see
     // SafeFetchOptions.dnsTimeoutMs.
     probe: new HttpProbeClient({ timeoutMs: 10_000, dnsTimeoutMs: 3_000, allowLoopback: false }),
-    payment: new X402PaymentClient(),
-    escrow: new Erc8183EscrowClient(),
+    payment: () => {
+      throw new BenchError(
+        'INVALID_REQUEST',
+        'x402 payments need an Altana session key. Build X402PaymentClient with one - see ' +
+          'AltanaWalletProvider.sessionFor.',
+      );
+    },
+    escrow: () => {
+      throw new BenchError(
+        'INVALID_REQUEST',
+        'ERC-8183 escrow needs an Altana wallet and admin signer. Build Erc8183EscrowClient ' +
+          'with them - see the hire runtime in apps/web.',
+      );
+    },
     wallet: () => buildWallet(cfg),
     fork: new AnvilForkProvider({ gateway: rpcGateway }),
     egress: new InMemoryEgressGuard({

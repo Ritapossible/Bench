@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { CONSENT_PROMPTS, CONSENT_STEPS } from '@bench/core';
 import { data } from '@/lib/data/index';
 import { HireCheckout } from '@/components/HireCheckout';
+import { escrowIsReal } from '@/lib/hire/runtime';
 import { CATEGORY_LABEL, usd, agentHref } from '@/lib/format';
 
 export const metadata = { title: 'Hire - Bench' };
@@ -112,6 +113,7 @@ export default async function HirePage({
             category={CATEGORY_LABEL[category] ?? category}
             auditionSummary={summary}
             suggestedAllowlist={category === 'health-factor' ? [VENUS] : [PCS]}
+            escrowOnChain={escrowIsReal()}
             price={5}
             steps={STEPS}
           />

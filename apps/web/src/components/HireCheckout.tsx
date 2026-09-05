@@ -28,6 +28,8 @@ export interface HireCheckoutProps {
   readonly suggestedAllowlist: readonly string[];
   readonly price: number;
   readonly steps: readonly ConsentStepView[];
+  /** True when escrow settles on the ERC-8183 kernel rather than in memory. */
+  readonly escrowOnChain: boolean;
 }
 
 const usd = (n: number) => `${n.toFixed(2)} USDT`;
@@ -258,8 +260,9 @@ export function HireCheckout(props: HireCheckoutProps) {
             : `Complete all ${props.steps.length} steps to hire`}
         </button>
         <p className="tiny">
-          Settlement is simulated here. The mandate, consent, decision trace and both bounds are
-          real; x402 and ERC-8183 replace two stubbed adapters when they land.
+          {props.escrowOnChain
+            ? 'Escrow settles on chain through the ERC-8183 kernel. Payment is still simulated.'
+            : 'Settlement is simulated here. The mandate, consent, decision trace and both bounds are real.'}
         </p>
       </div>
     </form>

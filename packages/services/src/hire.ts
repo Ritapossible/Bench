@@ -243,6 +243,10 @@ export class HireOrchestrator {
 
       const job = await this.deps.escrow.openJob({
         agent: req.agent,
+        // Where the escrow pays out. `payTo` is the seller's address, which is
+        // what the kernel escrows to - the agent id identifies who was hired,
+        // not where the money goes.
+        provider: req.payTo,
         client: req.owner,
         amount: req.price,
         taskSpec: req.taskSpec,

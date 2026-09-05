@@ -41,15 +41,69 @@ const registryOpts = {
 describe('port conformance', () => {
   it('binds every adapter to its port', () => {
     const registry: RegistryClient = new Erc8004RegistryClient(registryOpts);
-    const payment: PaymentClient = new X402PaymentClient();
-    const escrow: EscrowClient = new Erc8183EscrowClient();
+    const payment: PaymentClient = new X402PaymentClient({
+      chain: 'bsc-testnet',
+      session: {} as never,
+    });
+    const escrow: EscrowClient = new Erc8183EscrowClient({
+      chain: 'bsc-testnet',
+      wallet: { address: `0x${'22'.repeat(20)}` },
+      signer: {} as never,
+    });
     const wallet: WalletProvider = localWallet();
     expect([registry, payment, escrow, wallet].every(Boolean)).toBe(true);
   });
 
-  it('fails unimplemented adapter methods loudly, not silently', async () => {
-    await expect(new X402PaymentClient().quote({} as never)).rejects.toMatchObject({
-      code: 'NOT_IMPLEMENTED',
+  it('refuses a hire settlement through x402, and says where it belongs', async () => {
+    // x402 is an HTTP flow: the merchant answers 402 with its terms and the
+    // client signs one. It cannot pay a chosen party a chosen amount, which is
+    // what a hire is - so a non-URL resource is refused by name rather than
+    // quoted against terms no merchant offered.
+    const payment = new X402PaymentClient({ chain: 'bsc-testnet', session: {} as never });
+    await expect(
+      payment.quote({
+        resource: 'agent:bsc-testnet:1581',
+        payTo: `0x${'33'.repeat(20)}`,
+        amount: { token: `0x${'44'.repeat(20)}`, symbol: 'U', decimals: 18, amount: 1n },
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
+  });
+
+  it('refuses to escrow a token the kernel does not hold', async () => {
+    // The kernel escrows $U at an address it chooses. Substituting it for the
+    // token the user agreed to would move a different asset than was agreed.
+    const escrow = new Erc8183EscrowClient({
+      chain: 'bsc-testnet',
+      wallet: { address: `0x${'22'.repeat(20)}` },
+      signer: {} as never,
+    });
+    await expect(
+      escrow.openJob({
+        agent: { chain: 'bsc-testnet', tokenId: 1n },
+        provider: `0x${'33'.repeat(20)}`,
+        client: `0x${'55'.repeat(20)}`,
+        amount: {
+          token: '0x55d398326f99059ff775485246999027b3197955',
+          symbol: 'USDT',
+          decimals: 18,
+          amount: 10n ** 18n,
+        },
+        taskSpec: 'anything',
+        disputeWindowSec: 3600,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
+  });
+
+  it("refuses to submit a deliverable, which is the seller's action", async () => {
+    // A buyer that could submit its own deliverable could settle its own
+    // escrow.
+    const escrow = new Erc8183EscrowClient({
+      chain: 'bsc-testnet',
+      wallet: { address: `0x${'22'.repeat(20)}` },
+      signer: {} as never,
+    });
+    await expect(escrow.deliver('1', '0x00')).rejects.toMatchObject({
+      code: 'NOT_SUPPORTED_BY_PROVIDER',
     });
   });
 

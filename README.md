@@ -26,7 +26,8 @@ tense is a claim.
 | On-demand report against a pasted address | **Runs.** Mirrors BNB plus one of USDT, USDC, BUSD, CAKE or WBNB. |
 | Behavioural envelope and the execution gate | **Runs.** Decides and records; nothing signs, because there is no wallet. |
 | Altana session keys | **Implemented and proven on chain.** `@altananetwork/sdk` on BSC testnet: wallet creation, a grant carrying an on-chain call allowlist, spend cap and expiry, KeyStore registration, and revocation. See [the run below](#altana-session-keys-on-chain); reproduce with `npx tsx scripts/altana-session.mts` and a faucet-funded key. |
-| x402 settlement, ERC-8183 escrow | **Stubs.** The checkout uses in-process simulations and labels them. The SDK ships both; wiring them is the next step. |
+| ERC-8183 escrow | **Implemented** against the AgenticCommerce kernel (chains 56 and 97). Off unless `BENCH_ESCROW_ENABLED=true`, because it moves real $U; the checkout says which escrow it is using. |
+| x402 payments | **Implemented** for paid HTTP resources - a 402 challenge, signed with a capped session key. Deliberately *not* wired to hire settlement: x402 is merchant-driven and cannot pay a chosen party a chosen amount, which is what a hire is. |
 | `pcs-lp` and `venus-loan` positions | **Runs.** Both mint against the real protocols on a forked mainnet. |
 | Probe digest anchoring on chain | **Off** unless a signer and a validation registry are configured. |
 

@@ -1,6 +1,8 @@
 import 'server-only';
 import { HireOrchestrator, InMemoryHireStore } from '@bench/services';
 import { createDb, PgHireStore } from '@bench/db';
+import { Erc8183EscrowClient } from '@bench/adapters';
+import { signerFromPrivateKey } from '@altananetwork/sdk';
 import { BenchError } from '@bench/core';
 import type {
   Address,
@@ -131,6 +133,41 @@ class SimulatedEscrow implements EscrowClient {
 }
 
 /**
+ * The ERC-8183 kernel, when this deployment is configured to settle on chain.
+ *
+ * Null without an admin key, and that is the honest default rather than a
+ * degraded one: real escrow moves real $U from an account whose key this
+ * process holds, and a deployment should opt into that deliberately. The
+ * checkout says which one it is using, so the difference is never silent.
+ *
+ * `BENCH_ESCROW_ENABLED` gates it separately from the key because the key has
+ * other uses - probe anchoring reads the same variable - and enabling escrow
+ * as a side effect of enabling anchoring is not a decision anybody made.
+ */
+function realEscrow(): EscrowClient | null {
+  const key = process.env['BENCH_SIGNER_PRIVATE_KEY'];
+  if (process.env['BENCH_ESCROW_ENABLED'] !== 'true') return null;
+  if (key === undefined || !/^0x[0-9a-fA-F]{64}$/.test(key)) {
+    console.warn(
+      '[bench] BENCH_ESCROW_ENABLED is set but BENCH_SIGNER_PRIVATE_KEY is missing or malformed - ' +
+        'the checkout will keep using simulated escrow.',
+    );
+    return null;
+  }
+
+  const signer = signerFromPrivateKey(key as `0x${string}`);
+  return new Erc8183EscrowClient({
+    chain: (process.env['BENCH_CHAIN'] as 'bsc-mainnet' | 'bsc-testnet') ?? 'bsc-testnet',
+    // The 7702 account address is the admin EOA's, so this needs no round trip.
+    wallet: { address: signer.address },
+    signer,
+  });
+}
+
+/** True when the checkout settles on chain rather than in memory. */
+export const escrowIsReal = (): boolean => realEscrow() !== null;
+
+/**
  * The store, chosen the same way `lib/data` chooses its catalog source.
  *
  * With `DATABASE_URL` set, hires are rows in Postgres: they survive a restart,
@@ -166,7 +203,7 @@ function runtime() {
       durable,
       orchestrator: new HireOrchestrator({
         payment: new SimulatedPayment(),
-        escrow: new SimulatedEscrow(),
+        escrow: realEscrow() ?? new SimulatedEscrow(),
         store,
       }),
     };
