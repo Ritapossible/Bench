@@ -2,6 +2,7 @@ import { BenchError, type AgentEndpoint, type AgentId } from '@bench/core';
 import type { ShadowAgent, ShadowAgentContext } from '@bench/core';
 import { safeFetch } from '../net/safe-fetch.js';
 import { resolveA2AServiceUrl } from './a2a-service-url.js';
+import { assertA2AAccepted, isRunningState, readA2AReply } from './a2a-reply.js';
 
 /**
  * Drives a registered A2A agent through an audition.
@@ -55,6 +56,8 @@ const DEFAULT_TIMEOUT_MS = 90_000;
  * queued behind our own fork.
  */
 const DEFAULT_DNS_TIMEOUT_MS = 20_000;
+/** Gap between `tasks/get` polls while an agent is still working. */
+const POLL_INTERVAL_MS = 2_000;
 
 /**
  * The task an agent is given.
@@ -141,16 +144,91 @@ export class A2AShadowAgent implements ShadowAgent {
     // A JSON-RPC error reply is the agent declining the task. Raised so the
     // audition records why, rather than passing as a silent no-op that would
     // score as "chose to do nothing" - a different and much kinder finding.
-    let payload: unknown;
-    try {
-      payload = JSON.parse(res.body);
-    } catch {
-      throw new BenchError('PROTOCOL_NONCONFORMANT', 'agent reply was not JSON');
-    }
-    if (payload !== null && typeof payload === 'object' && 'error' in payload) {
+    const payload = parseReply(res.body);
+    if ('error' in payload) {
       const err = (payload as { error?: { message?: unknown } }).error;
       const message = typeof err?.message === 'string' ? err.message : 'unspecified';
       throw new BenchError('PROTOCOL_NONCONFORMANT', `agent rejected the task: ${message}`);
     }
+
+    /**
+     * The refusal is usually inside `result`, not beside it.
+     *
+     * Both live A2A agents in the first real report answered 200 with a
+     * well-formed JSON-RPC success whose data part said "INVALID_A2A_ENVELOPE"
+     * and "unknown skill: None". Reading only the envelope recorded those as
+     * completed auditions of zero actions - a refusal published as a
+     * measurement.
+     */
+    let reply = readA2AReply((payload as { result?: unknown }).result);
+
+    /**
+     * An accepted task is not a finished one.
+     *
+     * `message/send` may answer with a Task in `submitted` or `working`, which
+     * means the agent has taken the job and is still on it. Returning then
+     * measures a fork the agent has not touched yet, so this polls `tasks/get`
+     * until the task settles or the run's own budget is gone - the same budget
+     * the request had, not a new one.
+     */
+    if (reply.kind === 'task' && isRunningState(reply.state) && reply.taskId !== null) {
+      reply = await this.#awaitTask(target, reply.taskId, fetchOne);
+    }
+
+    assertA2AAccepted(reply);
   }
+
+  /** Poll one task to a settled state, or to the end of the budget. */
+  async #awaitTask(
+    target: string,
+    taskId: string,
+    fetchOne: typeof safeFetch,
+  ): Promise<ReturnType<typeof readA2AReply>> {
+    const budgetMs = this.opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const deadline = Date.now() + budgetMs;
+    let reply = readA2AReply(undefined);
+
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+
+      const res = await fetchOne(target, {
+        method: 'POST',
+        timeoutMs: remaining,
+        dnsTimeoutMs: this.opts.dnsTimeoutMs ?? DEFAULT_DNS_TIMEOUT_MS,
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: `bench-poll-${Date.now()}`,
+          method: 'tasks/get',
+          params: { id: taskId },
+        }),
+      });
+      // A server that will not answer tasks/get leaves the last known state
+      // standing, which is `working` - reported as unfinished, not as done.
+      if (res.status < 200 || res.status >= 300) break;
+
+      const payload = parseReply(res.body);
+      if ('error' in payload) break;
+      reply = readA2AReply((payload as { result?: unknown }).result);
+      if (!isRunningState(reply.state)) return reply;
+    }
+
+    return reply.state === null ? { kind: 'task', taskId, state: 'working', refusal: null } : reply;
+  }
+}
+
+/** JSON or a refusal. Shared by the send and the poll. */
+function parseReply(body: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    throw new BenchError('PROTOCOL_NONCONFORMANT', 'agent reply was not JSON');
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new BenchError('PROTOCOL_NONCONFORMANT', 'agent reply was not a JSON-RPC object');
+  }
+  return parsed as Record<string, unknown>;
 }

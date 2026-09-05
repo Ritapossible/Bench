@@ -257,3 +257,10 @@ function buildWallet(cfg: BenchConfig): WalletProvider {
     }
   }
 }
+export {
+  assertA2AAccepted,
+  isRunningState,
+  isTerminalState,
+  readA2AReply,
+  type A2AReply,
+} from './agent/a2a-reply.js';

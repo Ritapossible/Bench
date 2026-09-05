@@ -242,3 +242,74 @@ describe('a registration that points at the agent card', () => {
     ]);
   });
 });
+
+describe('an agent that works asynchronously', () => {
+  const ctx = () => ({
+    rpcUrl: 'http://127.0.0.1:1',
+    controller: `0x${'11'.repeat(20)}` as const,
+    window: {
+      id: 'w',
+      label: 'w',
+      regime: 'live' as const,
+      forkBlock: 1n,
+      endBlock: 2n,
+      seed: 's',
+    },
+    position: {
+      kind: 'spot-balance' as const,
+      label: 'p',
+      params: {},
+      capital: { token: `0x${'22'.repeat(20)}` as const, symbol: 'U', decimals: 18, amount: 1n },
+    },
+    fetch: (async () => new Response('{}')) as never,
+  });
+
+  const replies = (bodies: string[]) => {
+    const methods: string[] = [];
+    let i = 0;
+    return {
+      methods,
+      impl: (async (_url: string, opts?: { body?: string }) => {
+        const parsed =
+          opts?.body === undefined ? {} : (JSON.parse(opts.body) as { method?: string });
+        if (parsed.method !== undefined) methods.push(parsed.method);
+        const body = bodies[Math.min(i, bodies.length - 1)] ?? '{}';
+        i += 1;
+        return { status: 200, body, headers: new Headers(), truncated: false, latencyMs: 1 };
+      }) as never,
+    };
+  };
+
+  const task = (state: string) =>
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      result: { kind: 'task', id: 't-1', status: { state } },
+    });
+
+  it('polls tasks/get until the task settles', async () => {
+    // Returning at "submitted" measures a fork the agent has not touched yet.
+    const { methods, impl } = replies([task('submitted'), task('working'), task('completed')]);
+    const agent = new A2AShadowAgent({
+      id: { chain: 'bsc-testnet', tokenId: 1n },
+      name: 'async',
+      endpoint: { protocol: 'a2a', url: 'https://agent.example/a2a' },
+      fetchImpl: impl,
+    });
+    await expect(agent.run(ctx())).resolves.toBeUndefined();
+    expect(methods).toEqual(['message/send', 'tasks/get', 'tasks/get']);
+  }, 20_000);
+
+  it('gives up at the budget and says the task was unfinished', async () => {
+    const { impl } = replies([task('working')]);
+    const agent = new A2AShadowAgent({
+      id: { chain: 'bsc-testnet', tokenId: 1n },
+      name: 'slow',
+      endpoint: { protocol: 'a2a', url: 'https://agent.example/a2a' },
+      // Shorter than one poll interval, so this settles immediately.
+      timeoutMs: 1,
+      fetchImpl: impl,
+    });
+    await expect(agent.run(ctx())).rejects.toThrow(/still working when the audition window closed/);
+  }, 20_000);
+});
