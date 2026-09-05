@@ -27,11 +27,34 @@ export interface McpShadowAgentOptions {
   readonly name: string;
   readonly endpoint: AgentEndpoint;
   readonly timeoutMs?: number;
+  /** Name-resolution budget, separate from the request budget. */
+  readonly dnsTimeoutMs?: number;
   /** Tests point at 127.0.0.1. Never enable in the worker. */
   readonly allowLoopback?: boolean;
+  /**
+   * Test seam, matching `AuditionRunner.httpFetch`.
+   *
+   * The budgets this shim passes are the whole subject of one bug already, and
+   * a loopback server cannot observe them: an IP literal skips resolution, so
+   * the DNS budget is unobservable through the only other seam here.
+   */
+  readonly fetchImpl?: typeof safeFetch;
 }
 
 const DEFAULT_TIMEOUT_MS = 90_000;
+/**
+ * Name resolution gets its own budget, and it has to be generous here.
+ *
+ * `safeFetch` defaults it to 3s, which is right for the prober: that queue
+ * does nothing but resolve and fetch. An audition is the opposite - each run
+ * holds a forked chain, an anvil process and a stream of RPC calls, and
+ * `dns.lookup` is bound by the libuv threadpool those are already competing
+ * for. So a 90-second request budget sat behind a 3-second DNS budget, and
+ * agents whose hosts the prober reaches in 171ms were recorded as "could not
+ * be driven - DNS lookup timed out". The agent was fine; the lookup was
+ * queued behind our own fork.
+ */
+const DEFAULT_DNS_TIMEOUT_MS = 20_000;
 
 /**
  * Tool names that plausibly act on a position, most specific first.
@@ -145,9 +168,11 @@ export class McpShadowAgent implements ShadowAgent {
   }
 
   async #call(method: string, params: Record<string, unknown>): Promise<unknown> {
-    const res: SafeResponse = await safeFetch(this.opts.endpoint.url, {
+    const fetchOne = this.opts.fetchImpl ?? safeFetch;
+    const res: SafeResponse = await fetchOne(this.opts.endpoint.url, {
       method: 'POST',
       timeoutMs: this.opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      dnsTimeoutMs: this.opts.dnsTimeoutMs ?? DEFAULT_DNS_TIMEOUT_MS,
       headers: {
         'content-type': 'application/json',
         accept: 'application/json, text/event-stream',

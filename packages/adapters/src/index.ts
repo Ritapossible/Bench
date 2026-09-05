@@ -181,7 +181,13 @@ export function buildAdapters(cfg: BenchConfig, gateway?: RpcGateway): Adapters 
     // cold-start, so five seconds measured how warm a host happened to be as
     // much as whether it was alive. DNS gets its own budget on top - see
     // SafeFetchOptions.dnsTimeoutMs.
-    probe: new HttpProbeClient({ timeoutMs: 10_000, dnsTimeoutMs: 3_000, allowLoopback: false }),
+    // DNS at 8s, not 3s. safe-fetch's own measurement puts resolution at p99
+    // 2426ms at this concurrency, which is a cliff sitting directly on a
+    // 3000ms budget - so a share of what the catalog recorded as "unreachable"
+    // was our timeout rather than the agent. The budgets are independent:
+    // safeFetch excludes resolution time from the request budget, so this
+    // widens the floor without shortening the 10s an endpoint gets to answer.
+    probe: new HttpProbeClient({ timeoutMs: 10_000, dnsTimeoutMs: 8_000, allowLoopback: false }),
     wallet: () => buildWallet(cfg),
     fork: new AnvilForkProvider({ gateway: rpcGateway }),
     egress: new InMemoryEgressGuard({

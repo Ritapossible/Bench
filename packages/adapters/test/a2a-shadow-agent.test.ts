@@ -133,3 +133,50 @@ describe('A2AShadowAgent', () => {
     await expect(guarded.run(ctx())).rejects.toThrow();
   });
 });
+
+describe('name resolution under audition load', () => {
+  it('gives DNS a budget proportional to the request it precedes', async () => {
+    // A 90-second request budget sat behind safeFetch's 3-second DNS default,
+    // and an audition holds a forked chain and an anvil process competing for
+    // the same libuv threadpool that dns.lookup uses. Agents whose hosts the
+    // prober reached in 171ms were recorded as "could not be driven - DNS
+    // lookup timed out after 3000ms". The endpoint was fine; the lookup was
+    // queued behind our own fork.
+    const seen: { timeoutMs?: number; dnsTimeoutMs?: number }[] = [];
+
+    const agent = new A2AShadowAgent({
+      id: { chain: 'bsc-testnet', tokenId: 1n },
+      name: 'probe',
+      endpoint: { protocol: 'a2a', url: 'https://agent.example/a2a' },
+      fetchImpl: (async (_url: string, opts?: { timeoutMs?: number; dnsTimeoutMs?: number }) => {
+        seen.push(opts ?? {});
+        return {
+          status: 200,
+          body: '{"result":{}}',
+          headers: new Headers(),
+          truncated: false,
+          latencyMs: 1,
+          finalUrl: _url,
+        };
+      }) as never,
+    });
+
+    await agent.run({
+      rpcUrl: 'http://127.0.0.1:1',
+      controller: `0x${'11'.repeat(20)}`,
+      window: { id: 'w', label: 'w', regime: 'live', forkBlock: 1n, endBlock: 2n, seed: 's' },
+      position: {
+        kind: 'spot-balance',
+        label: 'p',
+        params: {},
+        capital: { token: `0x${'22'.repeat(20)}`, symbol: 'U', decimals: 18, amount: 1n },
+      },
+      fetch: (async () => new Response('{}')) as never,
+    });
+
+    expect(seen[0]?.dnsTimeoutMs ?? 0).toBeGreaterThanOrEqual(15_000);
+    // Separate budgets, not one reused: resolution must not be able to consume
+    // the whole request window.
+    expect(seen[0]?.dnsTimeoutMs ?? 0).toBeLessThan(seen[0]?.timeoutMs ?? 0);
+  });
+});
