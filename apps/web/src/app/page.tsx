@@ -42,7 +42,7 @@ const STEPS = [
   {
     n: '02',
     h: 'Its transactions are intercepted, never broadcast',
-    p: 'Each one is simulated against fork state and recorded with the intent it expressed and the state it would have produced. No funds move. Nothing reaches the chain.',
+    p: 'Each one is executed by the EVM against fork state and recorded with the intent it expressed and the state it produced. Executed, not modelled - and never broadcast. No funds move. Nothing reaches the chain.',
   },
   {
     n: '03',

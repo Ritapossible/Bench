@@ -248,11 +248,26 @@ export default async function ReportPage({
               </table>
             </div>
 
+            {/* Not "simulated". Both words are true of these numbers and only
+                one of them is useful - the same argument BasisBadge makes, and
+                this page was still saying the other thing in bold. Every agent
+                here is a real third party driven at its own endpoint, and the
+                figures come out of the EVM executing its transactions against
+                real market state. Nothing is modelled. What did not happen is
+                the broadcast. */}
             <p className="small">
-              Every figure above is <strong className="ink">simulated</strong>, against a do-nothing
-              baseline over the window named. Same position, same window, every agent in parallel -
-              a controlled comparison, not a post-hoc delta. Computed{' '}
-              {report.computedAt.toISOString().slice(0, 10)}.
+              Every figure above is <strong className="ink">measured, not estimated</strong>. Each
+              agent was driven at its own endpoint against a fork of BNB Smart Chain pinned to a
+              real block, holding a mirror of this position at real prices, and its transactions
+              were executed by the EVM against that fork rather than broadcast. Same position, same
+              window, every agent in parallel plus a do-nothing baseline - a controlled comparison,
+              not a post-hoc delta. Computed {report.computedAt.toISOString().slice(0, 10)}.
+            </p>
+            <p className="small">
+              What a fork cannot reproduce is the market reacting: no competing flow, no MEV, and
+              nobody else moving the price while the agent works. These are the outcomes the agent
+              produced against the book as it stood, which is the closest measurement of a
+              counterfactual anyone can take without spending your money to find out.
             </p>
           </div>
         ) : null}
