@@ -104,7 +104,12 @@ interface TokenSpec {
   readonly feed: Address | null;
 }
 
-const BSC_TOKENS: readonly TokenSpec[] = [
+/**
+ * The ERC-20s /report reads. Exported so a test can hold it against
+ * `SEEDABLE_TOKENS`: a token the seeder supports but the reader never looks up
+ * is a token the page offers and then refuses.
+ */
+export const BSC_TOKENS: readonly TokenSpec[] = [
   {
     symbol: 'WBNB',
     address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
@@ -140,6 +145,26 @@ const BSC_TOKENS: readonly TokenSpec[] = [
     address: '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82',
     decimals: 18,
     feed: '0xB6064eD41d4f67e353768aA239cA86f4F73665a1',
+  },
+  /**
+   * BUSD is here because the report page promises it.
+   *
+   * `SEEDABLE_TOKENS` has always carried BUSD, and /report tells a reader
+   * "Bench mirrors BNB plus one of USDT, USDC, BUSD, CAKE or WBNB". This list
+   * is what the reader actually reads, and BUSD was absent from it - so a BUSD
+   * position was never in `holdings`, never reached `mirrorPosition`, and came
+   * back as the refusal that names BUSD as supported. The page was refusing a
+   * position on the grounds that it held something the same sentence said was
+   * fine.
+   *
+   * Feed verified on chain rather than copied: `description()` answers
+   * "BUSD / USD" and the answer was 0.1h old when this was added.
+   */
+  {
+    symbol: 'BUSD',
+    address: '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56',
+    decimals: 18,
+    feed: '0xcBb98864Ef56E9042e7d2efef76141f15731B82f',
   },
 ];
 

@@ -6,6 +6,7 @@ import {
   reportWindowFor,
   SEEDABLE_TOKENS,
 } from '../src/shadow/windows.js';
+import { BSC_TOKENS } from '../src/chain/position-reader.js';
 
 const USDT = '0x55d398326f99059ff775485246999027b3197955';
 const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
@@ -167,5 +168,30 @@ describe('mirrorPosition', () => {
     expect(reportWindowFor(ADDR.toUpperCase().replace('0X', '0x'), 5n).id).toBe(
       reportWindowFor(ADDR, 5n).id,
     );
+  });
+});
+
+describe('the reader and the seeder agree on what is mirrorable', () => {
+  /**
+   * The bug this pins: BUSD was in `SEEDABLE_TOKENS` and not in `BSC_TOKENS`.
+   * `mirrorPosition` only ever sees what the reader returned, so a BUSD
+   * position arrived with no BUSD holding in it and came back as the refusal
+   * whose own wording lists BUSD among the tokens Bench mirrors. The page was
+   * turning a position away for holding something it advertised.
+   */
+  it('reads every token the seeder can write', () => {
+    const read = new Set(BSC_TOKENS.map((t) => t.address.toLowerCase()));
+    const unreadable = Object.entries(SEEDABLE_TOKENS)
+      .filter(([address]) => !read.has(address))
+      .map(([, spec]) => spec.symbol);
+    expect(unreadable).toEqual([]);
+  });
+
+  it('prices every token it can mirror, or the position is valued at zero', () => {
+    const seedable = new Set(Object.keys(SEEDABLE_TOKENS));
+    const unpriced = BSC_TOKENS.filter(
+      (t) => seedable.has(t.address.toLowerCase()) && t.feed === null,
+    ).map((t) => t.symbol);
+    expect(unpriced).toEqual([]);
   });
 });
