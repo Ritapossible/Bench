@@ -66,7 +66,27 @@ function refusalIn(parts: unknown): string | null {
     const skills = Array.isArray(data['skills'])
       ? ` (it accepts: ${data['skills'].filter((s) => typeof s === 'string').join(', ')})`
       : '';
-    return `${err}${detail}${skills}`;
+    /**
+     * Field-level complaints, when the agent gives them.
+     *
+     * ProofEra answers a malformed request with
+     * `issues:[{path:"poolAddress",message:"Required"}, ...]`, which is the
+     * difference between "this agent refused" and "this agent wants a
+     * PancakeSwap V3 position id and Bench offered it a spot balance". The
+     * second is a finding about what the agent is for; the first is noise.
+     */
+    const issues = Array.isArray(data['issues'])
+      ? data['issues']
+          .filter(isRecord)
+          .map((i) => {
+            const path = typeof i['path'] === 'string' && i['path'] !== '' ? i['path'] : null;
+            const msg = typeof i['message'] === 'string' ? i['message'] : null;
+            return path === null ? msg : msg === null ? path : `${path} ${msg}`;
+          })
+          .filter((x): x is string => x !== null)
+      : [];
+    const listed = issues.length === 0 ? '' : ` [${issues.slice(0, 6).join('; ')}]`;
+    return `${err}${detail}${skills}${listed}`;
   }
   return null;
 }

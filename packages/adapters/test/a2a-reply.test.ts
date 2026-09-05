@@ -111,3 +111,39 @@ describe('task states', () => {
     }
   });
 });
+
+describe('field-level complaints', () => {
+  it('carries the fields the agent said were missing', () => {
+    // Verbatim from ProofEra 1825 when handed a spot-balance position. The
+    // fields it names are what tell a reader it analyses V3 LP positions.
+    const reply = readA2AReply({
+      kind: 'message',
+      parts: [
+        {
+          kind: 'data',
+          data: {
+            error: 'INVALID_ANALYSIS_INPUT',
+            issues: [
+              { path: 'chainId', message: 'Invalid input' },
+              { path: 'poolAddress', message: 'Required' },
+              { path: 'positionId', message: 'Required' },
+            ],
+          },
+        },
+      ],
+    });
+    expect(reply.refusal).toBe(
+      'INVALID_ANALYSIS_INPUT [chainId Invalid input; poolAddress Required; positionId Required]',
+    );
+  });
+
+  it('caps the list rather than printing an unbounded schema dump', () => {
+    const issues = Array.from({ length: 12 }, (_, i) => ({ path: `f${i}`, message: 'Required' }));
+    const reply = readA2AReply({
+      kind: 'message',
+      parts: [{ kind: 'data', data: { error: 'BAD', issues } }],
+    });
+    expect(reply.refusal).toContain('f5 Required]');
+    expect(reply.refusal).not.toContain('f6');
+  });
+});

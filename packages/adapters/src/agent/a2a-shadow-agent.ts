@@ -1,7 +1,8 @@
 import { BenchError, type AgentEndpoint, type AgentId } from '@bench/core';
 import type { ShadowAgent, ShadowAgentContext } from '@bench/core';
 import { safeFetch } from '../net/safe-fetch.js';
-import { resolveA2AServiceUrl } from './a2a-service-url.js';
+import { resolveA2AService } from './a2a-service-url.js';
+import { attemptsFor, type A2APart } from './a2a-envelope.js';
 import { assertA2AAccepted, isRunningState, readA2AReply } from './a2a-reply.js';
 
 /**
@@ -59,24 +60,6 @@ const DEFAULT_DNS_TIMEOUT_MS = 20_000;
 /** Gap between `tasks/get` polls while an agent is still working. */
 const POLL_INTERVAL_MS = 2_000;
 
-/**
- * The task an agent is given.
- *
- * Explicit about the RPC endpoint and the controller account in both the prose
- * and the metadata: an agent that cannot be told where to act cannot be
- * auditioned, and putting it only in prose would make this depend on the
- * agent's language model rather than on its wiring.
- */
-function taskText(ctx: ShadowAgentContext): string {
-  return [
-    `You are being evaluated on a ${ctx.position.kind} position: ${ctx.position.label}.`,
-    `Act on it using JSON-RPC endpoint ${ctx.rpcUrl} (BNB Smart Chain).`,
-    `The account holding the position is ${ctx.controller}.`,
-    `Window ${ctx.window.label} (regime: ${ctx.window.regime}).`,
-    'Manage the position as you normally would, submitting transactions to that endpoint.',
-  ].join(' ');
-}
-
 export class A2AShadowAgent implements ShadowAgent {
   readonly id: string;
   readonly name: string;
@@ -87,6 +70,83 @@ export class A2AShadowAgent implements ShadowAgent {
   }
 
   async run(ctx: ShadowAgentContext): Promise<void> {
+    const fetchOne = this.opts.fetchImpl ?? safeFetch;
+    const timeoutMs = this.opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const dnsTimeoutMs = this.opts.dnsTimeoutMs ?? DEFAULT_DNS_TIMEOUT_MS;
+
+    /**
+     * The registered endpoint is usually the agent card, not the service.
+     *
+     * Driving it directly is what produced `HTTP 404` and `HTTP 405` on every
+     * A2A agent in the catalog: a static card file answers GET and refuses
+     * POST. The card names the JSON-RPC address in its own `url`, so this
+     * follows it; a registration that already points at a service is returned
+     * unchanged and costs nothing. The card comes back too, because it also
+     * says what shape of request the agent takes.
+     */
+    const service = await resolveA2AService(this.opts.endpoint.url, {
+      timeoutMs,
+      dnsTimeoutMs,
+      ...(this.opts.allowLoopback === true ? { allowLoopback: true } : {}),
+      fetchImpl: fetchOne,
+    });
+
+    /**
+     * Ask in the shapes the card declares, best first, and stop at the first
+     * one the agent accepts.
+     *
+     * A cooperative agent costs one request. The retries exist because a
+     * refusal like "INVALID_A2A_ENVELOPE" is the agent saying Bench asked
+     * wrongly, and giving up there records a fact about Bench as though it
+     * were a fact about the agent. What varies between attempts is only the
+     * envelope the card asked for - never the task, never the position.
+     */
+    const attempts = attemptsFor(ctx, service.card);
+    /**
+     * The first refusal is the one kept, not the last.
+     *
+     * A card lists its primary skill first, so the first attempt is the
+     * closest thing the agent offers to what was asked - and its complaint is
+     * the informative one. ProofEra's first says it wants `poolAddress` and
+     * `positionId`, which tells a reader it analyses V3 LP positions and was
+     * handed a spot balance. Its second is about a permission bundle nobody
+     * asked for. Reporting the last attempt would have published the least
+     * relevant sentence the agent said.
+     */
+    let firstRefusal: BenchError | null = null;
+
+    for (const part of attempts) {
+      try {
+        await this.#ask(service.url, part, ctx, fetchOne, timeoutMs, dnsTimeoutMs);
+        return;
+      } catch (err) {
+        // Only a refusal is worth another shape. An unreachable host, a
+        // non-JSON reply or an unfinished task says nothing about the envelope
+        // and retrying would just spend the run's budget.
+        if (!(err instanceof BenchError) || err.code !== 'PROTOCOL_NONCONFORMANT') throw err;
+        firstRefusal ??= err;
+      }
+    }
+
+    if (firstRefusal === null) {
+      throw new BenchError('PROTOCOL_NONCONFORMANT', 'agent accepted no request');
+    }
+    // Say how many were tried, so a refusal cannot be read as Bench giving up
+    // after one guess at the envelope.
+    const tried =
+      attempts.length === 1 ? '' : ` (all ${attempts.length} shapes its card declares were tried)`;
+    throw new BenchError('PROTOCOL_NONCONFORMANT', `${firstRefusal.message}${tried}`);
+  }
+
+  /** One `message/send`, followed to a settled state. */
+  async #ask(
+    target: string,
+    part: A2APart,
+    ctx: ShadowAgentContext,
+    fetchOne: typeof safeFetch,
+    timeoutMs: number,
+    dnsTimeoutMs: number,
+  ): Promise<void> {
     const body = JSON.stringify({
       jsonrpc: '2.0',
       id: `bench-${Date.now()}`,
@@ -94,11 +154,12 @@ export class A2AShadowAgent implements ShadowAgent {
       params: {
         message: {
           role: 'user',
-          parts: [{ kind: 'text', text: taskText(ctx) }],
+          parts: [part],
           messageId: `bench-${this.id}-${ctx.window.id}`,
         },
-        // Alongside the prose, not instead of it: an agent that reads structured
-        // input should not have to parse an address out of a sentence.
+        // Alongside the parts, not instead of them: an agent that reads
+        // structured input should not have to parse an address out of a
+        // sentence.
         metadata: {
           rpcUrl: ctx.rpcUrl,
           account: ctx.controller,
@@ -108,27 +169,10 @@ export class A2AShadowAgent implements ShadowAgent {
       },
     });
 
-    const fetchOne = this.opts.fetchImpl ?? safeFetch;
-    /**
-     * The registered endpoint is usually the agent card, not the service.
-     *
-     * Driving it directly is what produced `HTTP 404` and `HTTP 405` on every
-     * A2A agent in the catalog: a static card file answers GET and refuses
-     * POST. The card names the JSON-RPC address in its own `url`, so this
-     * follows it; a registration that already points at a service is returned
-     * unchanged and costs nothing.
-     */
-    const target = await resolveA2AServiceUrl(this.opts.endpoint.url, {
-      timeoutMs: this.opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-      dnsTimeoutMs: this.opts.dnsTimeoutMs ?? DEFAULT_DNS_TIMEOUT_MS,
-      ...(this.opts.allowLoopback === true ? { allowLoopback: true } : {}),
-      fetchImpl: fetchOne,
-    });
-
     const res = await fetchOne(target, {
       method: 'POST',
-      timeoutMs: this.opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-      dnsTimeoutMs: this.opts.dnsTimeoutMs ?? DEFAULT_DNS_TIMEOUT_MS,
+      timeoutMs,
+      dnsTimeoutMs,
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body,
       ...(this.opts.allowLoopback === true ? { allowLoopback: true } : {}),

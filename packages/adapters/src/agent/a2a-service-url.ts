@@ -92,7 +92,21 @@ export function serviceUrlFromCard(body: string, cardUrl: string): string | null
  * the caller then drives the registered URL and records whatever that
  * actually answers, which is a measurement rather than an inference.
  */
-export async function resolveA2AServiceUrl(
+export interface ResolvedA2AService {
+  /** Where to POST. The card's `url`, or the registered endpoint unchanged. */
+  readonly url: string;
+  /**
+   * The card itself, when one was read.
+   *
+   * Kept rather than discarded because the card is also how an agent says what
+   * it will accept - its skills and its input modes decide the shape of the
+   * request, and fetching it twice to learn that would be a second round trip
+   * for something already in hand.
+   */
+  readonly card: Record<string, unknown> | null;
+}
+
+export async function resolveA2AService(
   endpointUrl: string,
   opts: {
     readonly timeoutMs?: number;
@@ -100,8 +114,8 @@ export async function resolveA2AServiceUrl(
     readonly allowLoopback?: boolean;
     readonly fetchImpl?: typeof safeFetch;
   } = {},
-): Promise<string> {
-  if (!looksLikeAgentCard(endpointUrl)) return endpointUrl;
+): Promise<ResolvedA2AService> {
+  if (!looksLikeAgentCard(endpointUrl)) return { url: endpointUrl, card: null };
 
   const fetchOne = opts.fetchImpl ?? safeFetch;
   try {
@@ -112,9 +126,27 @@ export async function resolveA2AServiceUrl(
       ...(opts.allowLoopback === true ? { allowLoopback: true } : {}),
       headers: { accept: 'application/json' },
     });
-    if (res.status < 200 || res.status >= 300) return endpointUrl;
-    return serviceUrlFromCard(res.body, endpointUrl) ?? endpointUrl;
+    if (res.status < 200 || res.status >= 300) return { url: endpointUrl, card: null };
+
+    let card: Record<string, unknown> | null = null;
+    try {
+      const parsed: unknown = JSON.parse(res.body);
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        card = parsed as Record<string, unknown>;
+      }
+    } catch {
+      card = null;
+    }
+    return { url: serviceUrlFromCard(res.body, endpointUrl) ?? endpointUrl, card };
   } catch {
-    return endpointUrl;
+    return { url: endpointUrl, card: null };
   }
+}
+
+/** The address alone, for callers that do not need the card. */
+export async function resolveA2AServiceUrl(
+  endpointUrl: string,
+  opts: Parameters<typeof resolveA2AService>[1] = {},
+): Promise<string> {
+  return (await resolveA2AService(endpointUrl, opts)).url;
 }

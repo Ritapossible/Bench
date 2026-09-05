@@ -97,8 +97,10 @@ export {
 export { A2AShadowAgent, type A2AShadowAgentOptions } from './agent/a2a-shadow-agent.js';
 export {
   looksLikeAgentCard,
+  resolveA2AService,
   resolveA2AServiceUrl,
   serviceUrlFromCard,
+  type ResolvedA2AService,
 } from './agent/a2a-service-url.js';
 export { McpShadowAgent, type McpShadowAgentOptions } from './agent/mcp-shadow-agent.js';
 export {
@@ -264,3 +266,12 @@ export {
   readA2AReply,
   type A2AReply,
 } from './agent/a2a-reply.js';
+export {
+  attemptsFor,
+  cardAcceptsText,
+  readCardSkills,
+  taskData,
+  taskText,
+  type A2APart,
+  type CardSkill,
+} from './agent/a2a-envelope.js';
