@@ -8,6 +8,7 @@ import {
   type InterceptedAction,
 } from '@bench/core';
 import { parseTransaction, recoverTransactionAddress } from 'viem';
+import { rpcMethodVerdict } from './rpc-policy.js';
 import { decodeAction } from './tx-decode.js';
 
 /**
@@ -242,6 +243,25 @@ export async function startInterceptor(opts: InterceptorOptions): Promise<Interc
   };
 
   const handleOne = async (req: JsonRpcRequest): Promise<unknown> => {
+    /**
+     * Refused before anything reaches anvil.
+     *
+     * "Everything other than eth_sendRawTransaction is proxied through
+     * untouched" was true and was the hole: untouched included anvil's cheat
+     * codes, on a gateway that is public by construction. An agent could
+     * `anvil_setStorageAt` itself a balance and post the delta as a result, or
+     * `eth_sendTransaction` from the impersonated controller - moving the
+     * position past the safety gate and out of the recorded actions.
+     */
+    // A request with no method is malformed, not permitted by omission.
+    const verdict = rpcMethodVerdict(req.method ?? '');
+    if (!verdict.allowed) {
+      return {
+        jsonrpc: '2.0',
+        id: req.id,
+        error: { code: -32601, message: verdict.reason ?? 'method not available' },
+      };
+    }
     if (req.method === 'eth_sendRawTransaction') return handleSendRaw(req);
     return upstream(req);
   };

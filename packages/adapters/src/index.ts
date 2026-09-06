@@ -279,3 +279,4 @@ export {
   type A2APart,
   type CardSkill,
 } from './agent/a2a-envelope.js';
+export { rpcMethodVerdict, ALLOWED_RPC_METHODS, type RpcVerdict } from './shadow/rpc-policy.js';

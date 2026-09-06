@@ -76,17 +76,45 @@ describe.skipIf(!anvilAvailable())('a remote agent drives a real fork', () => {
       const pub = createPublicClient({ transport: http(url) });
       expect(await pub.getChainId()).toBe(CHAIN_ID);
 
-      const account = privateKeyToAccount(`0x${'11'.repeat(32)}`);
-      await fetch(url, {
+      /**
+       * Anvil's first pre-funded account, not a cheat call.
+       *
+       * This test used to fund a fresh key by calling `anvil_setBalance`
+       * through the gateway - which worked, and was the hole: every cheat code
+       * anvil exposes was reachable by anything holding the run's URL, and that
+       * URL is public by construction. An agent could mint itself a balance and
+       * post the delta as a result. The refusal is asserted below; here the
+       * wallet just uses money anvil already gave it.
+       */
+      const account = privateKeyToAccount(
+        '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+      );
+
+      const cheat = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: 1,
           method: 'anvil_setBalance',
-          params: [account.address, `0x${(10n ** 18n).toString(16)}`],
+          params: [account.address, `0x${(10n ** 30n).toString(16)}`],
         }),
-      });
+      }).then((r) => r.json() as Promise<{ error?: { message?: string } }>);
+      expect(cheat.error?.message).toMatch(/not available during an audition/);
+
+      // And the unsigned send, which executed past the gate on the impersonated
+      // controller and never appeared in the recorded actions.
+      const unsigned = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'eth_sendTransaction',
+          params: [{ from: account.address, to: RECIPIENT, value: '0x1' }],
+        }),
+      }).then((r) => r.json() as Promise<{ error?: { message?: string } }>);
+      expect(unsigned.error?.message).toMatch(/eth_sendRawTransaction/);
 
       const wallet = createWalletClient({
         account,
