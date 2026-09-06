@@ -78,12 +78,15 @@ const CATEGORIES = [
 export function CatalogFilter({
   rows,
   counts,
+  registered,
   category,
   liveOnly,
   totalIndexed,
 }: {
   readonly rows: readonly AgentRow[];
   readonly counts: Readonly<Record<string, number>>;
+  /** How many exist at all, regardless of the live filter. */
+  readonly registered: Readonly<Record<string, number>>;
   readonly category: string;
   readonly liveOnly: boolean;
   readonly totalIndexed: number;
@@ -113,7 +116,13 @@ export function CatalogFilter({
               style={{ textDecoration: 'none' }}
             >
               {c === 'all' ? 'All' : CATEGORY_LABEL[c]}{' '}
-              <span className="chip-count">{counts[c] ?? 0}</span>
+              {/* live / registered, so a zero reads as "none of the 38 are
+                  answering" rather than as "there is nothing here". */}
+              <span className="chip-count">
+                {liveOnly && (registered[c] ?? 0) !== (counts[c] ?? 0)
+                  ? `${counts[c] ?? 0}/${registered[c] ?? 0}`
+                  : (counts[c] ?? 0)}
+              </span>
             </Link>
           ))}
         </div>

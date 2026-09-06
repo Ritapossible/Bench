@@ -38,12 +38,24 @@ export default async function AgentsPage({
     ? (params.category as AgentCategory)
     : 'all';
 
-  const [agents, counts] = await Promise.all([
+  /**
+   * Both counts, always: how many are live, and how many exist.
+   *
+   * The chips showed only the count under the current filter, so the default
+   * live-only view rendered "Health factor 0" - which reads as a marketplace
+   * with nothing in it, when the truth is 38 registered and none of them
+   * answering. Those are opposite impressions of the same fact, and the
+   * second one is both more accurate and more useful: the depth of each
+   * category is a property of the registry, and how much of it is alive is
+   * the measurement this catalog exists to make.
+   */
+  const [agents, counts, registered] = await Promise.all([
     data.listAgents({
       verifiedLiveOnly: liveOnly,
       ...(category === 'all' ? {} : { category }),
     }),
     data.categoryCounts({ verifiedLiveOnly: liveOnly }),
+    data.categoryCounts({ verifiedLiveOnly: false }),
   ]);
 
   const totalIndexed = Object.values(counts).reduce((a, b) => a + b, 0);
@@ -93,6 +105,10 @@ export default async function AgentsPage({
         <CatalogFilter
           rows={rows}
           counts={{ ...counts, all: totalIndexed }}
+          registered={{
+            ...registered,
+            all: Object.values(registered).reduce((a, b) => a + b, 0),
+          }}
           category={category}
           liveOnly={liveOnly}
           totalIndexed={totalIndexed}
