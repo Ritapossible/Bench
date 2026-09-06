@@ -28,8 +28,26 @@ export const CATEGORY_LABEL: Record<string, string> = {
   other: 'Other',
 };
 
-export const ago = (d: Date, from: Date = new Date('2026-08-25T12:00:00Z')): string => {
+/**
+ * How long ago, from now.
+ *
+ * `from` defaulted to a hardcoded `2026-08-25T12:00:00Z`, so every elapsed
+ * time on the site was measured against a clock that stopped on the day the
+ * line was written. Twelve days later the agent page read "Last probed
+ * -17572m ago" - a negative age, on the panel whose entire job is to say how
+ * fresh the liveness evidence is. The same shape as the hardcoded BNB price:
+ * a constant standing in for something that has to be read at the moment it
+ * is used.
+ *
+ * Still injectable, because a test that pins the clock is worth having; it is
+ * the default that had to change.
+ */
+export const ago = (d: Date, from: Date = new Date()): string => {
   const mins = Math.round((from.getTime() - d.getTime()) / 60_000);
+  // A timestamp in the future is a clock disagreement between the worker and
+  // the renderer, not a negative age. Reported as just-now rather than as a
+  // minus sign nobody can act on.
+  if (mins <= 0) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   if (mins < 1440) return `${Math.round(mins / 60)}h ago`;
   return `${Math.round(mins / 1440)}d ago`;
