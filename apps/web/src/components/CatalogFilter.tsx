@@ -210,8 +210,49 @@ export function CatalogFilter({
         ))}
 
         {shown.length === 0 ? (
-          <div className="card">
-            <p className="body">Nothing matches. Loosen a filter.</p>
+          /**
+           * An empty category is a measurement, so it has to read like one.
+           *
+           * "Nothing matches. Loosen a filter." is what a search box says when
+           * it has failed you. Health-factor monitoring is one of the four
+           * categories this marketplace is judged on, and it has 38 registered
+           * agents of which none is verified live - which is the single most
+           * interesting sentence on the page and was rendered as a shrug.
+           */
+          <div className="card stack stack-8">
+            {liveOnly && (counts[category] ?? 0) > 0 ? (
+              <>
+                <p className="quote">
+                  {counts[category]}{' '}
+                  {category === 'all'
+                    ? 'agents are'
+                    : `${(CATEGORY_LABEL[category] ?? category).toLowerCase()} agents are`}{' '}
+                  registered on this chain, and none of them is verified live right now.
+                </p>
+                <p className="body">
+                  That is a fact about the registry, not a gap in this page. An agent counts as live
+                  only if its endpoint answered and spoke the protocol its own card declares, within
+                  the last six hours.
+                </p>
+                <div>
+                  <Link href={href({ live: false })} className="btn btn-ghost">
+                    Show all {counts[category]} anyway →
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="quote">
+                  No agent in the registry classifies as{' '}
+                  {(CATEGORY_LABEL[category] ?? category).toLowerCase()}.
+                </p>
+                <p className="body">
+                  Categories are read from each agent&rsquo;s own card - a declared category first,
+                  then its description. An empty one means nobody has registered an agent that says
+                  it does this.
+                </p>
+              </>
+            )}
           </div>
         ) : null}
       </div>
