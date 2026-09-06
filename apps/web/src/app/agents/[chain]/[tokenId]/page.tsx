@@ -243,13 +243,18 @@ export default async function AgentPage({
             are enforced here. Payment and escrow are simulated.
           </p>
           <div className="row">
-            <button
-              className="btn btn-primary"
-              disabled
-              style={{ opacity: 0.55, cursor: 'not-allowed' }}
-            >
-              Hire - Phase 4
-            </button>
+            {/* The checkout behind this has been live and reachable by URL the
+                whole time: five bounded confirmations, a real mandate, a real
+                consent record, a real decision trace. Only this button was
+                disabled - so the one path a reader takes from "this agent is
+                good" to "put it to work" was a dead control, and the journey
+                this marketplace exists to serve ended one click short.
+                Settlement is what is still simulated, and the checkout says so
+                on the step where that matters rather than here, where it would
+                only discourage the click. */}
+            <Link href={`/agents/${chain}/${tokenId}/hire`} className="btn btn-primary">
+              Hire this agent →
+            </Link>
             <Link href="/report" className="btn btn-ghost on-dark">
               See it against your own position →
             </Link>
