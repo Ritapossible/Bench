@@ -118,3 +118,28 @@ describe('the window and the seeder agree', () => {
     expect(typeof a[0]?.position.params['nativePriceUsd']).toBe('number');
   });
 });
+
+describe('the price a position is scored at', () => {
+  /**
+   * A guard on the constant, not on the code path.
+   *
+   * `nativePriceUsd` was hardcoded at 687.46 while PancakeSwap quoted 757.74 -
+   * a 10% gap that became the score the moment an agent could trade between
+   * the two legs. Selling BNB was credited a fictional 10% loss and buying it
+   * a fictional 10% gain, on every position, for reasons nothing to do with
+   * the agent. Terminal valuation now quotes the fork's own pool, so this
+   * constant only survives as a fallback - but it is still what `/report`
+   * decides the $25 floor against, and a number nobody has to maintain is a
+   * number nobody does maintain.
+   */
+  it('keeps the fallback close enough to be a fallback', () => {
+    const spec = auditionWindows({ forkBlock: 40_000_000n, forkChain: 'bsc-mainnet' })[0];
+    const price = spec?.position.params['nativePriceUsd'];
+    expect(typeof price).toBe('number');
+    // Deliberately wide: this is a staleness alarm, not a price feed. If BNB
+    // has left this band the constant needs re-reading from the chain, and the
+    // comment above says why that matters.
+    expect(price as number).toBeGreaterThan(300);
+    expect(price as number).toBeLessThan(2_000);
+  });
+});

@@ -1,6 +1,19 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  /**
+   * The `@/` alias apps/web uses, so a route handler can be tested directly.
+   *
+   * Next resolves this from tsconfig paths at build time; vitest does not read
+   * that, and without it a test importing a route fails to resolve rather than
+   * failing an assertion - which reads like the file is missing.
+   */
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./apps/web/src', import.meta.url)),
+    },
+  },
   test: {
     include: ['packages/*/test/**/*.test.ts', 'apps/*/test/**/*.test.ts'],
     environment: 'node',

@@ -18,6 +18,7 @@ import {
 import { AuditionRunner, type ShadowAgent, type ShadowAgentContext } from '../src/audition.js';
 
 const USDT = '0x55d398326f99059ff775485246999027b3197955' as Address;
+const CONTROLLER_KEY = `0x${'11'.repeat(32)}` as const;
 const CONTROLLER = '0x2222222222222222222222222222222222222222' as Address;
 
 const window_: AuditionWindow = {
@@ -72,7 +73,11 @@ class FakeForks implements ForkProvider {
       id: `fork_${n}`,
       rpcUrl: `http://127.0.0.1:${9000 + n}`,
       async seedPosition(): Promise<SeededPosition> {
-        return { controller: CONTROLLER, openedAt: { valueUsd: 10_000, detail: {} } };
+        return {
+          controller: CONTROLLER,
+          controllerKey: CONTROLLER_KEY,
+          openedAt: { valueUsd: 10_000, detail: {} },
+        };
       },
       // The runner registers a listener; these fakes emit no actions, so it is
       // accepted and dropped rather than stored.
@@ -350,7 +355,11 @@ class ScriptedFork implements ForkProvider {
       id: `fork_${n}`,
       rpcUrl: `http://127.0.0.1:${9100 + n}`,
       async seedPosition(): Promise<SeededPosition> {
-        return { controller: CONTROLLER, openedAt: { valueUsd: path[0] ?? 0, detail: {} } };
+        return {
+          controller: CONTROLLER,
+          controllerKey: CONTROLLER_KEY,
+          openedAt: { valueUsd: path[0] ?? 0, detail: {} },
+        };
       },
       onAction(cb) {
         emitters.set(n, cb);

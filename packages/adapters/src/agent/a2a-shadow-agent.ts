@@ -163,6 +163,7 @@ export class A2AShadowAgent implements ShadowAgent {
         metadata: {
           rpcUrl: ctx.rpcUrl,
           account: ctx.controller,
+          accountPrivateKey: ctx.controllerKey,
           position: { kind: ctx.position.kind, label: ctx.position.label },
           window: { id: ctx.window.id, regime: ctx.window.regime },
         },

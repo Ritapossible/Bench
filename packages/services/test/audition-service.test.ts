@@ -90,6 +90,7 @@ class FakeForks implements ForkProvider {
       async seedPosition() {
         return {
           controller: `0x${'22'.repeat(20)}` as const,
+          controllerKey: `0x${'11'.repeat(32)}` as const,
           openedAt: { valueUsd: 10_000, detail: {} },
         };
       },

@@ -22,6 +22,7 @@ async function listen(handler: Parameters<typeof createServer>[1]): Promise<stri
 const ctx = (): ShadowAgentContext => ({
   rpcUrl: 'http://127.0.0.1:9999',
   controller: `0x${'22'.repeat(20)}`,
+  controllerKey: `0x${'11'.repeat(32)}` as const,
   window: {
     id: 'w1',
     label: 'March crash',
@@ -164,6 +165,7 @@ describe('name resolution under audition load', () => {
     await agent.run({
       rpcUrl: 'http://127.0.0.1:1',
       controller: `0x${'11'.repeat(20)}`,
+      controllerKey: `0x${'11'.repeat(32)}` as const,
       window: { id: 'w', label: 'w', regime: 'live', forkBlock: 1n, endBlock: 2n, seed: 's' },
       position: {
         kind: 'spot-balance',
@@ -226,6 +228,7 @@ describe('a registration that points at the agent card', () => {
     await agent.run({
       rpcUrl: 'http://127.0.0.1:1',
       controller: `0x${'11'.repeat(20)}`,
+      controllerKey: `0x${'11'.repeat(32)}` as const,
       window: { id: 'w', label: 'w', regime: 'live', forkBlock: 1n, endBlock: 2n, seed: 's' },
       position: {
         kind: 'spot-balance',
@@ -247,6 +250,7 @@ describe('an agent that works asynchronously', () => {
   const ctx = () => ({
     rpcUrl: 'http://127.0.0.1:1',
     controller: `0x${'11'.repeat(20)}` as const,
+    controllerKey: `0x${'11'.repeat(32)}` as const,
     window: {
       id: 'w',
       label: 'w',

@@ -1,4 +1,4 @@
-import type { Address } from '../types/primitives.js';
+import type { Address, Hex } from '../types/primitives.js';
 import type { AuditionWindow, PositionTemplate } from '../types/audition.js';
 
 /**
@@ -15,6 +15,24 @@ export interface ShadowAgentContext {
   readonly rpcUrl: string;
   /** The throwaway account holding the mirrored position. */
   readonly controller: Address;
+  /**
+   * The key for that account. Handed over, because otherwise nothing can act.
+   *
+   * The home page has always said "the agent gets an RPC endpoint and a
+   * throwaway key", and the key was never in this interface. So an agent was
+   * told to submit transactions from an account it could not sign for; the
+   * only path that worked was an unsigned `eth_sendTransaction` against the
+   * still-impersonated controller, which bypassed the safety gate and the
+   * action record - and is now refused. Every zero delta in the catalog rests
+   * on this line being absent.
+   *
+   * Safe to hand to a stranger, and only because of three things together:
+   * the key is derived per window and controls nothing outside this fork, the
+   * fork is destroyed when the run ends, and reaching it needs that run's
+   * 32-byte gateway token as well. It must never be reused for anything with
+   * value on a real chain.
+   */
+  readonly controllerKey: Hex;
   readonly window: AuditionWindow;
   readonly position: PositionTemplate;
   /**

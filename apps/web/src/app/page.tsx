@@ -37,7 +37,7 @@ const STEPS = [
   {
     n: '01',
     h: 'Every listed agent runs in shadow',
-    p: 'A forked BSC node, pinned at a block, seeded with a mirror of a real position. The agent gets an RPC endpoint and a throwaway key. It believes it is live.',
+    p: 'A forked BSC node, pinned at a block, seeded with a mirror of a real position. The agent gets an RPC endpoint and the throwaway key holding that position - it can really sign, and it believes it is live. The key controls nothing outside the fork, and the fork is destroyed when the run ends.',
   },
   {
     n: '02',

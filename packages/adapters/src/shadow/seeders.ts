@@ -8,10 +8,12 @@ import {
   type TerminalState,
 } from '@bench/core';
 import {
+  decodeAbiParameters,
   decodeFunctionResult,
   encodeAbiParameters,
   encodeFunctionData,
   keccak256,
+  parseAbi,
   toHex,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -100,6 +102,44 @@ const str = (t: PositionTemplate, key: string): string | undefined => {
  * oracle read at "now" would not. The oracle belongs in the scorer, which
  * values a *live* position, not in the replayable record.
  */
+/** PancakeSwap V2, present on BSC mainnet and on any fork of it. */
+const PCS_V2_ROUTER = '0x10ED43C718714eb63d5aA57B78B54704E256024E';
+const WBNB_ADDRESS = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
+/** Large enough for a meaningful quote, small enough not to move the pool. */
+const QUOTE_PROBE_WEI = 10n ** 18n;
+
+/**
+ * One native token priced in the position's token, from the fork's own pool.
+ *
+ * Returns null rather than throwing: a fork with no route between the pair is
+ * a position the declared price still has to value, and a valuation that
+ * throws would turn a scoring detail into a failed audition.
+ */
+async function quoteNativeIn(
+  ctx: SeedContext,
+  token: string,
+  decimals: number,
+): Promise<number | null> {
+  if (token.toLowerCase() === WBNB_ADDRESS.toLowerCase()) return 1;
+  try {
+    const data = encodeFunctionData({
+      abi: parseAbi([
+        'function getAmountsOut(uint amountIn, address[] path) view returns (uint[] amounts)',
+      ]),
+      functionName: 'getAmountsOut',
+      args: [QUOTE_PROBE_WEI, [WBNB_ADDRESS as Address, token as Address]],
+    });
+    const raw = (await ctx.rpc('eth_call', [{ to: PCS_V2_ROUTER, data }, 'latest'])) as string;
+    if (typeof raw !== 'string' || raw.length < 4) return null;
+    const [amounts] = decodeAbiParameters([{ type: 'uint256[]' }], raw as Hex);
+    const out = amounts[amounts.length - 1];
+    if (out === undefined || out === 0n) return null;
+    return Number(out) / 10 ** decimals;
+  } catch {
+    return null;
+  }
+}
+
 export class SpotBalanceSeeder implements PositionSeeder {
   readonly kind: PositionKind = 'spot-balance';
 
@@ -121,16 +161,50 @@ export class SpotBalanceSeeder implements PositionSeeder {
     return this.read(ctx, t);
   }
 
+  /**
+   * Value the position at the price the fork itself trades at.
+   *
+   * `nativePriceUsd` is pinned on the template so that two agents in the same
+   * window are compared at one exchange rate - that part is right and stays.
+   * What was wrong is where the number came from: a constant in the source,
+   * 687.46, while the pool on the fork quoted 757.74. Nothing noticed, because
+   * until this week no agent could transact, so nothing ever crossed between
+   * the two legs.
+   *
+   * The moment one does, that gap is the score. An agent selling BNB for USDT
+   * received 757 of value and was credited 687, a fictional 10% loss; an agent
+   * buying BNB was handed a fictional 10% gain. The ranking would have
+   * rewarded selling BNB and punished buying it, on every position, for
+   * reasons entirely unrelated to the agent - and the error grows with every
+   * day the constant is not edited.
+   *
+   * So the rate is read from the pool at the fork block. It is still one rate
+   * for the whole window and still identical for every agent in it, so the
+   * comparison is as controlled as before; it is now also the rate the agents
+   * are actually trading at. The declared price stays as the fallback for a
+   * fork with no route to quote against.
+   */
   async read(ctx: SeedContext, t: PositionTemplate): Promise<TerminalState> {
     const balHex = (await ctx.rpc('eth_getBalance', [ctx.controller, 'latest'])) as string;
     const native = BigInt(balHex);
-    const nativePrice = num(t, 'nativePriceUsd');
+    const token = str(t, 'token');
+    const declared = num(t, 'nativePriceUsd');
+    const nativePrice =
+      token === undefined
+        ? declared
+        : ((await quoteNativeIn(ctx, token, num(t, 'tokenDecimals', 18))) ?? declared) *
+          num(t, 'tokenPriceUsd', 1);
     const nativeUsd = (Number(native) / 1e18) * nativePrice;
 
-    const detail: Record<string, number> = { nativeUsd, nativeWei: Number(native) };
+    const detail: Record<string, number> = {
+      nativeUsd,
+      nativeWei: Number(native),
+      // Recorded so a reader can see the rate a run was scored at, rather than
+      // having to trust that it matched the market.
+      nativePriceUsd: nativePrice,
+    };
     let total = nativeUsd;
 
-    const token = str(t, 'token');
     if (token !== undefined) {
       const slot = big(t, 'balanceSlot');
       const key = keccak256(

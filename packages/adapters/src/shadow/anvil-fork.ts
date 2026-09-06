@@ -82,6 +82,7 @@ class AnvilForkHandle implements ForkHandle {
     private readonly gateway: RpcGateway | null,
     private readonly seeders: readonly PositionSeeder[],
     private readonly controller: Address,
+    private readonly controllerKey: Hex,
   ) {}
 
   /**
@@ -127,7 +128,7 @@ class AnvilForkHandle implements ForkHandle {
   async seedPosition(t: PositionTemplate): Promise<SeededPosition> {
     this.#assertLive();
     const openedAt = await this.#seederFor(t.kind).seed(this.#ctx(), t);
-    return { controller: this.controller, openedAt };
+    return { controller: this.controller, controllerKey: this.controllerKey, openedAt };
   }
 
   onAction(cb: (a: InterceptedAction) => void): void {
@@ -188,7 +189,7 @@ export class AnvilForkProvider implements ForkProvider {
 
   async spawn(opts: SpawnForkOptions): Promise<ForkHandle> {
     const { window } = opts;
-    const { address: controller } = controllerFor(window.seed);
+    const { address: controller, privateKey: controllerKey } = controllerFor(window.seed);
 
     const anvil = await startAnvil({
       ...(this.opts.forkless === true
@@ -224,6 +225,7 @@ export class AnvilForkProvider implements ForkProvider {
         this.opts.gateway ?? null,
         this.opts.seeders ?? DEFAULT_SEEDERS,
         controller,
+        controllerKey,
       );
 
       // The controller pays gas for whatever the agent does on its behalf.

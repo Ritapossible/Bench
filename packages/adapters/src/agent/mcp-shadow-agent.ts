@@ -89,7 +89,9 @@ function taskText(ctx: ShadowAgentContext): string {
   return [
     `You are being evaluated on a ${ctx.position.kind} position: ${ctx.position.label}.`,
     `Act on it using JSON-RPC endpoint ${ctx.rpcUrl} (BNB Smart Chain).`,
-    `The account holding the position is ${ctx.controller}.`,
+    `The account holding the position is ${ctx.controller}, and its private key is ` +
+      `${ctx.controllerKey} - sign locally and submit with eth_sendRawTransaction. The key is ` +
+      'a throwaway that controls only this fork.',
     `Window ${ctx.window.label} (regime: ${ctx.window.regime}).`,
     'Manage the position as you normally would, submitting transactions to that endpoint.',
   ].join(' ');
@@ -108,7 +110,12 @@ function argumentsFor(tool: McpTool, ctx: ShadowAgentContext): Record<string, un
   const props = tool.inputSchema?.properties;
   const task = taskText(ctx);
   if (props === undefined || Object.keys(props).length === 0) {
-    return { task, rpcUrl: ctx.rpcUrl, account: ctx.controller };
+    return {
+      task,
+      rpcUrl: ctx.rpcUrl,
+      account: ctx.controller,
+      accountPrivateKey: ctx.controllerKey,
+    };
   }
 
   const args: Record<string, unknown> = {};

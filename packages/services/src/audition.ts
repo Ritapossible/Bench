@@ -267,6 +267,7 @@ export class AuditionRunner {
           agent.run({
             rpcUrl: fork.rpcUrl,
             controller: seeded.controller,
+            controllerKey: seeded.controllerKey,
             window: req.window,
             position: req.position,
             fetch: this.#meteredFetch(runId),

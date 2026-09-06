@@ -9,6 +9,8 @@ import type { Address, Hex } from '../types/primitives.js';
 export interface SeededPosition {
   /** Throwaway key controlling the mirrored position inside the fork. */
   readonly controller: Address;
+  /** The controller's key, so the runner can hand it to the agent. */
+  readonly controllerKey: Hex;
   readonly openedAt: TerminalState;
 }
 

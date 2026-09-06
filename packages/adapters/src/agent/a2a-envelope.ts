@@ -84,7 +84,9 @@ export function taskText(ctx: ShadowAgentContext): string {
   return [
     `You are being evaluated on a ${ctx.position.kind} position: ${ctx.position.label}.`,
     `Act on it using JSON-RPC endpoint ${ctx.rpcUrl} (BNB Smart Chain).`,
-    `The account holding the position is ${ctx.controller}.`,
+    `The account holding the position is ${ctx.controller}, and its private key is ` +
+      `${ctx.controllerKey} - sign locally and submit with eth_sendRawTransaction. The key is ` +
+      'a throwaway that controls only this fork.',
     `Window ${ctx.window.label} (regime: ${ctx.window.regime}).`,
     'Manage the position as you normally would, submitting transactions to that endpoint.',
   ].join(' ');
@@ -105,6 +107,10 @@ export function taskData(ctx: ShadowAgentContext, skillId: string): Record<strin
     rpc_url: ctx.rpcUrl,
     chain: 'bnb-smart-chain',
     account: ctx.controller,
+    // The key is in the payload as well as the prose. An agent that reads
+    // structured input should not have to parse a secret out of a sentence,
+    // and one that cannot sign cannot be auditioned at all.
+    account_private_key: ctx.controllerKey,
     position: {
       kind: ctx.position.kind,
       label: ctx.position.label,
