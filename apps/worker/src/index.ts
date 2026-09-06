@@ -152,34 +152,50 @@ async function main(): Promise<void> {
   // Set when the archive check has already printed a specific reason, so the
   // generic "not set" line below does not contradict it.
   let archiveReasonReported = false;
-  const archiveRpcUrl = await (async (): Promise<string | null> => {
-    let url: string;
+  /**
+   * Configured is enough to register the queue. Usable is checked per tick.
+   *
+   * This gated the whole audition queue on a single boot-time probe, and a
+   * probe that fails once fails for the lifetime of the process. So a
+   * QuickNode hiccup or a slow anvil start during a restart silently removed
+   * auditions for hours - and removed the queue from /status entirely, so the
+   * page did not say "auditions are broken", it said nothing at all and left a
+   * reader to notice an absence. That happened twice in one afternoon.
+   *
+   * The precondition check still runs at boot, because naming the cause once
+   * at startup is worth it. It no longer decides anything: the tick re-checks,
+   * and a queue that cannot run this minute says so where a reader can see it.
+   */
+  const archiveRpcUrl = ((): string | null => {
     try {
-      url = requireArchiveRpc(cfg);
+      return requireArchiveRpc(cfg);
     } catch {
       return null;
     }
-    // Configured is not the same as usable. An endpoint on the wrong chain, or
-    // one that prunes state, fails at the first fork - hours later, as an agent
-    // failure. Checked once here, where the message can name the cause.
+  })();
+
+  if (archiveRpcUrl !== null) {
     try {
       // Not just the archive: the fork binary too. Proving the remote
       // dependency and assuming the local one is what let a deployment report
       // "archive ok" and then fail every fork.
-      const status = await checkAuditionPreconditions(url, cfg.SHADOW_FORK_CHAIN, FORK_LAG_BLOCKS);
+      const status = await checkAuditionPreconditions(
+        archiveRpcUrl,
+        cfg.SHADOW_FORK_CHAIN,
+        FORK_LAG_BLOCKS,
+      );
       console.log(
         `[bench:worker] auditions ready - ${cfg.SHADOW_FORK_CHAIN} chain=${status.chainId} ` +
           `head=${status.head} fork@${status.probedBlock} anvil ok`,
       );
-      return url;
     } catch (err) {
       console.error(
-        `[bench:worker] auditions OFF - ${err instanceof Error ? err.message : String(err)}`,
+        `[bench:worker] audition preconditions failed at boot, will retry each tick - ` +
+          `${err instanceof Error ? err.message : String(err)}`,
       );
       archiveReasonReported = true;
-      return null;
     }
-  })();
+  }
 
   const auditionService =
     archiveRpcUrl === null
@@ -522,7 +538,19 @@ async function main(): Promise<void> {
         // registry was deployed says nothing about which market window to
         // replay, and using it forked ~40 million blocks back - a year of
         // history, on a chain the registry is not even on.
-        const status = await checkArchiveRpc(archiveRpcUrl, cfg.SHADOW_FORK_CHAIN, FORK_LAG_BLOCKS);
+        //
+        // Re-checked every tick, and reported rather than thrown. An archive
+        // node that is briefly unreachable is a minute without auditions, not
+        // an afternoon: the queue stays registered and says on /status why it
+        // did nothing, instead of vanishing from the page.
+        let status: Awaited<ReturnType<typeof checkArchiveRpc>>;
+        try {
+          status = await checkArchiveRpc(archiveRpcUrl, cfg.SHADOW_FORK_CHAIN, FORK_LAG_BLOCKS);
+        } catch (err) {
+          outcome.set(QUEUE.audition, 'idle');
+          lastResult.set(QUEUE.audition, `archive node unusable: ${redactError(err, 120)}`);
+          return;
+        }
         const specs = auditionWindows({
           forkChain: cfg.SHADOW_FORK_CHAIN,
           forkBlock: forkBlockFor(status.head),
