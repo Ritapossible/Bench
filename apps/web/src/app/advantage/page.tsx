@@ -102,6 +102,20 @@ export default async function AdvantagePage() {
               task.
             </li>
           </ul>
+          {/* Stated rather than glossed. The requirement says "hired through
+              your marketplace", and these tasks are auditions - the agent is
+              driven under the same bounds a hire would set, before any money
+              moves. Calling that a hire would be the one kind of overclaim
+              this whole report exists to avoid, so it says what it is and
+              lets the reader judge whether it counts. */}
+          <p className="small">
+            One honest caveat about what these runs are. Each task is an <em>audition</em>: the
+            agent was driven at its own endpoint, against a mirror of a real position, under the
+            same allowlist, spend cap and expiry a hire would set - but before any payment. Bench
+            measures agents this way on purpose, because asking someone to pay first and find out
+            afterwards is the problem it was built to remove. If a task only counts when money has
+            changed hands, these are not that, and the report says so rather than relabelling them.
+          </p>
         </div>
 
         {report.tasks.length === 0 ? (

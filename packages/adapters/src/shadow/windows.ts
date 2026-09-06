@@ -60,7 +60,21 @@ const SPOT_CONSTANTS: Partial<Record<ChainName, SpotConstants>> = {
     symbol: 'USDT',
     decimals: 18,
     balanceSlot: 1n,
-    nativePriceUsd: 687.46,
+    /**
+     * Read from PancakeSwap V2 on 2026-09-06: 1 BNB = 749.06 USDT.
+     *
+     * Terminal valuation no longer depends on this - the seeder quotes the
+     * fork's own pool, which is what stopped a stale constant from becoming
+     * an agent's score. What still depends on it is `mirrorPosition`, which
+     * uses it to decide whether a reader's position clears the $25 floor, and
+     * the declared fallback for a fork with no route to quote against.
+     *
+     * It was 687.46 while the pool said 757.74, and by the next day 749.06 -
+     * so this line is wrong again the moment BNB moves, and re-reading it is a
+     * maintenance task nobody will remember. It is written down here rather
+     * than hidden so the next person can see the drift for themselves.
+     */
+    nativePriceUsd: 749.06,
     tokenPriceUsd: 1,
   },
   // bsc-testnet is deliberately absent. Declining is the honest answer: a
