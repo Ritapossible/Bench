@@ -91,6 +91,17 @@ export interface AuditionStore {
    */
   auditionsForWindow(windowId: string, limit?: number): Promise<readonly AuditionEvidence[]>;
 
+  /**
+   * How the runs in one window ended, counted by kind.
+   *
+   * The report showed "Agents auditioned: 18" over a table of one, because
+   * evidence rows only exist for runs that completed and the other seventeen
+   * were invisible to the page. Counting them here rather than inferring from
+   * the gap: a missing evidence row could equally be an agent that has not run
+   * yet, and those are not the same claim.
+   */
+  outcomeCountsForWindow(windowId: string): Promise<AuditionOutcomeCounts>;
+
   putOutcome(outcome: OutcomeRecord, replayHash: string): Promise<void>;
   /**
    * Outcomes for an agent, from runs that completed.
@@ -188,3 +199,13 @@ export interface FailedAuditions {
 
 /** The map key used by `latestScores`. Stable across both implementations. */
 export const agentKey = (a: AgentId): string => `${a.chain}:${a.tokenId.toString()}`;
+
+/** Runs in one window, by how they ended. Absent kinds are zero. */
+export interface AuditionOutcomeCounts {
+  readonly completed: number;
+  readonly declined: number;
+  readonly unreachable: number;
+  readonly errored: number;
+  /** Failed before 0008, so its kind was never recorded. */
+  readonly unclassified: number;
+}

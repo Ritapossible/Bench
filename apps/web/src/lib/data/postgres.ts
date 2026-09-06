@@ -116,7 +116,10 @@ export function createPgData(connectionString: string): BenchData {
       return { status: 'queued', position, requestedAt: existing.requestedAt };
     }
 
-    const evidence = await audition.auditionsForWindow(existing.windowId, 50);
+    const [evidence, outcomes] = await Promise.all([
+      audition.auditionsForWindow(existing.windowId, 50),
+      audition.outcomeCountsForWindow(existing.windowId),
+    ]);
     if (evidence.length === 0) {
       return {
         status: 'cannot-run',
@@ -155,6 +158,7 @@ export function createPgData(connectionString: string): BenchData {
           actionCount: e.outcome.actionCount,
           verifiedLive: true,
         })),
+        outcomes,
         computedAt: existing.completedAt ?? new Date(),
       },
     };

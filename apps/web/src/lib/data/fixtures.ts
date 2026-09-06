@@ -633,6 +633,14 @@ export const fixtureData: BenchData = {
         address,
         positionLabel: 'PancakeSwap v3 · BNB/USDT 0.05% · in range',
         positionValueUsd: 12_480.55,
+        // Shaped like a real window: most registrations do not complete.
+        outcomes: {
+          completed: ranked.length,
+          declined: 4,
+          unreachable: 2,
+          errored: 0,
+          unclassified: 0,
+        },
         windowLabel: '25 Jul - 25 Aug 2026',
         doNothingUsd: 12_480.55,
         lines: ranked.map((a) => ({

@@ -220,15 +220,15 @@ export default async function ReportPage({
                   </span>
                 </div>
                 <div className="stack stack-4">
-                  <span className="tiny">Agents auditioned</span>
+                  <span className="tiny">Agents that completed</span>
                   <span
                     className="mono"
                     style={{ fontSize: 'clamp(1.15rem, 5vw, 1.5rem)', fontWeight: 700 }}
                   >
-                    {listed.length}
+                    {report.outcomes.completed}
                   </span>
                   {excluded > 0 ? (
-                    <span className="tiny">{excluded} more auditioned, listed on the catalog</span>
+                    <span className="tiny">{excluded} of them are scaffolding, not listed</span>
                   ) : null}
                 </div>
               </div>
@@ -288,6 +288,57 @@ export default async function ReportPage({
                 figures come out of the EVM executing its transactions against
                 real market state. Nothing is modelled. What did not happen is
                 the broadcast. */}
+            {/* The split that "Agents auditioned: 18" was hiding. Each row is a
+                different fact: an agent that finished, an agent that answered
+                and said no, and a registration nothing could reach. */}
+            <div className="tablewrap">
+              <table className="t">
+                <thead>
+                  <tr>
+                    <th>How the runs against this position ended</th>
+                    <th className="num">Agents</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <strong>Completed</strong> - took the task and finished
+                    </td>
+                    <td className="num mono">{report.outcomes.completed}</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Declined</strong> - answered, and said no. The reason is on each
+                      agent&rsquo;s own page
+                    </td>
+                    <td className="num mono">{report.outcomes.declined}</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Unreachable</strong> - registered, but nothing usable answered
+                    </td>
+                    <td className="num mono">{report.outcomes.unreachable}</td>
+                  </tr>
+                  {report.outcomes.errored > 0 ? (
+                    <tr>
+                      <td>
+                        <strong>Bench error</strong> - our failure, not the agent&rsquo;s
+                      </td>
+                      <td className="num mono">{report.outcomes.errored}</td>
+                    </tr>
+                  ) : null}
+                  {report.outcomes.unclassified > 0 ? (
+                    <tr>
+                      <td>
+                        <strong>Unclassified</strong> - ran before Bench recorded why a run failed
+                      </td>
+                      <td className="num mono">{report.outcomes.unclassified}</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
             <p className="small">
               Every figure above is <strong className="ink">measured, not estimated</strong>. Each
               agent was driven at its own endpoint against a fork of BNB Smart Chain pinned to a

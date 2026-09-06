@@ -414,4 +414,62 @@ describeDb('PgAuditionStore', () => {
 
     expect(found.find((f) => f.agent.tokenId === 1n)?.category).toBeDefined();
   });
+
+  it('counts how the runs in one window ended, by kind', async () => {
+    /**
+     * The number this replaces: "Agents auditioned: 18" over a table of one.
+     * Evidence rows exist only for runs that completed, so the other
+     * seventeen were invisible to the page - and they were the interesting
+     * ones.
+     */
+    await store.putRun(run('w-ok', agent(1n)), []);
+    await store.putOutcome(outcome('w-ok'), '0xreplay-w-ok');
+    await store.putRun(
+      run('w-no', agent(1n), {
+        status: 'failed',
+        failureReason: 'agent declined the task: unknown skill',
+        failureKind: 'declined',
+      }),
+      [],
+    );
+    await store.putRun(
+      run('w-gone', agent(2n), {
+        status: 'failed',
+        failureReason: 'localhost resolves to blocked 127.0.0.1',
+        failureKind: 'unreachable',
+      }),
+      [],
+    );
+    // A failure recorded before migration 0008 has no kind. It must not be
+    // folded into one nobody wrote down: those rows describe Bench bugs that
+    // have since been fixed, and calling them "declined" would publish an old
+    // mistake as a finding about a stranger's agent.
+    await store.putRun(
+      run('w-old', agent(3n), {
+        id: 'w-old',
+        status: 'failed',
+        failureReason: 'endpoint returned 404',
+      }),
+      [],
+    );
+
+    const counts = await store.outcomeCountsForWindow('win-crash-1');
+    expect(counts).toEqual({
+      completed: 1,
+      declined: 1,
+      unreachable: 1,
+      errored: 0,
+      unclassified: 1,
+    });
+  });
+
+  it('counts nothing for a window that has never run', async () => {
+    expect(await store.outcomeCountsForWindow('win-nothing')).toEqual({
+      completed: 0,
+      declined: 0,
+      unreachable: 0,
+      errored: 0,
+      unclassified: 0,
+    });
+  });
 });

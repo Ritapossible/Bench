@@ -57,6 +57,13 @@
       "when": 1788454871193,
       "tag": "0007_hot_path_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788684757728,
+      "tag": "0008_run_failure_kind",
+      "breakpoints": true
     }
   ]
 }

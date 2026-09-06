@@ -166,6 +166,8 @@ export const shadowRuns = pgTable(
     // its advantage has to beat, and previously not counted at all.
     gasSpentUsd: doublePrecision('gas_spent_usd').notNull().default(0),
     failureReason: text('failure_reason'),
+    /** 'completed' | 'declined' | 'unreachable' | 'errored'; null before 0008. */
+    failureKind: text('failure_kind'),
   },
   (t) => [
     index('runs_agent_window_idx').on(t.agentId, t.windowId),

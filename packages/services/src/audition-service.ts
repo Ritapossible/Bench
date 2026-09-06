@@ -272,6 +272,7 @@ export class AuditionService {
         egressSpentUsd: result.egressSpentUsd,
         gasSpentUsd: result.gasSpentUsd,
         ...(result.failureReason === undefined ? {} : { failureReason: result.failureReason }),
+        ...(result.failureKind === undefined ? {} : { failureKind: result.failureKind }),
       };
 
       // Run first, then outcome: outcome_records references shadow_runs, and

@@ -1,6 +1,8 @@
 import {
   agentKey,
   BenchError,
+  type AuditionOutcomeCounts,
+  type AuditionOutcomeKind,
   type AgentCategory,
   type AgentId,
   type AgreementSummary,
@@ -91,6 +93,7 @@ export class PgAuditionStore implements AuditionStore {
           egressSpentUsd: run.egressSpentUsd,
           gasSpentUsd: run.gasSpentUsd,
           failureReason: run.failureReason ?? null,
+          failureKind: run.failureKind ?? null,
         })
         .onConflictDoUpdate({
           target: schema.shadowRuns.id,
@@ -101,6 +104,7 @@ export class PgAuditionStore implements AuditionStore {
             egressSpentUsd: run.egressSpentUsd,
             gasSpentUsd: run.gasSpentUsd,
             failureReason: run.failureReason ?? null,
+            failureKind: run.failureKind ?? null,
           },
         });
 
@@ -154,6 +158,7 @@ export class PgAuditionStore implements AuditionStore {
       egressSpentUsd: run.egressSpentUsd,
       gasSpentUsd: run.gasSpentUsd,
       ...(run.failureReason === null ? {} : { failureReason: run.failureReason }),
+      ...(run.failureKind === null ? {} : { failureKind: run.failureKind as AuditionOutcomeKind }),
     }));
   }
 
@@ -306,6 +311,9 @@ export class PgAuditionStore implements AuditionStore {
           egressSpentUsd: run.egressSpentUsd,
           gasSpentUsd: run.gasSpentUsd,
           ...(run.failureReason === null ? {} : { failureReason: run.failureReason }),
+          ...(run.failureKind === null
+            ? {}
+            : { failureKind: run.failureKind as AuditionOutcomeKind }),
         },
         outcome: {
           runId: outcome.runId,
@@ -476,6 +484,43 @@ export class PgAuditionStore implements AuditionStore {
       )
       .returning({ agentId: schema.scores.agentId });
     return rows.length;
+  }
+
+  /**
+   * One grouped count, not five queries.
+   *
+   * Runs that completed are counted by status rather than by kind, because a
+   * completed run has no `failure_kind` - the column only exists to say what
+   * went wrong. A failed run from before migration 0008 has none either, and
+   * is reported as unclassified rather than folded into a kind nobody
+   * recorded.
+   */
+  async outcomeCountsForWindow(windowId: string): Promise<AuditionOutcomeCounts> {
+    const rows = await this.db
+      .select({
+        status: schema.shadowRuns.status,
+        kind: schema.shadowRuns.failureKind,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(schema.shadowRuns)
+      .where(eq(schema.shadowRuns.windowId, windowId))
+      .groupBy(schema.shadowRuns.status, schema.shadowRuns.failureKind);
+
+    const counts = { completed: 0, declined: 0, unreachable: 0, errored: 0, unclassified: 0 };
+    for (const row of rows) {
+      const n = Number(row.n);
+      if (row.status === 'complete') {
+        counts.completed += n;
+        continue;
+      }
+      // Queued and running are neither a result nor a failure; they are a run
+      // that has not finished, and counting them anywhere would overstate.
+      if (row.status !== 'failed' && row.status !== 'egress-halted') continue;
+      const kind = row.kind;
+      if (kind === 'declined' || kind === 'unreachable' || kind === 'errored') counts[kind] += n;
+      else counts.unclassified += n;
+    }
+    return counts;
   }
 
   async failedAuditions(agents: readonly AgentId[]): Promise<ReadonlyMap<string, FailedAuditions>> {

@@ -79,6 +79,11 @@ export interface ShadowRun {
    */
   readonly gasSpentUsd: number;
   readonly failureReason?: string;
+  /**
+   * Which of the four things went wrong, decided from the error's code at the
+   * moment it was caught rather than read back out of `failureReason` later.
+   */
+  readonly failureKind?: import('../audition-outcome.js').AuditionOutcomeKind;
 }
 
 /** Terminal state of a position, valued in a single numeraire for comparison. */

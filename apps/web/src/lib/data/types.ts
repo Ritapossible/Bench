@@ -1,4 +1,5 @@
 import type {
+  AuditionOutcomeCounts,
   AgentCategory,
   AgreementSummary,
   AgentId,
@@ -191,5 +192,14 @@ export interface AddressReport {
   readonly windowLabel: string;
   readonly doNothingUsd: number;
   readonly lines: readonly AddressReportLine[];
+  /**
+   * How every run against this window ended, not just the ones with a number.
+   *
+   * `lines` holds completed runs only, so the page was showing "Agents
+   * auditioned: 18" above a table of one and leaving the reader to assume the
+   * other seventeen had nothing to say. They had a great deal to say; it was
+   * on the failure rows.
+   */
+  readonly outcomes: AuditionOutcomeCounts;
   readonly computedAt: Date;
 }

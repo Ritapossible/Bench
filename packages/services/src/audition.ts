@@ -1,4 +1,6 @@
 import {
+  classifyAuditionFailure,
+  type AuditionOutcomeKind,
   BenchError,
   replayHash,
   redactError,
@@ -52,6 +54,7 @@ export interface AuditionResult {
   readonly replayHash: Hex;
   readonly failed: boolean;
   readonly failureReason?: string;
+  readonly failureKind?: AuditionOutcomeKind;
   /** Real money this agent spent reaching the network during its audition. */
   readonly egressSpentUsd: number;
   /**
@@ -246,6 +249,7 @@ export class AuditionRunner {
 
       let failed = false;
       let failureReason: string | undefined;
+      let failureKind: AuditionOutcomeKind | undefined;
 
       // Scoped to this agent's run, so one agent cannot spend another's budget
       // and the recorded total is attributable.
@@ -277,6 +281,10 @@ export class AuditionRunner {
         // Stored on the run and shown on the public agent page. The message
         // can carry the fork's own RPC URL or an endpoint's error body.
         failureReason = redactError(err);
+        // Classified here, where the error object still exists. Reading the
+        // kind back out of the stored sentence would reclassify history every
+        // time that sentence was reworded.
+        failureKind = classifyAuditionFailure(err);
       }
 
       const finishedAt = new Date();
@@ -313,6 +321,7 @@ export class AuditionRunner {
         replayHash: hash,
         failed,
         ...(failureReason === undefined ? {} : { failureReason }),
+        ...(failureKind === undefined ? {} : { failureKind }),
         egressSpentUsd: this.deps.egress === undefined ? 0 : await this.deps.egress.spent(runId),
         gasSpentUsd,
       };
