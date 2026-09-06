@@ -104,7 +104,25 @@ export async function POST(request: Request): Promise<NextResponse> {
   const account = str(data['account']) ?? str(meta['account']) ?? findHex(text, 40) ?? null;
   const privateKey =
     str(data['account_private_key']) ?? str(meta['accountPrivateKey']) ?? findHex(text, 64) ?? null;
-  const token = str(data['token']) ?? DEFAULT_TOKEN;
+  /**
+   * The token leg comes from the position, not from a default.
+   *
+   * This read only `data.token` and fell back to USDT. The audition sends the
+   * leg it actually mirrored under `position.capital.token`, and `/report`
+   * mirrors whichever of USDT, USDC, BUSD, CAKE or WBNB the reader holds most
+   * of - so a USDC position would have had this agent trading a USDT balance
+   * it does not hold, find no drift, and return "nothing to rebalance". A
+   * confident no-op against the wrong asset, which is the failure this whole
+   * catalog is being cleaned of.
+   */
+  const capitalToken = ((): string | null => {
+    const position = data['position'];
+    if (typeof position !== 'object' || position === null) return null;
+    const capital = (position as Record<string, unknown>)['capital'];
+    if (typeof capital !== 'object' || capital === null) return null;
+    return str((capital as Record<string, unknown>)['token']);
+  })();
+  const token = str(data['token']) ?? capitalToken ?? DEFAULT_TOKEN;
 
   if (rpcUrl === null || account === null || privateKey === null) {
     return refuse(id, 'MISSING_AUDITION_CONTEXT', {

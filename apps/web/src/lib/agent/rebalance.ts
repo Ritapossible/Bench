@@ -78,6 +78,22 @@ export async function rebalanceToward5050(req: RebalanceRequest): Promise<Rebala
     };
   }
 
+  if (req.token.toLowerCase() === WBNB.toLowerCase()) {
+    /**
+     * WBNB and BNB are the same asset, so there is no ratio to correct and no
+     * route to trade: `getAmountsOut([WBNB, WBNB])` reverts. Said plainly
+     * rather than left to surface as a failed swap, because "this position has
+     * only one asset in it" is a fact about the position, not a fault.
+     */
+    return {
+      acted: false,
+      reason: 'the position is BNB and WBNB, which are the same asset - there is no ratio to hold',
+      txHashes: [],
+      nativeWei: '0',
+      tokenUnits: '0',
+    };
+  }
+
   const transport = http(req.rpcUrl);
   const pub = createPublicClient({ transport }) as PublicClient;
   const chain = {
