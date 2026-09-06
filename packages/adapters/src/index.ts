@@ -102,7 +102,11 @@ export {
   serviceUrlFromCard,
   type ResolvedA2AService,
 } from './agent/a2a-service-url.js';
-export { McpShadowAgent, type McpShadowAgentOptions } from './agent/mcp-shadow-agent.js';
+export {
+  McpShadowAgent,
+  toolCallError,
+  type McpShadowAgentOptions,
+} from './agent/mcp-shadow-agent.js';
 export {
   auditionWindows,
   forkBlockFor,

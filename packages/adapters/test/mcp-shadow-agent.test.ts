@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BenchError, type ShadowAgentContext } from '@bench/core';
-import { McpShadowAgent } from '../src/agent/mcp-shadow-agent.js';
+import { McpShadowAgent, toolCallError } from '../src/agent/mcp-shadow-agent.js';
 
 /**
  * MCP agents were skipped entirely: the worker built a shim only for A2A, so a
@@ -156,5 +156,33 @@ describe('McpShadowAgent', () => {
     mode = 'http500';
     tools = [{ name: 'execute_trade' }];
     await expect(agent().run(ctx)).rejects.toThrow(/HTTP 500/);
+  });
+});
+
+describe('a tool that refuses', () => {
+  it('reads the failure MCP puts inside result', () => {
+    // `tools/call` answers a JSON-RPC success with isError set when the tool
+    // itself declined. Reading only the envelope scored that as a completed
+    // audition of zero actions.
+    expect(
+      toolCallError({ isError: true, content: [{ type: 'text', text: 'chain 97 not supported' }] }),
+    ).toBe('chain 97 not supported');
+  });
+
+  it('says something even when the server sends no message', () => {
+    expect(toolCallError({ isError: true, content: [] })).toBe(
+      'the tool reported an error with no message',
+    );
+  });
+
+  it('caps a stack trace rather than putting it on a public page', () => {
+    const long = toolCallError({ isError: true, content: [{ text: 'x'.repeat(1000) }] });
+    expect(long).toHaveLength(240);
+  });
+
+  it('leaves a successful call alone', () => {
+    expect(toolCallError({ content: [{ type: 'text', text: 'done' }] })).toBeNull();
+    expect(toolCallError({ isError: false, content: [] })).toBeNull();
+    for (const junk of [null, undefined, 'text', 42, []]) expect(toolCallError(junk)).toBeNull();
   });
 });

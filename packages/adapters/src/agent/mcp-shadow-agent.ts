@@ -126,6 +126,31 @@ function argumentsFor(tool: McpTool, ctx: ShadowAgentContext): Record<string, un
     : args;
 }
 
+/**
+ * The text of a failed `tools/call`, or null when the tool succeeded.
+ *
+ * Content blocks are the MCP wire format for a tool's reply, and on a failure
+ * they carry the reason. Joined and capped, because a server is free to return
+ * a stack trace and this ends up on a public page.
+ */
+export function toolCallError(result: unknown): string | null {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) return null;
+  const rec = result as Record<string, unknown>;
+  if (rec['isError'] !== true) return null;
+
+  const text = (Array.isArray(rec['content']) ? rec['content'] : [])
+    .map((block) => {
+      if (typeof block !== 'object' || block === null) return null;
+      const t = (block as Record<string, unknown>)['text'];
+      return typeof t === 'string' && t !== '' ? t : null;
+    })
+    .filter((t): t is string => t !== null)
+    .join(' ')
+    .slice(0, 240);
+
+  return text === '' ? 'the tool reported an error with no message' : text;
+}
+
 export class McpShadowAgent implements ShadowAgent {
   readonly id: string;
   readonly name: string;
@@ -164,7 +189,29 @@ export class McpShadowAgent implements ShadowAgent {
       );
     }
 
-    await this.#call('tools/call', { name: tool.name, arguments: argumentsFor(tool, ctx) });
+    const called = await this.#call('tools/call', {
+      name: tool.name,
+      arguments: argumentsFor(tool, ctx),
+    });
+
+    /**
+     * MCP reports a failed tool call inside `result`, not beside it.
+     *
+     * `tools/call` answers `{content:[...], isError:true}` on a JSON-RPC
+     * success whenever the tool itself refused - a missing argument, an
+     * unsupported chain, a rate limit. This returned `payload.result` and
+     * looked no further, so a refusal was recorded as a completed audition of
+     * zero actions: the same mistake the A2A shim was making one protocol
+     * over, where both live agents declined inside `result` and the catalog
+     * published the zeros as measured findings.
+     */
+    const failure = toolCallError(called);
+    if (failure !== null) {
+      throw new BenchError(
+        'PROTOCOL_NONCONFORMANT',
+        `tool ${tool.name} declined the task: ${failure}`,
+      );
+    }
   }
 
   async #call(method: string, params: Record<string, unknown>): Promise<unknown> {

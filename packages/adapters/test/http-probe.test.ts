@@ -45,6 +45,12 @@ describe('HttpProbeClient', () => {
         json(404, {});
         return;
       }
+      // The service the card names. An unknown method gets the JSON-RPC
+      // answer a real A2A server gives - which is what proves one is here.
+      if (path === '/a2a' && req.method === 'POST') {
+        json(200, { jsonrpc: '2.0', id: 1, error: { code: -32601, message: 'Method not found' } });
+        return;
+      }
 
       // --- MCP ---
       if (path === '/mcp') {
@@ -95,6 +101,84 @@ describe('HttpProbeClient', () => {
     expect(r.reachable).toBe(true);
     expect(r.conformant).toBe(true);
     expect(r.latencyMs).toBeGreaterThanOrEqual(0);
+  });
+
+  /**
+   * A card is served per origin, so these two cases get their own servers.
+   *
+   * The gap they close: /registry tells a reader verified live means the
+   * endpoint responded *and* spoke the protocol its card declares, and for A2A
+   * the check read the card and stopped - so an origin serving a static JSON
+   * file passed. Agent 1597 on BSC testnet publishes
+   * `"url":"http://localhost:9000/"`, unreachable by anyone, and was counted
+   * live for four months.
+   */
+  const withCard = async (
+    card: (origin: string) => unknown,
+    serve?: (req: { method?: string | undefined }, json: (b: unknown) => void) => boolean,
+  ): Promise<{ conformant: boolean; error: string | undefined; reachable: boolean }> => {
+    const s = createServer((req, res) => {
+      const path = (req.url ?? '/').split('?')[0] ?? '/';
+      const json = (body: unknown): void => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(body));
+      };
+      const addr = s.address();
+      const p = typeof addr === 'object' && addr !== null ? addr.port : 0;
+      if (path === '/.well-known/agent.json') {
+        json(card(`http://127.0.0.1:${p}`));
+        return;
+      }
+      if (serve !== undefined && serve(req, json)) return;
+      res.writeHead(404, { 'content-type': 'application/json' });
+      res.end('{}');
+    });
+    await new Promise<void>((resolve) => s.listen(0, '127.0.0.1', resolve));
+    const addr = s.address();
+    const p = typeof addr === 'object' && addr !== null ? addr.port : 0;
+    try {
+      const r = await probes.probe(agent, { protocol: 'a2a', url: `http://127.0.0.1:${p}/a2a` });
+      return { conformant: r.conformant, error: r.error, reachable: r.reachable };
+    } finally {
+      await new Promise<void>((resolve) => s.close(() => resolve()));
+    }
+  };
+
+  it('refuses to call a readable card a live agent', async () => {
+    // Card parses, names a service, and nothing is listening on it.
+    const r = await withCard((origin) => ({
+      name: 'Card Only',
+      url: `${origin}/a2a`,
+      capabilities: {},
+    }));
+    expect(r.reachable).toBe(true);
+    expect(r.conformant).toBe(false);
+    expect(r.error).toMatch(/HTTP 404|JSON-RPC|did not answer/);
+  });
+
+  it('is satisfied by the JSON-RPC answer a real A2A server gives', async () => {
+    const r = await withCard(
+      (origin) => ({ name: 'Live', url: `${origin}/a2a`, capabilities: {} }),
+      (req, json) => {
+        if (req.method !== 'POST') return false;
+        json({ jsonrpc: '2.0', id: 1, error: { code: -32601, message: 'Method not found' } });
+        return true;
+      },
+    );
+    expect(r.conformant).toBe(true);
+  });
+
+  it('names a card whose service address cannot be spoken to', async () => {
+    // `preferredTransport: GRPC` with a grpc:// url. Handing that to fetch
+    // would fail as a network error and read as a dead agent rather than as
+    // one this client has no transport for.
+    const r = await withCard(() => ({
+      name: 'GRPC Only',
+      url: 'grpc://example.invalid',
+      capabilities: {},
+    }));
+    expect(r.conformant).toBe(false);
+    expect(r.error).toContain('no http(s) service address');
   });
 
   it('marks a parked domain reachable but NOT conformant', async () => {

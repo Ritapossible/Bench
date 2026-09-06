@@ -1,11 +1,13 @@
 import {
   BenchError,
+  redactError,
   type AgentEndpoint,
   type AgentId,
   type ProbeClient,
   type ProbeResult,
 } from '@bench/core';
 import { safeFetch, type SafeResponse } from '../net/safe-fetch.js';
+import { serviceUrlFromCard } from '../agent/a2a-service-url.js';
 
 /**
  * The prober. Powers the "verified live" filter.
@@ -130,7 +132,28 @@ export class HttpProbeClient implements ProbeClient {
       const hasIdentity = typeof card['name'] === 'string';
       const hasSurface = card['capabilities'] !== undefined || Array.isArray(card['skills']);
       if (hasIdentity && hasSurface) {
-        return { conformant: true, detail: 'a2a agent card ok', latencyMs };
+        /**
+         * A readable card is not a live agent.
+         *
+         * This returned conformant here, which is why a static JSON file on a
+         * CDN passed and why 1597 - card url `http://localhost:9000/` - was
+         * counted verified live. The card says where the service is; the
+         * service has to answer.
+         */
+        const service = serviceUrlFromCard(res.body, candidate);
+        if (service === null) {
+          // Returned, not continued. A card that parses and declares an
+          // identity is *the* card for this origin, so the other well-known
+          // path is not a second opinion - and falling through to it replaced
+          // this specific reason with "agent card returned HTTP 404", which
+          // describes a file that was never the point.
+          return {
+            conformant: false,
+            detail: 'agent card names no http(s) service address',
+            latencyMs,
+          };
+        }
+        return await this.checkA2AService(service, base);
       }
       lastDetail = 'agent card missing name or capabilities/skills';
     }
@@ -139,6 +162,63 @@ export class HttpProbeClient implements ProbeClient {
     // what makes this reachable-but-nonconformant rather than unreachable.
     const probe = await safeFetch(url, base);
     return { conformant: false, detail: lastDetail, latencyMs: latencyMs || probe.latencyMs };
+  }
+
+  /**
+   * Speak A2A to the service the card names.
+   *
+   * /registry tells a reader that verified live means the endpoint "responded
+   * *and* spoke the protocol its agent card declares". For A2A that was not
+   * true: this checked that a card parsed and stopped there, so an origin
+   * serving a static JSON file off a CDN passed, and agent 1597 - whose card
+   * gives its service address as `http://localhost:9000/`, unreachable by
+   * anyone on earth - was counted live for four months.
+   *
+   * The call is a method the agent cannot know, chosen precisely so it does no
+   * work: a JSON-RPC server answers `-32601 Method not found` in a well-formed
+   * envelope, which proves a JSON-RPC endpoint is listening without asking the
+   * agent to do anything. Verified against the real thing - ProofEra returns
+   * `{"jsonrpc":"2.0","id":1,"error":{"code":-32601,...}}` with HTTP 200.
+   *
+   * A result envelope counts too: some servers answer unknown methods with a
+   * result rather than an error, and that is still JSON-RPC.
+   */
+  private async checkA2AService(
+    serviceUrl: string,
+    base: { timeoutMs: number; dnsTimeoutMs: number; allowLoopback: boolean },
+  ): Promise<Conformance & { latencyMs: number }> {
+    let res: SafeResponse;
+    try {
+      res = await safeFetch(serviceUrl, {
+        ...base,
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'bench/ping', params: {} }),
+      });
+    } catch (err) {
+      return {
+        conformant: false,
+        detail: `card names ${hostOf(serviceUrl)}, which did not answer: ${reasonOf(err)}`,
+        latencyMs: 0,
+      };
+    }
+
+    if (res.status < 200 || res.status >= 300) {
+      return {
+        conformant: false,
+        detail: `card names a service that answered HTTP ${res.status} to JSON-RPC`,
+        latencyMs: res.latencyMs,
+      };
+    }
+    const body = parseJsonObject(res.body);
+    if (body === null || body['jsonrpc'] !== '2.0') {
+      return {
+        conformant: false,
+        detail: 'card names a service that does not answer JSON-RPC 2.0',
+        latencyMs: res.latencyMs,
+      };
+    }
+    return { conformant: true, detail: 'a2a service answers JSON-RPC', latencyMs: res.latencyMs };
   }
 
   /**
@@ -249,6 +329,20 @@ function originOf(url: string): string {
   } catch {
     throw new BenchError('ENDPOINT_UNREACHABLE', `malformed endpoint URL: ${url}`);
   }
+}
+
+/** Host only, so a probe detail never carries a path or a query string. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return 'the address it names';
+  }
+}
+
+/** A short, redacted reason. Probe details are rendered on a public page. */
+function reasonOf(err: unknown): string {
+  return redactError(err, 120);
 }
 
 function parseJsonObject(text: string): Record<string, unknown> | null {
