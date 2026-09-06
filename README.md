@@ -2,6 +2,12 @@
 
 **Every agent starts on the bench.**
 
+**Live: <https://bench-bnb.vercel.app>** · [catalog](https://bench-bnb.vercel.app/agents) ·
+[a worked report](https://bench-bnb.vercel.app/report?address=0xca7c95fc431204af7eb9b16b6db1fd9f80ee243c) ·
+[registry health](https://bench-bnb.vercel.app/registry) ·
+[agent advantage report](https://bench-bnb.vercel.app/advantage) ·
+[what the machinery is doing](https://bench-bnb.vercel.app/status)
+
 Bench is an AI agent marketplace for BNB Smart Chain where agents *audition on your real position before you pay a cent*. It is being built for BNB Chain's [**The Smart Money Era: Build the Era**](https://www.bnbchain.org/en/hackathons/smart-money-era) hackathon (5 Aug – **9 Sep 2026**), whose main track pays $30,000 plus adoption as the official BNB Agent Studio marketplace.
 
 - **What it is:** [ARCHITECTURE.md](./ARCHITECTURE.md) — the problem, the mechanism, the system design.
@@ -12,7 +18,7 @@ Bench is an AI agent marketplace for BNB Smart Chain where agents *audition on y
 
 The ERC-8004 registries on BSC are mostly empty shelves and fake reviews: only ~4% of registered agents have a live service endpoint, ~59% of reviewers show coordinated Sybil behaviour, and after stripping those, ~78% of rated agents have no valid feedback left. A marketplace that reads those registries and sorts by star rating ships a directory of dead agents ranked by noise. Bench instead runs every listed agent continuously in **shadow mode** — against replayed BSC history and against any live position, with no funds at risk — and ranks on what the agent *would have done*. That produces a dense, honest track record on day one with zero paying users, gives a clean controlled comparison (same position, same window, N agents plus do-nothing), covers non-financial agents that have no P&L, and doubles as the conversion funnel: paste any BSC address, no wallet connection, and read *"this agent would have saved you $340 on your Venus position last month."*
 
-Hiring is **designed** to settle through ERC-8183 escrow and Binance x402, scoped by a revocable Altana session key with a spend cap. On this build those three adapters are stubs and the checkout runs against in-process simulations of them — the ports are real, the settlement is not, and every page that touches it says so. What *is* real is the part the design rests on: **the audition does not stop at the hire.** Every transaction a hired agent proposes is put through the envelope it established while auditioning, and the decision is recorded in a hash-chained trace. A cap bounds *how much*; the gate bounds *what kind of thing* — and it is derived from measured evidence rather than guessed at in a checkout form. See [what runs and what does not](#what-runs-on-this-build).
+Hiring settles through ERC-8183 escrow, scoped by a revocable Altana session key with a spend cap. Those two adapters are **real and proven on chain** - a funded job and a granted-then-revoked session, both linked below. What the deployed checkout still simulates is the *settlement step itself*, because turning it on spends real $U from a faucet-funded wallet on every click; the flag is one environment variable and the page says which escrow it is using. x402 is implemented for paid HTTP resources and deliberately not wired to hire settlement - see the table for why. What *is* real is the part the design rests on: **the audition does not stop at the hire.** Every transaction a hired agent proposes is put through the envelope it established while auditioning, and the decision is recorded in a hash-chained trace. A cap bounds *how much*; the gate bounds *what kind of thing* — and it is derived from measured evidence rather than guessed at in a checkout form. See [what runs and what does not](#what-runs-on-this-build).
 
 ## What runs on this build
 
@@ -297,29 +303,77 @@ every cookie it previously issued, and each visitor silently loses the hires the
 
 ## Status
 
-Real, running against Postgres and covered by tests: the ERC-8004 indexer and its periodic
-re-sweep, the prober and its verified-live definition, the agent-card resolver and category
-classifier, the cross-reference against 8004scan, the shadow engine, the behavioural
-envelope derived from recorded audition actions, the signed mandate, the ordered consent
-checklist, the hash-chained decision trace, the action gate, the hire pipeline, and the
-front end.
+Every row below was checked against the deployment on 6 Sep 2026 rather than
+remembered. An earlier version of this section described adapters as stubs
+that had since been built, which is the same failure the rest of this project
+exists to remove - a claim nobody re-read.
 
-Simulated, and labelled as such wherever it surfaces:
+**Real, running, and covered by tests:** the ERC-8004 indexer and its re-sweep,
+the prober and its verified-live definition, the agent-card resolver and
+category classifier, the cross-reference against 8004scan, the shadow engine
+and interceptor, the behavioural envelope derived from recorded actions, the
+signed mandate, the ordered consent checklist, the hash-chained decision trace,
+the action gate, the hire pipeline, and the front end. 453 tests.
+
+**Real and proven on chain**, with transactions anyone can check:
+
+| Piece | Evidence |
+| --- | --- |
+| Altana session keys | Grant + KeyStore registration and revocation, [linked above](#altana-session-keys-on-chain) |
+| ERC-8183 escrow | Job `996` `FUNDED`, [linked above](#a-hire-settled-on-chain) |
+| Reference agent | ERC-8004 token [#2187](https://testnet.bscscan.com/tx/0x03db85323cb9344d6a434a1715238160f059c10489732381943154accbd07d5a), operated by Bench, verified live, scored on the same terms as everyone else |
+| `pcs-lp` and `venus-loan` positions | Minted against the real protocols on a forked mainnet |
+
+**Simulated, and labelled wherever it surfaces:**
 
 | Piece | State | What it would take |
 | --- | --- | --- |
-| x402 payment | `SimulatedPayment` in `apps/web/src/lib/hire/runtime.ts` | A facilitator URL and `X402PaymentClient` |
-| ERC-8183 escrow | `SimulatedEscrow`, per-process and refusing a job it does not hold | Deployed contracts and `Erc8183EscrowClient` |
-| Twak / Altana wallets | Refuse by name | Their SDKs; `EvmLocalWalletProvider` is real and signs |
-| `pcs-lp`, `venus-loan` positions | Decline with what they need | Minting a real LP position and a real Venus loan on the fork |
+| Hire settlement | `SimulatedEscrow` unless `BENCH_ESCROW_ENABLED=true` | The flag. `Erc8183EscrowClient` is built and has funded real jobs; it is off because the faucet pays 10 $U per 30 minutes and a judging window would drain it |
+| x402 payment | `SimulatedPayment` in the checkout | Nothing missing - `X402PaymentClient` is implemented for paid HTTP resources. It is not wired to hire settlement because x402 is merchant-driven: it cannot pay a chosen party a chosen amount, which is what a hire is |
+| Probe digest anchoring | Off | A funded signer and a validation registry address |
 
-`ERC8183_AGENTIC_COMMERCE` and `ERC8183_EVALUATOR_ROUTER` are validated if set but configure
-nothing today - they exist so a deployment is told immediately that a value is not an
-address, rather than finding out when the escrow client is implemented.
+Nothing signs or broadcasts a hired agent's action on this deployment. The
+decision is what is real: both bounds are evaluated and the verdict is appended
+to a trace whose hash chain makes a later rewrite detectable.
 
-Nothing signs or broadcasts a hired agent's action on this deployment. The decision is what
-is real: both bounds are evaluated and the verdict is appended to a trace whose hash chain
-makes a later rewrite detectable.
+## How this maps to the judging criteria
 
-See [plan.md](./plan.md) for the phase state and cut lines, and [memory.md](./memory.md) for
-what is currently blocking.
+Stated plainly, including where it falls short.
+
+**Functionality** - land, find by category, understand, activate. The catalog
+filters by the four judged categories; each agent page carries its measured
+record; the hire checkout is five bounded confirmations (allowlist, spend cap,
+expiry, confirm together) that persist in Postgres and can be revoked from
+`/hires`. Settlement is the simulated step, above.
+
+**Data quality** - every ranking number is a measured counterfactual, not a
+rating. Each run records its fork block, window and seed so it can be re-run.
+A report shows the three-way split of how runs ended - completed, declined, and
+unreachable - with each refusal in the agent's own words. Liveness is uptime,
+p95 latency and probe count, and "verified live" means the endpoint answered
+*and* spoke the protocol its card declares.
+
+**Agent diversity** - the four categories are surfaced with comparable depth.
+Read on 6 Sep 2026, and drifting upward as the registry grows: rebalancing
+~67, grid trading ~64, yield ~73, health factor 38 registered. The
+[catalog chips](https://bench-bnb.vercel.app/agents) show live/registered and
+are always current, which is the number to trust over this paragraph.
+
+The live subset is smaller and uneven, and health factor currently has **zero**
+verified-live agents out of 38. That is a fact about the registry rather than a
+filter on this catalog - no marketplace can conjure a live agent that nobody
+has deployed - and the category page says exactly that instead of rendering an
+empty list.
+
+**Chain** - the catalog indexes the ERC-8004 registry on **BSC testnet**
+(`0x8004a818…bd9e`, ~2,200 agents and climbing), cross-referenced against
+8004scan at 100% agreement on every agent it holds. Auditions fork **BSC mainnet** state, so every performance number is
+measured against real liquidity, real prices and real gas. The larger mainnet
+registry (`0x8004A169…a432`) is a configuration change plus a tiered probe
+schedule, not a rewrite: at current throughput a full sweep of it would take
+28 hours against a 6-hour freshness rule, so every agent would fall stale
+before its next probe and nothing would ever qualify as verified live. That is
+the honest reason it is not switched on.
+
+See [plan.md](./plan.md) for the phase state and cut lines, and
+[memory.md](./memory.md) for what is currently blocking.
