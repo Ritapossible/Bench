@@ -48,9 +48,18 @@ export default async function HiresPage() {
                 Browse the catalog
               </Link>
             </div>
+            {/* Read from the runtime, not asserted.
+                This line was hardcoded to the in-memory case and stayed that
+                way after the Postgres store was wired, so a deployment with a
+                database was telling every reader that its hires evaporate on
+                restart - on the one page whose job is to show that an
+                authorisation persists and can be revoked. A deployment that
+                understates itself is still a deployment saying something
+                untrue about what it does. */}
             <p className="tiny">
-              Hires on this deployment live in memory, so a cold start clears them. `@bench/db`
-              implements the same store interface against Postgres.
+              {hiresAreDurable()
+                ? 'Hires are stored in Postgres: they survive restarts, and the bounds you set stay enforceable until they expire or you revoke them.'
+                : 'No database is configured on this deployment, so hires live in memory and a cold start clears them. `@bench/db` implements the same store interface against Postgres.'}
             </p>
           </div>
         ) : (
