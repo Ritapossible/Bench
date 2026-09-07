@@ -1,5 +1,11 @@
 import Link from 'next/link';
-import { isAuthorityLive, remaining, verifyTrace } from '@bench/core';
+import {
+  formatBaseUnits,
+  isAuthorityLive,
+  remaining,
+  verifyTrace,
+  type TokenAmount,
+} from '@bench/core';
 import { hireStore } from '@/lib/hire/runtime';
 import { currentOwnerReadOnly } from '@/lib/hire/owner';
 import { proposeAction, revokeHire } from '@/lib/hire/actions';
@@ -9,7 +15,16 @@ export const dynamic = 'force-dynamic';
 
 // The symbol comes from the hire's own mandate, so a record settled in $U does
 // not render as USDT because a constant said so.
-const tokens = (n: bigint, symbol = 'USDT') => `${(Number(n) / 1e18).toFixed(2)} ${symbol}`;
+/**
+ * Formatted with the token's own decimals, not with 18.
+ *
+ * `Number(n) / 1e18` is correct for USDT and $U on BSC and silently wrong for
+ * anything else - USDC is six decimals on most chains, and a mandate capped at
+ * 50 USDC would have rendered as 0.00. The amount already carries the decimals
+ * that produced it; using them is free.
+ */
+const tokens = (n: bigint, cap: TokenAmount): string =>
+  `${formatBaseUnits(n, cap.decimals, 2)} ${cap.symbol}`;
 
 /** What the last gate decision, or a refusal to reach one, is called. */
 const OUTCOME: Record<string, { readonly kind: 'ok' | 'warn'; readonly text: string }> = {
@@ -108,7 +123,7 @@ export default async function HireDetail({
           {[
             [
               live ? 'Spend remaining' : 'Spend never used',
-              tokens(left.spend, hire.mandate.bounds.totalSpendCap.symbol),
+              tokens(left.spend, hire.mandate.bounds.totalSpendCap),
             ],
             [live ? 'Actions remaining' : 'Actions never used', String(left.actions)],
             [
@@ -151,17 +166,14 @@ export default async function HireDetail({
                   <td className="num mono">
                     {tokens(
                       hire.mandate.bounds.totalSpendCap.amount,
-                      hire.mandate.bounds.totalSpendCap.symbol,
+                      hire.mandate.bounds.totalSpendCap,
                     )}
                   </td>
                 </tr>
                 <tr>
                   <td>Per transaction</td>
                   <td className="num mono">
-                    {tokens(
-                      hire.mandate.bounds.perTxCap.amount,
-                      hire.mandate.bounds.perTxCap.symbol,
-                    )}
+                    {tokens(hire.mandate.bounds.perTxCap.amount, hire.mandate.bounds.perTxCap)}
                   </td>
                 </tr>
                 <tr>

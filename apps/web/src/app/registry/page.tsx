@@ -277,7 +277,13 @@ export default async function RegistryPage() {
               alongside the output.
             </p>
             <p className="small">
-              Recomputed daily · {latest.computedAt.toISOString().slice(0, 10)} · bsc-testnet
+              {/* Read from the measurement, not written down beside it.
+                  This said "bsc-testnet" as a literal, so pointing BENCH_CHAIN
+                  at mainnet would have left the page claiming it had measured
+                  the other chain - on the panel whose entire purpose is to say
+                  what was measured and where. `CatalogStats` has carried the
+                  chain the whole time. */}
+              Recomputed daily · {latest.computedAt.toISOString().slice(0, 10)} · {latest.chain}
             </p>
           </div>
         </div>

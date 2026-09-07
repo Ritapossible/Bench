@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { hireStore, hiresAreDurable } from '@/lib/hire/runtime';
 import { currentOwnerReadOnly } from '@/lib/hire/owner';
-import { isAuthorityLive, isStalled, remaining } from '@bench/core';
+import { formatBaseUnits, isAuthorityLive, isStalled, remaining } from '@bench/core';
 
 export const metadata = { title: 'Your hires - Bench' };
 export const dynamic = 'force-dynamic';
@@ -83,7 +83,9 @@ export default async function HiresPage() {
                     </div>
                     <div className="sumcard-score">
                       <span className="mono ink" style={{ fontWeight: 700 }}>
-                        {(Number(left.spend) / 1e18).toFixed(2)}{' '}
+                        {/* The cap's own decimals, not 18. A 50 USDC mandate
+                            rendered as 0.00 under the old arithmetic. */}
+                        {formatBaseUnits(left.spend, h.mandate.bounds.totalSpendCap.decimals, 2)}{' '}
                         {h.mandate.bounds.totalSpendCap.symbol}
                       </span>
                       {/* The same distinction the detail page makes, which
