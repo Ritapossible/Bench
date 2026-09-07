@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { hireStore, hiresAreDurable } from '@/lib/hire/runtime';
 import { currentOwnerReadOnly } from '@/lib/hire/owner';
-import { isStalled, remaining } from '@bench/core';
+import { isAuthorityLive, isStalled, remaining } from '@bench/core';
 
 export const metadata = { title: 'Your hires - Bench' };
 export const dynamic = 'force-dynamic';
@@ -26,7 +26,7 @@ export default async function HiresPage() {
     <section className="wrap section">
       <div className="stack stack-32">
         <div className="stack stack-16" style={{ maxWidth: '44rem' }}>
-          <span className="eyebrow">Active hires</span>
+          <span className="eyebrow">Your hires</span>
           <h1 className="h2">What you have authorised, and what is left of it.</h1>
           <p className="lead">
             Every hire carries the bounds you set, the headroom remaining, and a decision trace that
@@ -83,9 +83,18 @@ export default async function HiresPage() {
                     </div>
                     <div className="sumcard-score">
                       <span className="mono ink" style={{ fontWeight: 700 }}>
-                        {(Number(left.spend) / 1e18).toFixed(2)} USDT
+                        {(Number(left.spend) / 1e18).toFixed(2)}{' '}
+                        {h.mandate.bounds.totalSpendCap.symbol}
                       </span>
-                      <span className="tiny">of cap remaining</span>
+                      {/* The same distinction the detail page makes, which
+                          this card was still missing: on a revoked or settled
+                          hire the headroom was never spent, and calling it
+                          "remaining" reads as authority the mandate no longer
+                          carries. Fixing one screen and not the other left the
+                          list contradicting the page it links to. */}
+                      <span className="tiny">
+                        {isAuthorityLive(h.state) ? 'of cap remaining' : 'of cap never used'}
+                      </span>
                     </div>
                     <div className="sumcard-body">
                       <p className="tiny mono break">{h.id}</p>
@@ -94,6 +103,21 @@ export default async function HiresPage() {
                 </Link>
               );
             })}
+
+            {/* The way onward, which existed only in the empty state.
+                Once a reader had hired even once - and especially once they
+                had revoked - this page listed what they had done and offered
+                nothing to do next. A marketplace whose hire history is a dead
+                end asks people to reach for the back button to spend money
+                again. */}
+            <div className="card stack stack-8">
+              <p className="body">Want another agent working on this?</p>
+              <div>
+                <Link href="/agents" className="btn btn-primary btn-sm">
+                  Browse the catalog
+                </Link>
+              </div>
+            </div>
           </div>
         )}
       </div>

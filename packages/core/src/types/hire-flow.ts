@@ -50,6 +50,21 @@ export const HIRE_TRANSITIONS: Readonly<Record<HireState, readonly HireState[]>>
 };
 
 export const isTerminal = (s: HireState): boolean => HIRE_TRANSITIONS[s].length === 0;
+/**
+ * Whether the mandate can still authorise anything.
+ *
+ * Defined as a complement so a state added later reads as live until someone
+ * decides otherwise - the failure it guards against is a new state silently
+ * rendering as dead authority. Two pages had their own copies of this rule and
+ * they disagreed: the hire detail page said "spend never used" on a revoked
+ * mandate while the list beside it still said "of cap remaining", so the
+ * summary contradicted the page it linked to.
+ *
+ * Distinct from `isTerminal`, which is about the transition graph: `settling`
+ * is not terminal but its authority is already committed.
+ */
+export const isAuthorityLive = (s: HireState): boolean =>
+  s !== 'revoked' && s !== 'settled' && s !== 'failed';
 
 export const canTransition = (from: HireState, to: HireState): boolean =>
   HIRE_TRANSITIONS[from].includes(to);

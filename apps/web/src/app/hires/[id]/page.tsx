@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { remaining, verifyTrace } from '@bench/core';
+import { isAuthorityLive, remaining, verifyTrace } from '@bench/core';
 import { hireStore } from '@/lib/hire/runtime';
 import { currentOwnerReadOnly } from '@/lib/hire/owner';
 import { proposeAction, revokeHire } from '@/lib/hire/actions';
@@ -74,7 +74,7 @@ export default async function HireDetail({
 
   const left = remaining(hire.mandate, hire.mandateState);
   const tampered = verifyTrace(hire.trace);
-  const live = !['revoked', 'settled', 'failed'].includes(hire.state);
+  const live = isAuthorityLive(hire.state);
 
   return (
     <section className="wrap section">
