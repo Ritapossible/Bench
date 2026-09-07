@@ -95,11 +95,26 @@ export default async function HireDetail({
           <p className="tiny mono break">{hire.id}</p>
         </div>
 
+        {/*
+          Labelled by whether the authority is still alive.
+          A revoked hire rendered "Spend remaining 50.00 USDT / Actions
+          remaining 20 / Expires tomorrow" - three numbers that are all
+          arithmetically true and together read as an agent that can still
+          spend fifty dollars. The headroom was never used; the authority to
+          use it is gone. Those are different facts and the page said only the
+          first, on the screen a reader lands on immediately after revoking.
+        */}
         <div className="grid grid-3">
           {[
-            ['Spend remaining', tokens(left.spend, hire.mandate.bounds.totalSpendCap.symbol)],
-            ['Actions remaining', String(left.actions)],
-            ['Expires', hire.mandate.bounds.expiresAt.toISOString().slice(0, 16).replace('T', ' ')],
+            [
+              live ? 'Spend remaining' : 'Spend never used',
+              tokens(left.spend, hire.mandate.bounds.totalSpendCap.symbol),
+            ],
+            [live ? 'Actions remaining' : 'Actions never used', String(left.actions)],
+            [
+              live ? 'Expires' : 'Would have expired',
+              hire.mandate.bounds.expiresAt.toISOString().slice(0, 16).replace('T', ' '),
+            ],
           ].map(([k, v]) => (
             <div key={k} className="card stack stack-4">
               <span className="tiny">{k}</span>
