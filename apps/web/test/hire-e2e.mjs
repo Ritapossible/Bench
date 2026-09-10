@@ -24,6 +24,30 @@ const BASE = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100';
 const explicit = process.env.PLAYWRIGHT_CHROMIUM_PATH;
 const browser = await chromium.launch(explicit ? { executablePath: explicit } : {});
 const page = await browser.newPage();
+/**
+ * Wait until the rendered page actually says something, rather than until the
+ * URL changed or a fixed number of milliseconds elapsed.
+ *
+ * Both of the assertions below used to race. `waitForURL` resolves the moment
+ * the address bar changes, which for a client-side navigation is before the
+ * RSC payload has painted, so the first `innerText()` could still be the
+ * previous page - and the revoke check slept 1500ms and hoped. In CI they
+ * failed about one run in three, with two different messages ("hire page is
+ * missing \"active\"" and "revoke did not take effect") that both meant the
+ * same thing: read too early. A flaky end-to-end test is worse than none,
+ * because it teaches everyone to ignore a red build.
+ */
+async function waitForText(page, pattern, what, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  let body = '';
+  while (Date.now() < deadline) {
+    body = await page.locator('body').innerText();
+    if (pattern.test(body)) return body;
+    await page.waitForTimeout(150);
+  }
+  throw new Error(`${what} (waited ${timeoutMs}ms; page reads: ${body.slice(0, 200)})`);
+}
+
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => {
@@ -99,8 +123,10 @@ await Promise.all([page.waitForURL(/\/hires\//, { timeout: 20000 }), submit.clic
 const url = page.url();
 step(`redirected to ${url.replace(BASE, '')}`);
 
-const body = await page.locator('body').innerText();
-for (const needle of ['active', 'Total ceiling', 'Revoke', 'chain verified']) {
+// The state badge is the last thing to render, so waiting for it means the
+// rest of the record is there too.
+const body = await waitForText(page, /active/, 'hire page never showed the hire state');
+for (const needle of ['Total ceiling', 'Revoke', 'chain verified']) {
   if (!body.includes(needle)) throw new Error(`hire page is missing "${needle}"`);
 }
 step('hire record shows state, bounds and a revoke control');
@@ -117,9 +143,7 @@ step('reload returns the same hire');
 // 8. Revoke works and is reflected.
 const revoke = page.locator('button', { hasText: /Revoke/i }).first();
 await revoke.click();
-await page.waitForTimeout(1500);
-const after = await page.locator('body').innerText();
-if (!/revoked/i.test(after)) throw new Error('revoke did not take effect');
+await waitForText(page, /revoked/i, 'revoke did not take effect');
 step('revoked, and the page says so');
 
 if (errors.length > 0) {

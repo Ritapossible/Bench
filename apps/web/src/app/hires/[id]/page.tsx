@@ -8,7 +8,8 @@ import {
 } from '@bench/core';
 import { hireStore } from '@/lib/hire/runtime';
 import { currentOwnerReadOnly } from '@/lib/hire/owner';
-import { proposeAction, revokeHire } from '@/lib/hire/actions';
+import { proposeAction } from '@/lib/hire/actions';
+import { RevokeHire } from '@/components/RevokeHire';
 
 export const metadata = { title: 'Hire - Bench' };
 export const dynamic = 'force-dynamic';
@@ -299,17 +300,7 @@ export default async function HireDetail({
           <p className="body">
             Ends the authority immediately. Every subsequent transaction is refused.
           </p>
-          <form action={revokeHire}>
-            <input type="hidden" name="hireId" value={hire.id} />
-            <button
-              className="btn btn-primary"
-              type="submit"
-              disabled={!live}
-              style={!live ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
-            >
-              {live ? 'Revoke this hire' : `Already ${hire.state}`}
-            </button>
-          </form>
+          <RevokeHire hireId={hire.id} live={live} state={hire.state} />
         </div>
       </div>
     </section>
