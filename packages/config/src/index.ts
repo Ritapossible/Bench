@@ -19,11 +19,20 @@ const schema = z.object({
   /**
    * The chain auditions fork, which is not the chain agents register on.
    *
-   * Identity lives where ERC-8004 is deployed - BSC testnet, where the mainnet
-   * proxy is an unactivated stub holding zero agents. Markets live on mainnet.
-   * An audition replays market history, so it forks mainnet and drives agents
-   * whose identity is on testnet; tying the two together forked a chain with
-   * no liquidity, no USDT and nothing to measure.
+   * Identity lives on BSC testnet for this deployment. Markets live on
+   * mainnet. An audition replays market history, so it forks mainnet and
+   * drives agents whose identity is on testnet; tying the two together forked
+   * a chain with no liquidity, no USDT and nothing to measure.
+   *
+   * This said the mainnet registry was "an unactivated stub holding zero
+   * agents", and that was wrong in a way worth naming: the proxy at
+   * ERC8004_IDENTITY_REGISTRY really is uninitialized on mainnet, but the
+   * mainnet registry is a *different contract* - 0x8004a169fb4a3325136eb29fa0ceb6d2e539a432,
+   * `AgentIdentity`, ~343,000 tokens. Checking one address on the wrong chain
+   * and concluding the chain was empty is the same mistake this codebase keeps
+   * finding elsewhere: a fact written down beside the thing that knew it, and
+   * then trusted after it stopped being true. See scripts/mainnet-triage.mts,
+   * which measures that registry rather than assuming anything about it.
    *
    * BSC_ARCHIVE_RPC_URL must point at this chain. The worker checks it at boot
    * rather than trusting it.
