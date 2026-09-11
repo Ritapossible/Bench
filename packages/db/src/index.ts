@@ -37,11 +37,27 @@ const pools = (globalForDb.__benchPools ??= new Map<string, pg.Pool>());
  * suspends when idle: the first request after a scale-to-zero waits for a cold
  * start, and pg's default of "wait forever" turns that into a hung request
  * rather than a slow one.
+ *
+ * `statement_timeout` covers the case that one does not, and it is the one
+ * that actually happened. When the database was suspended for exhausting its
+ * transfer allowance, connections still opened - so the connection timeout
+ * never fired - and the query behind them was simply never served. /status,
+ * which has an error boundary, said "something broke" within seconds.
+ * /registry sat on "Reading the catalog…" indefinitely, because a promise
+ * that never settles never reaches an error boundary at all. A reader who
+ * waits on a spinner learns nothing and leaves; a reader who is told the page
+ * failed can press "Try again", and a judge can tell the two apart.
+ *
+ * So a query is given a hard ceiling server-side. Ten seconds where a person
+ * is waiting on a page, and a minute in the worker, whose pruning and
+ * enumeration passes are legitimately slower than any page read.
  */
 export interface DbOptions {
   readonly max?: number;
   readonly idleTimeoutMillis?: number;
   readonly connectionTimeoutMillis?: number;
+  /** Server-side cap on a single query. See the note on `statement_timeout`. */
+  readonly statementTimeoutMillis?: number;
   /**
    * Skip the process-wide pool cache and return a pool of this client's own.
    *
@@ -67,6 +83,7 @@ export function createDb(connectionString: string, opts: DbOptions = {}) {
       max: opts.max ?? (SERVERLESS ? 3 : 10),
       idleTimeoutMillis: opts.idleTimeoutMillis ?? (SERVERLESS ? 10_000 : 30_000),
       connectionTimeoutMillis: opts.connectionTimeoutMillis ?? 15_000,
+      statement_timeout: opts.statementTimeoutMillis ?? (SERVERLESS ? 10_000 : 60_000),
     });
     // A pool that emits 'error' with no listener takes the process down. An
     // idle backend being closed by Neon is routine, not fatal: the pool
