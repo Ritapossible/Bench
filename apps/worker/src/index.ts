@@ -41,12 +41,13 @@ import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
 /**
  * How long raw probe results are kept.
  *
- * Thirty days. Liveness reads a rolling summary recomputed on every write and
+ * Seven days, cut from thirty. Liveness reads a rolling summary recomputed on
+ * every write and
  * `isVerifiedLive` looks at a short window, so older rows inform no answer -
  * and only rows already anchored are dropped, because that digest is a public
  * claim whose evidence has to outlive the sweep.
  */
-const PROBE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const PROBE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Agents an on-demand report will drive.

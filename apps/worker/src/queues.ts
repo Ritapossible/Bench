@@ -24,17 +24,51 @@ export const QUEUE = {
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
 
+/**
+ * ============================================================================
+ * A note on why these are not faster.
+ * ============================================================================
+ *
+ * The hosted Postgres suspended itself for exhausting a 5 GB monthly network
+ * transfer allowance, and took the whole site down with it: every page reads
+ * the catalog per request, so a suspended database is a blank catalog, a
+ * hanging registry page and a 500 on /status.
+ *
+ * The cause was this file. The prober ran every 60 seconds against a batch of
+ * 200, which is 288,000 probe rows a day - about 8.6 million a month, plus the
+ * query that selects each batch, plus the rolling summary rewritten on every
+ * write, plus a pruning pass. Nothing about the product needed that: "verified
+ * live" requires three probes inside six hours, and there are on the order of
+ * a thousand endpoints to cover. Probing all of them once an hour is already
+ * six times more often than the rule asks for.
+ *
+ * So these cadences are set by what the definitions actually require, rather
+ * than by how fresh it would be nice for things to be:
+ *
+ *   prober   5 min x 200 =  2,400/hour, against ~1,700 endpoints and a 6-hour
+ *                           rule. Covers the whole set every ~45 minutes.
+ *   indexer  5 min       =  a new registration appears within five minutes.
+ *                           It was 30s, which bought nothing a reader notices.
+ *   scorer   30 min      =  reads recorded outcomes; auditions land far slower
+ *                           than this.
+ *   crossref 60 min      =  one upstream call per agent, and the least
+ *                           time-sensitive number on the site.
+ *
+ * The report queue is deliberately untouched at 20 seconds: a person is
+ * watching a page wait on it, and its tick is a single cheap claim query
+ * rather than a batch of writes.
+ */
 export const CADENCE_MS = {
   /**
    * Registry reads are cheap and new agents should appear quickly — a
    * catalog that lags registration by an hour looks broken during a demo.
    */
-  indexer: 30_000,
+  indexer: 300_000,
   /**
    * Probes hit third-party hosts. Fast enough that "verified live" means now,
    * slow enough that Bench is not the reason someone's agent falls over.
    */
-  prober: 60_000,
+  prober: 300_000,
   /** Anchoring costs gas, so it batches. */
   anchor: 15 * 60_000,
   /**
@@ -51,12 +85,12 @@ export const CADENCE_MS = {
    */
   audition: 15 * 60_000,
   /** Cheap - reads recorded outcomes. Runs shortly after auditions land. */
-  scorer: 10 * 60_000,
+  scorer: 30 * 60_000,
   /**
    * One upstream call per agent, so this is paced and must never sit in a page
    * render. Twice an hour is far inside any tier's daily quota.
    */
-  crossref: 30 * 60_000,
+  crossref: 60 * 60_000,
   /**
    * On-demand reports. Short, because a person is watching a page wait.
    *
