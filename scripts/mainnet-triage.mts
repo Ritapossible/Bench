@@ -20,6 +20,9 @@
  * `reachable` here is an upper bound on the live share: an endpoint that
  * answers once may still fail the uptime rule. Stated rather than smoothed
  * over, because the whole point of the number is that it is honest.
+ *
+ * It is also a *lower* bound in the other direction, and was more so before:
+ * every address an agent declares is tried, and one that conforms settles it.
  */
 import { createPublicClient, http, parseAbi, type Address } from 'viem';
 import { bsc } from 'viem/chains';
@@ -120,8 +123,11 @@ const counts = {
   minted: 0,
   cardResolved: 0,
   hasEndpoint: 0,
+  endpointsDeclared: 0,
   reachable: 0,
   conformant: 0,
+  /** Declared more than one transport and none of them worked. */
+  multiTransportAllFailed: 0,
 };
 const cardErrors = new Map<string, number>();
 const noEndpoint = new Map<string, number>();
@@ -185,15 +191,28 @@ console.log(`minted: ${counts.minted}/${counts.sampled}`);
 
 const resolver = new CardResolver({ timeoutMs: 8_000 });
 const probe = new HttpProbeClient({ timeoutMs: 8_000 });
-const endpoints: { id: bigint; endpoint: AgentEndpoint }[] = [];
+/**
+ * Every transport an agent declares, not the first one.
+ *
+ * This took `card.endpoints[0]` and probed only that, which is the same blind
+ * spot the audition had: ClawdMint (#2468) declares A2A and MCP, its A2A card
+ * points at the agent's marketing site and 404s, and its MCP endpoint answers
+ * and lists twelve tools. Judged on the first endpoint alone it is dead, and
+ * the share this script prints was a floor being published as a measurement.
+ *
+ * An agent counts as reachable or conformant if *any* address it publishes is.
+ * That is the same rule the catalog now uses, so the two numbers stay
+ * comparable.
+ */
+const agents: { id: bigint; endpoints: readonly AgentEndpoint[] }[] = [];
 
 await pooled(uris, CARD_CONCURRENCY, async ({ id, uri }) => {
   if (uri === null) return;
   try {
     const card = await resolver.resolve(uri);
     counts.cardResolved += 1;
-    const ep = card.endpoints[0];
-    if (ep === undefined) {
+    const callable = card.endpoints.filter((e) => e.protocol === 'a2a' || e.protocol === 'mcp');
+    if (callable.length === 0) {
       // Not a resolution failure: the card parsed, and simply names no
       // machine-callable service. On this registry that is the dominant
       // shape, so it gets its own line rather than polluting the error list.
@@ -201,19 +220,35 @@ await pooled(uris, CARD_CONCURRENCY, async ({ id, uri }) => {
       return;
     }
     counts.hasEndpoint += 1;
-    endpoints.push({ id, endpoint: ep });
+    counts.endpointsDeclared += callable.length;
+    agents.push({ id, endpoints: callable });
   } catch (err) {
     bump(cardErrors, (err instanceof Error ? err.message : String(err)).slice(0, 60));
   }
 });
 console.log(`cards resolved: ${counts.cardResolved}, with an endpoint: ${counts.hasEndpoint}`);
-console.log(`probing ${endpoints.length} endpoints…\n`);
+console.log(
+  `probing ${counts.endpointsDeclared} endpoints across ${agents.length} agents ` +
+    `(${(counts.endpointsDeclared / Math.max(1, agents.length)).toFixed(2)} each)…\n`,
+);
 
-await pooled(endpoints, PROBE_CONCURRENCY, async ({ id, endpoint }) => {
-  const r = await probe.probe({ chain: 'bsc-mainnet', tokenId: id }, endpoint);
-  if (r.reachable) counts.reachable += 1;
-  if (r.conformant) counts.conformant += 1;
-  if (!r.reachable || !r.conformant) bump(probeErrors, (r.error ?? 'no reason').slice(0, 60));
+await pooled(agents, PROBE_CONCURRENCY, async ({ id, endpoints }) => {
+  let anyReachable = false;
+  let anyConformant = false;
+  const reasons: string[] = [];
+  for (const endpoint of endpoints) {
+    const r = await probe.probe({ chain: 'bsc-mainnet', tokenId: id }, endpoint);
+    if (r.reachable) anyReachable = true;
+    if (r.conformant) anyConformant = true;
+    if (!r.conformant) reasons.push(`${endpoint.protocol}: ${r.error ?? 'no reason'}`);
+    // A conformant address settles it; the rest cost a stranger's host a
+    // request for an answer that cannot change.
+    if (anyConformant) break;
+  }
+  if (anyReachable) counts.reachable += 1;
+  if (anyConformant) counts.conformant += 1;
+  else bump(probeErrors, (reasons[0] ?? 'no reason').slice(0, 60));
+  if (!anyConformant && endpoints.length > 1) counts.multiTransportAllFailed += 1;
 });
 
 const n = counts.sampled;
@@ -236,6 +271,11 @@ row('card resolves', counts.cardResolved);
 row('declares an endpoint', counts.hasEndpoint);
 row('endpoint answered once', counts.reachable);
 row('spoke its own protocol', counts.conformant);
+console.log('='.repeat(92));
+console.log(
+  `\n${counts.endpointsDeclared} endpoints across ${counts.hasEndpoint} agents; ` +
+    `${counts.multiTransportAllFailed} agents published more than one and none answered.`,
+);
 console.log('='.repeat(92));
 console.log(
   '\n"spoke its own protocol" is one probe, not the three inside six hours the catalog\n' +

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isThin } from '@bench/core';
 import { data } from '@/lib/data/index';
+import { AgentAvatar } from '@/components/AgentAvatar';
 import { BasisBadge, LiveBadge, ThinBadge } from '@/components/Badges';
 import { CATEGORY_LABEL, ms, pct, usd, ago } from '@/lib/format';
 
@@ -55,7 +56,10 @@ export default async function AgentPage({
             <span className="badge badge-plain">{CATEGORY_LABEL[card?.category ?? 'other']}</span>
             {agent.score ? <ThinBadge score={agent.score} /> : null}
           </div>
-          <h1 className="h2">{card?.name ?? 'Unresolved agent card'}</h1>
+          <div className="row" style={{ gap: '0.9rem', alignItems: 'center' }}>
+            <AgentAvatar src={card?.image} name={card?.name ?? 'Unresolved agent'} size={56} />
+            <h1 className="h2">{card?.name ?? 'Unresolved agent card'}</h1>
+          </div>
           <p className="lead" style={{ maxWidth: '46rem' }}>
             {card?.description ?? record.cardError}
           </p>

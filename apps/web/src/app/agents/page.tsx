@@ -66,6 +66,7 @@ export default async function AgentsPage({
       href: agentHref(record.id.chain, record.id.tokenId),
       tokenId: record.id.tokenId.toString(),
       name: record.card?.name ?? 'Unresolved agent card',
+      image: record.card?.image,
       description: record.card?.description ?? record.cardError ?? '',
       category: record.card?.category ?? 'other',
       drivable: (record.card?.endpoints ?? []).some(

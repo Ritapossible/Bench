@@ -63,6 +63,14 @@ export interface AgentCard {
   readonly description: string;
   readonly category: AgentCategory;
   readonly endpoints: readonly AgentEndpoint[];
+  /**
+   * A logo the registration published, if it published one this page can load.
+   *
+   * Untrusted: the URL comes from a stranger's registration and is rendered in
+   * a visitor's browser, so only https and data:image survive parsing. See
+   * `safeImageUrl`.
+   */
+  readonly image?: string;
   readonly permissions: DeclaredPermissions;
   /** TEE attestation reference, if the agent publishes one. */
   readonly attestation?: { readonly kind: string; readonly ref: string };

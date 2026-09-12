@@ -85,7 +85,7 @@ export class CardResolver {
       throw new BenchError('INVALID_AGENT_CARD', `not a JSON object: ${uri}`);
     }
 
-    return normalizeCard(parsed as Record<string, unknown>);
+    return normalizeCard(parsed as Record<string, unknown>, this.opts);
   }
 
   private async fetchRaw(uri: string): Promise<string> {
@@ -115,7 +115,40 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 
  * record the original under `raw` so a later parser improvement can re-mine
  * cards already indexed without re-fetching them.
  */
-export function normalizeCard(obj: Record<string, unknown>): AgentCard {
+/**
+ * The registration's logo, if it is one a browser can be asked to load.
+ *
+ * ERC-8004 registrations carry an `image`, and most of the maintained ones use
+ * it - a competing marketplace renders these on every card while Bench's
+ * catalog was text-only. It is worth having, and it is worth being careful
+ * with, because the value is a URL a stranger chose and Bench renders it in a
+ * visitor's browser.
+ *
+ * So the scheme is allowlisted rather than sanitised: https, ipfs and arweave
+ * (both rewritten to a gateway), and data:image. `javascript:` and friends do
+ * nothing in an `<img src>` on a current browser, but nothing is the wrong
+ * thing to rely on when the input is this hostile - this registry contains
+ * cards whose name field is a shell command. http:// is dropped too: the page
+ * is served over TLS and a mixed-content image is blocked anyway, so keeping
+ * it would only produce a broken image with a console warning.
+ */
+export function safeImageUrl(value: unknown, opts: CardResolverOptions = {}): string | null {
+  if (typeof value !== 'string') return null;
+  const raw = value.trim();
+  if (raw === '' || raw.length > 2_048) return null;
+  if (raw.startsWith('data:image/')) return raw;
+  if (raw.startsWith('ipfs://') || raw.startsWith('ar://')) return toFetchableUrl(raw, opts);
+  try {
+    return new URL(raw).protocol === 'https:' ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+export function normalizeCard(
+  obj: Record<string, unknown>,
+  opts: CardResolverOptions = {},
+): AgentCard {
   const name = str(obj['name']) ?? str(obj['agentName']) ?? str(obj['title']);
   if (name === null) {
     throw new BenchError('INVALID_AGENT_CARD', 'card has no name');
@@ -131,6 +164,12 @@ export function normalizeCard(obj: Record<string, unknown>): AgentCard {
     description,
     category,
     endpoints,
+    // Spread: exactOptionalPropertyTypes forbids assigning undefined, and most
+    // registrations publish no usable image.
+    ...(() => {
+      const image = safeImageUrl(obj['image'] ?? obj['logo'] ?? obj['avatar'], opts);
+      return image === null ? {} : { image };
+    })(),
     permissions: extractPermissions(obj),
     ...attestationOf(obj),
     raw: obj,

@@ -717,6 +717,30 @@ table.t tr:last-child td {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: 'head' 'score' 'body';
 }
+/*
+ * The logo a registration published, and the initials behind it.
+ *
+ * `object-fit: cover` because these are whatever aspect ratio a stranger
+ * uploaded, and a squashed logo looks worse than a cropped one. The border is
+ * there for the many that are white PNGs on a white page - without it they
+ * dissolve into the card and read as a rendering fault.
+ */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  object-fit: cover;
+  background: var(--ink-5, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--line, rgba(0, 0, 0, 0.1));
+  flex: 0 0 auto;
+}
+.avatar-fallback {
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  color: var(--muted, #6b6b6b);
+  user-select: none;
+}
 .sumcard-head {
   grid-area: head;
   display: flex;

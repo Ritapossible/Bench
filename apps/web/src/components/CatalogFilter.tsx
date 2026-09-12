@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AgentAvatar } from '@/components/AgentAvatar';
 import { CATEGORY_LABEL, usd, pct, ms } from '@/lib/format';
 
 /**
@@ -10,6 +11,8 @@ export interface AgentRow {
   readonly href: string;
   readonly tokenId: string;
   readonly name: string;
+  /** The logo the registration published, already scheme-checked at parse. */
+  readonly image?: string | undefined;
   readonly description: string;
   readonly category: string;
   readonly verifiedLive: boolean;
@@ -157,6 +160,7 @@ export function CatalogFilter({
           <Link key={r.tokenId} href={r.href} className="card card-link">
             <div className="sumcard">
               <div className="sumcard-head">
+                <AgentAvatar src={r.image} name={r.name} />
                 <h3 className="h4">{r.name}</h3>
                 {r.verifiedLive ? (
                   <span className="badge badge-live">
