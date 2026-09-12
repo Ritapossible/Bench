@@ -38,7 +38,7 @@ import {
 } from '@bench/services';
 import { Queue, Worker } from 'bullmq';
 import { startHealthServer, type TickOutcome } from './health.js';
-import { CADENCE_MS, QUEUE, redisOptionsFrom, repeatOpts } from './queues.js';
+import { CADENCE_MS, QUEUE, redisOptionsFrom, scheduleTick } from './queues.js';
 
 /**
  * How long raw probe results are kept.
@@ -714,8 +714,9 @@ async function main(): Promise<void> {
     });
   }
 
-  // Repeatable jobs are idempotent by repeat key, so re-adding them on every
-  // boot is the intended way to keep the schedule in sync with the code.
+  // The schedule is rebuilt from the code on every boot. It is not enough to
+  // re-add: a repeat key includes the interval, so changing a cadence used to
+  // leave the old one firing alongside the new one. See scheduleTick.
   const [indexQ, probeQ, anchorQ, auditionQ, scorerQ, crossrefQ, reportQ] = queues as [
     Queue,
     Queue,
@@ -725,19 +726,19 @@ async function main(): Promise<void> {
     Queue,
     Queue,
   ];
-  await indexQ.add('tick', {}, repeatOpts(CADENCE_MS.indexer));
-  await probeQ.add('tick', {}, repeatOpts(CADENCE_MS.prober));
+  const staleSchedules = await scheduleTick(indexQ, CADENCE_MS.indexer);
+  let stale = staleSchedules + (await scheduleTick(probeQ, CADENCE_MS.prober));
   if (anchoringConfigured) {
-    await anchorQ.add('tick', {}, repeatOpts(CADENCE_MS.anchor));
+    stale += await scheduleTick(anchorQ, CADENCE_MS.anchor);
   }
-  await scorerQ.add('tick', {}, repeatOpts(CADENCE_MS.scorer));
-  await crossrefQ.add('tick', {}, repeatOpts(CADENCE_MS.crossref));
+  stale += await scheduleTick(scorerQ, CADENCE_MS.scorer);
+  stale += await scheduleTick(crossrefQ, CADENCE_MS.crossref);
   // Only when auditions can run at all: a report queue without an archive node
   // would claim requests and fail every one of them, which is worse for the
   // reader than the page saying up front that it cannot run one.
   if (auditionService !== null) {
-    await auditionQ.add('tick', {}, repeatOpts(CADENCE_MS.audition));
-    await reportQ.add('tick', {}, repeatOpts(CADENCE_MS.report));
+    stale += await scheduleTick(auditionQ, CADENCE_MS.audition);
+    stale += await scheduleTick(reportQ, CADENCE_MS.report);
   }
 
   const registered = [
@@ -751,6 +752,14 @@ async function main(): Promise<void> {
     ...(anchoringConfigured ? [`anchor/${CADENCE_MS.anchor}ms`] : []),
   ];
   console.log(`[bench:worker] queues up - ${registered.join(' ')}`);
+  if (stale > 0) {
+    // Worth a line of its own: this is the only visible trace of a schedule
+    // that was firing at a cadence nobody configured, and the count says how
+    // many deploys' worth of them had piled up.
+    console.log(
+      `[bench:worker] removed ${stale} stale repeat schedule(s) left by earlier cadences`,
+    );
+  }
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[bench:worker] ${signal} - draining`);

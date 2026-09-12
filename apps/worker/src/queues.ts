@@ -148,3 +148,39 @@ export const repeatOpts = (everyMs: number) => ({
   removeOnComplete: { count: 100 },
   removeOnFail: { count: 500 },
 });
+
+/**
+ * Replace a queue's schedule, rather than adding another one beside it.
+ *
+ * BullMQ derives a repeatable job's key from its name *and* its repeat
+ * options, so `add('tick', {}, { repeat: { every: 300_000 } })` does not
+ * update an existing `every: 60_000` entry - it creates a second one, and both
+ * keep firing. Nothing surfaces that: the queue still works, each tick still
+ * succeeds, and the only symptom is a cadence nobody configured.
+ *
+ * It had been happening for the life of the project. Every cadence change left
+ * its predecessor behind in Redis, so a worker up 26 minutes had run the
+ * prober 34 times against a 300-second setting - once every 46 seconds, six
+ * times the intended rate. That matters beyond tidiness: the prober's cadence
+ * is what the database transfer budget is built on, and the budget had already
+ * been exhausted once, taking the whole site down with it.
+ *
+ * So the schedule is rebuilt from the code on every boot. Removing first makes
+ * this file the single source of truth for how often anything runs, which is
+ * what the comment above always claimed it was.
+ */
+export async function scheduleTick(
+  queue: {
+    getRepeatableJobs(): Promise<{ key: string }[]>;
+    removeRepeatableByKey(key: string): Promise<boolean>;
+    add(name: string, data: object, opts: object): Promise<unknown>;
+  },
+  everyMs: number,
+): Promise<number> {
+  const existing = await queue.getRepeatableJobs();
+  for (const job of existing) await queue.removeRepeatableByKey(job.key);
+  await queue.add('tick', {}, repeatOpts(everyMs));
+  // Returned so the caller can say how many stale schedules it found, which is
+  // the only evidence this bug ever leaves.
+  return existing.length;
+}
