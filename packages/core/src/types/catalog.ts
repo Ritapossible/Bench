@@ -55,26 +55,69 @@ export function isVerifiedLive(s: LivenessSummary, now: Date = new Date()): bool
   return s.uptimeBps >= VERIFIED_LIVE.minUptimeBps;
 }
 
+const EMPTY = (agent: AgentId): LivenessSummary => ({
+  agent,
+  lastProbedAt: null,
+  reachable: false,
+  conformant: false,
+  uptimeBps: 0,
+  p95LatencyMs: null,
+  probeCount: 0,
+});
+
 /**
- * Fold a probe history into a summary. Newest-first or oldest-first both work;
- * the function sorts, because callers reading from Postgres and callers
- * reading from a fake should not have to agree on order.
+ * Fold a probe history into a summary, per endpoint, and report the best one.
+ *
+ * This used to pool every probe an agent had into one bucket, and that was
+ * wrong in two ways for any agent publishing more than one address.
+ *
+ * `conformant` was the latest probe's verdict, whichever endpoint it happened
+ * to hit - so an agent with a working MCP service and a broken A2A card read
+ * as conformant or not depending on which of the two was probed last. A coin
+ * flip, re-tossed every few minutes.
+ *
+ * `uptimeBps` was the reachable fraction across the pooled set, so an agent
+ * with one live endpoint and one dead one sat at about 50% - permanently below
+ * the 80% floor `isVerifiedLive` requires. Such an agent could never be
+ * verified live no matter how perfect its working service was, and nothing
+ * said so: the catalog simply showed a low uptime for an endpoint that was
+ * always up.
+ *
+ * An agent is as live as its best address, which is the same rule the audition
+ * uses when it falls back from one transport to another, and the same rule the
+ * triage script counts by. Three definitions of "live" that disagree is how
+ * this project has produced every confident wrong number it has had to remove.
+ *
+ * `probeCount` is the winning endpoint's, not the total. Pooling it would let
+ * three endpoints probed once each satisfy a rule that exists to stop one
+ * lucky response being called a track record.
  */
 export function summarizeProbes(agent: AgentId, probes: readonly ProbeResult[]): LivenessSummary {
-  if (probes.length === 0) {
-    return {
-      agent,
-      lastProbedAt: null,
-      reachable: false,
-      conformant: false,
-      uptimeBps: 0,
-      p95LatencyMs: null,
-      probeCount: 0,
-    };
+  if (probes.length === 0) return EMPTY(agent);
+
+  const byEndpoint = new Map<string, ProbeResult[]>();
+  for (const p of probes) {
+    const key = `${p.endpoint.protocol} ${p.endpoint.url}`;
+    const bucket = byEndpoint.get(key);
+    if (bucket === undefined) byEndpoint.set(key, [p]);
+    else bucket.push(p);
   }
 
+  const summaries = [...byEndpoint.values()].map((group) => summarizeOneEndpoint(agent, group));
+  // Conformant beats reachable beats recent. Ties go to the endpoint probed
+  // most recently, so a summary never goes stale while a live address exists.
+  summaries.sort((a, b) => {
+    if (a.conformant !== b.conformant) return a.conformant ? -1 : 1;
+    if (a.reachable !== b.reachable) return a.reachable ? -1 : 1;
+    if (a.uptimeBps !== b.uptimeBps) return b.uptimeBps - a.uptimeBps;
+    return (b.lastProbedAt?.getTime() ?? 0) - (a.lastProbedAt?.getTime() ?? 0);
+  });
+  return summaries[0] ?? EMPTY(agent);
+}
+
+function summarizeOneEndpoint(agent: AgentId, probes: readonly ProbeResult[]): LivenessSummary {
   const sorted = [...probes].sort((a, b) => a.at.getTime() - b.at.getTime());
-  // Non-null: length checked above, and sorting preserves length.
+  // Non-null: callers only reach this with a non-empty group.
   const latest = sorted[sorted.length - 1]!;
 
   const reachableCount = sorted.filter((p) => p.reachable).length;
