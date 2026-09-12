@@ -95,6 +95,7 @@ export {
   type PositionReaderOptions,
 } from './chain/position-reader.js';
 export { A2AShadowAgent, type A2AShadowAgentOptions } from './agent/a2a-shadow-agent.js';
+export { FallbackShadowAgent } from './agent/fallback-shadow-agent.js';
 export {
   looksLikeAgentCard,
   resolveA2AService,

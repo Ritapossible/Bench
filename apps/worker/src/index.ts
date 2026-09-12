@@ -1,5 +1,6 @@
 import {
   A2AShadowAgent,
+  FallbackShadowAgent,
   auditionWindows,
   BscPositionReader,
   MIN_AUDITIONABLE_USD,
@@ -215,28 +216,34 @@ async function main(): Promise<void> {
             catalog: repo,
             store: audition,
             runner: new AuditionRunner({ forks: adapters.fork, egress: adapters.egress }),
-            // Only agents with a probeable A2A endpoint can be driven. Anything
-            // else returns null and is skipped rather than failed - it was never
-            // auditionable, which is a different fact from having failed.
+            /**
+             * Every transport the agent declares, tried in order.
+             *
+             * A2A first where an agent declares both: it has a verb for "here
+             * is a task", where MCP has to be driven through its tools. But
+             * first is not only - picking one address and giving up when it
+             * fails published ClawdMint (#2468) as undrivable because its A2A
+             * card names the agent's marketing site, while the MCP endpoint on
+             * the same registration answered and listed twelve tools.
+             *
+             * An agent that declares nothing callable returns null and is
+             * skipped rather than failed: it was never auditionable, which is
+             * a different fact from having failed.
+             */
             agentFor: ({ agent }) => {
               const name = agent.card?.name ?? `agent ${agent.id.tokenId}`;
               const endpoints = agent.card?.endpoints ?? [];
 
-              // A2A first where an agent declares both: it has a verb for
-              // "here is a task", where MCP has to be driven through its tools.
-              const a2a = endpoints.find((e) => e.protocol === 'a2a');
-              if (a2a !== undefined) {
-                return new A2AShadowAgent({ id: agent.id, name, endpoint: a2a });
-              }
-
-              // MCP agents used to fall through to null and be counted as
-              // skipped - about a third of the publicly-addressable endpoints
-              // in the registry, excluded without anything saying so.
-              const mcp = endpoints.find((e) => e.protocol === 'mcp');
-              if (mcp !== undefined) {
-                return new McpShadowAgent({ id: agent.id, name, endpoint: mcp });
-              }
-              return null;
+              const shims = [
+                ...endpoints
+                  .filter((e) => e.protocol === 'a2a')
+                  .map((e) => new A2AShadowAgent({ id: agent.id, name, endpoint: e })),
+                ...endpoints
+                  .filter((e) => e.protocol === 'mcp')
+                  .map((e) => new McpShadowAgent({ id: agent.id, name, endpoint: e })),
+              ];
+              if (shims.length === 0) return null;
+              return shims.length === 1 ? shims[0]! : new FallbackShadowAgent(shims);
             },
           },
           { chain: cfg.BENCH_CHAIN, archiveRpcUrl },
