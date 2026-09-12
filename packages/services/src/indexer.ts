@@ -84,6 +84,37 @@ const DEFAULTS = {
   cardConcurrency: 8,
 } as const;
 
+/**
+ * How hard to walk a registry, by how big that registry actually is.
+ *
+ * These were one pair of numbers tuned for BSC testnet - 500 tokens a tick,
+ * re-sweep every six hours - and they do not survive contact with mainnet,
+ * which holds about 343,000 tokens against testnet's 2,400. At 500 a tick on a
+ * five-minute cadence a full mainnet pass takes roughly 57 hours, and a
+ * six-hour re-sweep timer rearms the moment it finishes. The indexer would
+ * spend its entire life rewriting every row in the registry: about 170 MB a
+ * pass, back to back, which is what exhausted a 5 GB monthly transfer
+ * allowance and took the site down with it.
+ *
+ * Neither number is about taste. The batch is sized so a first pass finishes
+ * in hours rather than days, and the re-sweep interval so re-reading a
+ * quarter-million strangers' cards is a monthly event rather than a permanent
+ * background load. Tokens are immutable once minted except for `tokenURI`, and
+ * the tail-walk picks up new registrations - about 2,000 a day on mainnet -
+ * within one tick either way.
+ *
+ *   bsc-mainnet   2,000/tick x 5 min  -> ~343,000 tokens in ~14 hours
+ *   bsc-testnet     500/tick x 5 min  ->   ~2,400 tokens in ~25 minutes
+ */
+export function indexerProfileFor(chain: string): {
+  readonly batchSize: number;
+  readonly resweepAfterMs: number;
+} {
+  return chain === 'bsc-mainnet'
+    ? { batchSize: 2_000, resweepAfterMs: 30 * 24 * 60 * 60 * 1000 }
+    : { batchSize: 500, resweepAfterMs: 6 * 60 * 60 * 1000 };
+}
+
 export class Indexer {
   /**
    * When the last full pass began, in this process.

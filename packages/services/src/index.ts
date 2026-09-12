@@ -11,6 +11,7 @@
 export { mapLimit, mapLimitSettled, type Settled } from './concurrency.js';
 export {
   Indexer,
+  indexerProfileFor,
   type EnumerationTickResult,
   type IndexerOptions,
   type IndexerTickResult,
@@ -31,7 +32,7 @@ export {
   type ScorerOptions,
   type ScoringResult,
 } from './scorer.js';
-export { Prober, type ProberOptions, type ProberTickResult } from './prober.js';
+export { Prober, proberProfileFor, type ProberOptions, type ProberTickResult } from './prober.js';
 export { ProbeAnchor, type AnchorOptions, type AnchorTickResult } from './anchor.js';
 export {
   HireOrchestrator,

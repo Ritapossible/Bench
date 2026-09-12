@@ -46,13 +46,14 @@ const record = (tokenId: bigint, category: AgentCategory = 'other'): AgentRecord
   registeredAt: new Date('2026-08-01T00:00:00.000Z'),
 });
 
-const probeAt = (tokenId: bigint, at: Date): ProbeResult => ({
+const probeAt = (tokenId: bigint, at: Date, reachable = true): ProbeResult => ({
   agent: agent(tokenId),
   endpoint: endpointFor(tokenId),
   at,
-  reachable: true,
-  latencyMs: 40,
-  conformant: true,
+  reachable,
+  latencyMs: reachable ? 40 : null,
+  conformant: reachable,
+  ...(reachable ? {} : { error: 'connection refused' }),
 });
 
 const HOUR = 60 * 60 * 1000;
@@ -241,5 +242,82 @@ describeDb('dueForProbe scheduling', () => {
       expect(live.grid).toBe(0);
       expect(live.yield).toBe(0);
     });
+  });
+});
+
+/**
+ * The cold tier, which only earns its keep on a registry the size of mainnet:
+ * about 36,000 endpoints declared, roughly 1,200 that ever answer. Probing all
+ * of them hourly is 864,000 probes a day to learn nothing 97% of the time, and
+ * a prober that cannot finish inside the freshness window drops agents out of
+ * "verified live" for being unreachable by Bench - a fact about this
+ * deployment published as a fact about the agent.
+ */
+describeDb('dueForProbe cold tier', () => {
+  const db = createDb(URL ?? '', { isolate: true });
+  const catalog = new PgCatalogRepository(db);
+  const COLD = 2 * 24 * 60 * 60 * 1000;
+  const ago = (ms: number): Date => new Date(Date.now() - ms);
+
+  beforeAll(async () => {
+    await runMigrations(URL ?? '');
+  });
+
+  beforeEach(async () => {
+    await db.delete(schema.probeResults);
+    await db.delete(schema.agentEndpoints);
+    await db.delete(schema.agents);
+    await catalog.upsertAgents([record(1n), record(2n), record(3n)]);
+  });
+
+  afterAll(async () => {
+    await db.$client.end();
+  });
+
+  /** Enough probes that the endpoint is past bootstrap and has a verdict. */
+  const settle = async (tokenId: bigint, reachable: boolean, lastAgeMs: number) => {
+    for (let i = VERIFIED_LIVE.minProbeCount; i >= 1; i -= 1) {
+      await catalog.recordProbe(probeAt(tokenId, ago(lastAgeMs + i * 60_000), reachable));
+    }
+    await catalog.recordProbe(probeAt(tokenId, ago(lastAgeMs), reachable));
+  };
+
+  it('leaves a never-reachable endpoint alone at two hours, while a responder is due', async () => {
+    await settle(1n, true, 2 * HOUR);
+    await settle(2n, false, 2 * HOUR);
+    // 3 has never been probed, so it is due regardless of any tier.
+    expect(ids(await catalog.dueForProbe(10, HOUR, BOOTSTRAP, COLD))).toEqual([1n, 3n]);
+  });
+
+  it('asks a never-reachable endpoint once it passes the cold window', async () => {
+    await settle(2n, false, 3 * 24 * HOUR);
+    expect(ids(await catalog.dueForProbe(10, HOUR, BOOTSTRAP, COLD))).toContain(2n);
+  });
+
+  it('promotes an endpoint back to the hourly cadence as soon as it answers once', async () => {
+    await settle(2n, false, 3 * HOUR);
+    // One reachable probe anywhere in the retained history is enough: the tier
+    // is bool_or over the window, not a judgement about the latest probe.
+    await catalog.recordProbe(probeAt(2n, ago(2 * HOUR), true));
+    expect(ids(await catalog.dueForProbe(10, HOUR, BOOTSTRAP, COLD))).toContain(2n);
+  });
+
+  it('never demotes an endpoint that has not been asked enough to judge', async () => {
+    // One failed probe is not "never answers" - it is one failed probe, and
+    // the bootstrap cadence has to keep applying or nothing is ever classified.
+    await catalog.recordProbe(probeAt(3n, ago(10 * 60_000), false));
+    expect(ids(await catalog.dueForProbe(10, HOUR, BOOTSTRAP, COLD))).toContain(3n);
+  });
+
+  it('treats an endpoint with no probes at all as due immediately', async () => {
+    expect(ids(await catalog.dueForProbe(10, HOUR, BOOTSTRAP, COLD))).toEqual([1n, 2n, 3n]);
+  });
+
+  it('falls back to the single cadence when no cold window is given', async () => {
+    await settle(1n, true, 2 * HOUR);
+    await settle(2n, false, 2 * HOUR);
+    // Without a cold window the unreachable endpoint stays on the hourly
+    // cadence, which is the pre-existing behaviour this must not change.
+    expect(ids(await catalog.dueForProbe(10, HOUR, BOOTSTRAP))).toEqual([1n, 2n, 3n]);
   });
 });

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+type ChainName = 'bsc-mainnet' | 'bsc-testnet';
+
 /**
  * The regex already proves the shape, so the transform makes the *type* say
  * what the validation has established. Without it every consumer receives
@@ -116,6 +118,26 @@ const schema = z.object({
   ALTLAYER_8004SCAN_API_KEY: z.string().optional(),
 });
 
+/**
+ * The Identity Registry on each chain, and the one address that is a trap.
+ *
+ * These are different contracts, not one deployment reachable from two RPCs.
+ * BSC testnet holds `Agent` at 0x8004A818…; BSC mainnet holds `AgentIdentity`
+ * at 0x8004a169…, with ~343,000 tokens. The addresses look alike - both were
+ * vanity-mined to start 0x8004 - and that similarity cost this project real
+ * time: 0x8004A818… also exists on mainnet, as an EIP-1967 proxy whose
+ * implementation is uninitialized, so every read against it reverts. Pointed
+ * there, Bench does not fail. It indexes an empty registry, reports zero
+ * agents, and looks like a working deployment of a dead ecosystem.
+ *
+ * So the pairing is checked at boot. A silent empty catalog is the failure
+ * this codebase keeps finding, and this is the cheapest place to refuse it.
+ */
+export const KNOWN_IDENTITY_REGISTRY: Readonly<Record<ChainName, `0x${string}`>> = {
+  'bsc-mainnet': '0x8004a169fb4a3325136eb29fa0ceb6d2e539a432',
+  'bsc-testnet': '0x8004A818BFB912233c491871b3d84c89A494BD9e',
+};
+
 export type BenchConfig = z.infer<typeof schema>;
 
 let cached: BenchConfig | null = null;
@@ -128,8 +150,41 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BenchConfig {
     const issues = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
     throw new Error(`Invalid Bench configuration:\n${issues}`);
   }
+  assertRegistryMatchesChain(parsed.data);
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * Refuse a registry address that belongs to the other chain.
+ *
+ * Named rather than guessed: the config keeps the address it was given and is
+ * told which one this chain actually uses, so a deliberate override - a fork,
+ * a local deployment, a successor contract - still works and only the known
+ * cross-chain mix-up is refused.
+ */
+export function registryMismatch(chain: ChainName, address: string): string | null {
+  const mine = KNOWN_IDENTITY_REGISTRY[chain];
+  const given = address.toLowerCase();
+  if (given === mine.toLowerCase()) return null;
+  // An address belonging to no known chain is a deliberate override - a fork, a
+  // local deployment, a successor contract - and is left alone. Only the
+  // cross-chain mix-up is refused.
+  const other = (Object.keys(KNOWN_IDENTITY_REGISTRY) as ChainName[]).find(
+    (k) => KNOWN_IDENTITY_REGISTRY[k].toLowerCase() === given,
+  );
+  if (other === undefined) return null;
+  return (
+    `ERC8004_IDENTITY_REGISTRY: ${address} is the ${other} registry, but BENCH_CHAIN is ` +
+    `${chain}. Use ${mine}. These are separate contracts, and the testnet address also exists ` +
+    'on mainnet as an uninitialized proxy - pointed there Bench indexes nothing and reports an ' +
+    'empty registry instead of failing.'
+  );
+}
+
+function assertRegistryMatchesChain(c: BenchConfig): void {
+  const problem = registryMismatch(c.BENCH_CHAIN, c.ERC8004_IDENTITY_REGISTRY);
+  if (problem !== null) throw new Error(`Invalid Bench configuration:\n  ${problem}`);
 }
 
 export const rpcUrlFor = (c: BenchConfig): string =>

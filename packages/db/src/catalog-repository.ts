@@ -289,10 +289,34 @@ export class PgCatalogRepository implements CatalogRepository {
     limit: number,
     staleAfterMs: number,
     bootstrap?: { readonly afterMs: number; readonly untilProbeCount: number },
+    coldAfterMs?: number,
   ): Promise<readonly ProbeTarget[]> {
     const cutoff = new Date(Date.now() - staleAfterMs);
     const bootstrapCutoff =
       bootstrap === undefined ? null : new Date(Date.now() - bootstrap.afterMs);
+    /**
+     * The demotion cutoff for endpoints that have never answered.
+     *
+     * `bool_or(reachable)` is already available here for free - the query
+     * groups by endpoint either way - so the tier costs one more aggregate and
+     * no extra round trip.
+     */
+    const coldCutoff = coldAfterMs === undefined ? null : new Date(Date.now() - coldAfterMs);
+    const everReachable = sql`bool_or(${schema.probeResults.reachable})`;
+    const lastAt = sql`max(${schema.probeResults.at})`;
+    const seen = sql`count(${schema.probeResults.id})`;
+    /**
+     * Due because it is stale, at whichever cadence this endpoint has earned.
+     *
+     * An endpoint with no probes at all is due immediately and is handled by
+     * the `is null` arm - it has not earned the cold tier, it has not been
+     * asked yet.
+     */
+    const stale =
+      coldCutoff === null
+        ? sql`${lastAt} < ${cutoff}`
+        : sql`(${everReachable} and ${lastAt} < ${cutoff})
+               or (not ${everReachable} and ${lastAt} < ${coldCutoff})`;
 
     const rows = await this.db
       .select({
@@ -314,17 +338,17 @@ export class PgCatalogRepository implements CatalogRepository {
       )
       .having(
         bootstrapCutoff === null
-          ? sql`max(${schema.probeResults.at}) is null or max(${schema.probeResults.at}) < ${cutoff}`
-          : sql`max(${schema.probeResults.at}) is null
-                 or max(${schema.probeResults.at}) < ${cutoff}
-                 or (count(${schema.probeResults.id}) < ${bootstrap?.untilProbeCount ?? 0}
-                     and max(${schema.probeResults.at}) < ${bootstrapCutoff})`,
+          ? sql`${lastAt} is null or (${stale})`
+          : // An endpoint still short of a verdict keeps the bootstrap cadence
+            // whatever tier it would otherwise fall into: "never answered" is
+            // not a conclusion until enough probes have asked.
+            sql`${lastAt} is null
+                 or (${stale})
+                 or (${seen} < ${bootstrap?.untilProbeCount ?? 0} and ${lastAt} < ${bootstrapCutoff})`,
       )
       // Endpoints with no verdict yet come first: a probe that completes a
       // verdict is worth more than the nth probe of one already decided.
-      .orderBy(
-        sql`count(${schema.probeResults.id}) asc, max(${schema.probeResults.at}) asc nulls first`,
-      )
+      .orderBy(sql`${seen} asc, ${lastAt} asc nulls first`)
       .limit(limit);
 
     return rows.map((r) => ({

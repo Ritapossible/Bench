@@ -58,6 +58,24 @@ export interface CatalogRepository {
     limit: number,
     staleAfterMs: number,
     bootstrap?: { readonly afterMs: number; readonly untilProbeCount: number },
+    /**
+     * How long to leave an endpoint that has never once answered.
+     *
+     * Probing every endpoint on the same schedule is affordable on a registry
+     * of 2,400 and is not on one of 343,000, where about 36,000 declare an
+     * endpoint and roughly 1,200 of those ever respond. On the hourly cadence
+     * that is 864,000 probes a day to learn nothing 97% of the time - and
+     * worse than wasteful, because a prober that cannot get round the set in
+     * time drops agents out of "verified live" for being unreachable *by
+     * Bench*, which is a fact about Bench published as a fact about them.
+     *
+     * So an endpoint with no reachable probe in its retained history is
+     * demoted to this interval instead. It costs a dead endpoint a couple of
+     * probes a day, and the moment one answers it is promoted back by the same
+     * rule that demoted it. Omitted, nothing is demoted and every endpoint
+     * keeps the single cadence.
+     */
+    coldAfterMs?: number,
   ): Promise<readonly ProbeTarget[]>;
   /** Probes not yet covered by an onchain anchor, oldest first. */
   unanchoredProbes(limit: number): Promise<readonly ProbeResult[]>;

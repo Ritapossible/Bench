@@ -29,8 +29,10 @@ import {
   AuditionService,
   describeEmptyTick,
   Indexer,
+  indexerProfileFor,
   ProbeAnchor,
   Prober,
+  proberProfileFor,
   Scorer,
   summarizeAgreementFor,
 } from '@bench/services';
@@ -140,8 +142,14 @@ async function main(): Promise<void> {
   const indexer = new Indexer(adapters.registry, repo, {
     chain: cfg.BENCH_CHAIN,
     startBlock: BigInt(cfg.ERC8004_REGISTRY_START_BLOCK),
+    // Sized by the registry, not by habit. See indexerProfileFor: the testnet
+    // numbers applied to mainnet put the indexer in a permanent full re-sweep
+    // of 343,000 rows.
+    ...indexerProfileFor(cfg.BENCH_CHAIN),
   });
-  const prober = new Prober(adapters.probe, repo);
+  // Tiered on mainnet, where most endpoints never answer and probing them all
+  // on one cadence measures Bench's throughput rather than the ecosystem.
+  const prober = new Prober(adapters.probe, repo, proberProfileFor(cfg.BENCH_CHAIN));
   const scorer = new Scorer(audition);
 
   /**

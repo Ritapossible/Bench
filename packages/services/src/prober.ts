@@ -29,6 +29,11 @@ export interface ProberOptions {
    * number as `staleAfterMs`.
    */
   readonly bootstrapAfterMs?: number;
+  /**
+   * How long to leave an endpoint that has never answered. See
+   * `proberProfileFor`; omitted, every endpoint keeps the one cadence.
+   */
+  readonly coldAfterMs?: number;
 }
 
 export interface ProberTickResult {
@@ -105,6 +110,38 @@ const DEFAULTS = {
   bootstrapAfterMs: 2 * 60 * 1000,
 } as const;
 
+/**
+ * How often to ask, by how likely the endpoint is to answer.
+ *
+ * On BSC testnet every endpoint can be probed hourly and the whole set is
+ * covered many times over. Mainnet is a different problem: about 36,000 of its
+ * 343,000 registrations declare an endpoint, and measured against a random
+ * sample, roughly 1,200 of those answer and speak their own protocol. Probing
+ * all 36,000 hourly is 864,000 probes a day to learn nothing 97% of the time.
+ *
+ * The cost is not the real objection - the accuracy is. A prober that cannot
+ * get round the set inside the freshness window drops agents out of "verified
+ * live" because *Bench* did not reach them in time, and publishes that as a
+ * fact about the agent. The number would measure this deployment's throughput
+ * and be presented as a measurement of the ecosystem.
+ *
+ * So an endpoint with no reachable probe in its retained history is asked
+ * every two days instead of every hour, and is promoted back the moment it
+ * answers. The arithmetic that matters:
+ *
+ *   responders   ~1,200 hourly       = 28,800/day
+ *   cold        ~35,000 two-daily    = 17,500/day
+ *                                      ------------
+ *                                      46,300/day, about 160 per five-minute
+ *                                      tick, inside a batch of 200.
+ *
+ * Testnet keeps the single hourly cadence, where the set is small enough that
+ * tiering would buy nothing and would only make the rule harder to state.
+ */
+export function proberProfileFor(chain: string): ProberOptions {
+  return chain === 'bsc-mainnet' ? { coldAfterMs: 2 * 24 * 60 * 60 * 1000 } : {};
+}
+
 export class Prober {
   constructor(
     private readonly probes: ProbeClient,
@@ -120,6 +157,7 @@ export class Prober {
         afterMs: this.opts.bootstrapAfterMs ?? DEFAULTS.bootstrapAfterMs,
         untilProbeCount: VERIFIED_LIVE.minProbeCount,
       },
+      this.opts.coldAfterMs,
     );
     if (targets.length === 0) {
       return { probed: 0, reachable: 0, conformant: 0, failed: 0, reasons: [] };
