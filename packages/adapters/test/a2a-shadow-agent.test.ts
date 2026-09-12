@@ -317,3 +317,69 @@ describe('an agent that works asynchronously', () => {
     await expect(agent.run(ctx())).rejects.toThrow(/still working when the audition window closed/);
   }, 20_000);
 });
+
+/**
+ * What the failure says, and who it blames.
+ *
+ * Taken from a real mainnet catalog entry: an agent registered with a card at
+ * one host, whose card names its marketing site in `url`, where a POST 404s -
+ * while the service itself sits on a different host and answers 402 because it
+ * charges for work. Both facts are about the agent. Neither is legible if the
+ * message only says "agent returned HTTP 404 to the audition task", which
+ * reads as Bench knocking on the wrong door.
+ */
+describe('what an HTTP failure reports', () => {
+  const drive = async (url: string) => {
+    try {
+      await build(url).run(ctx());
+      return null;
+    } catch (e) {
+      return e as { code?: string; message?: string };
+    }
+  };
+
+  it('names the address the card sent it to, and the one that was registered', async () => {
+    // One server playing both parts: it serves an agent card whose `url`
+    // points at /marketing on itself, and 404s everything else - the shape of
+    // the real registration this came from.
+    const base = await listen((req, res) => {
+      if (req.url?.includes('agent-card.json') === true) {
+        const addr = server?.address();
+        const port = typeof addr === 'object' && addr !== null ? addr.port : 0;
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ name: 'A', url: `http://127.0.0.1:${port}/marketing` }));
+        return;
+      }
+      res.writeHead(404).end('not found');
+    });
+    const cardUrl = base.replace('/a2a', '/.well-known/agent-card.json');
+
+    const err = await drive(cardUrl);
+    expect(err?.code).toBe('ENDPOINT_UNREACHABLE');
+    expect(err?.message).toContain('404');
+    // Where it actually knocked, and that the agent chose that address.
+    expect(err?.message).toContain('/marketing');
+    expect(err?.message).toContain('agent card declares');
+    expect(err?.message).toContain(cardUrl);
+  });
+
+  it('records a 402 as the agent declining, not as unreachable', async () => {
+    const url = await listen((_req, res) => {
+      res.writeHead(402, { 'content-type': 'application/json' }).end('{}');
+    });
+    const err = await drive(url);
+    // "Registered, but nothing usable answered" would be a working agent
+    // published as a broken one.
+    expect(err?.code).toBe('PROTOCOL_NONCONFORMANT');
+    expect(err?.message).toContain('requires payment');
+  });
+
+  it('does not claim indirection when the registration already named the service', async () => {
+    const url = await listen((_req, res) => {
+      res.writeHead(503).end('down');
+    });
+    const err = await drive(url);
+    expect(err?.message).toContain('503');
+    expect(err?.message).not.toContain('agent card declares');
+  });
+});

@@ -180,9 +180,41 @@ export class A2AShadowAgent implements ShadowAgent {
     });
 
     if (res.status < 200 || res.status >= 300) {
+      /**
+       * Name the address that answered, and who chose it.
+       *
+       * "agent returned HTTP 404 to the audition task" reads as though Bench
+       * knocked on the wrong door. Usually it did not: the registration points
+       * at an agent card, the card names a service in its own `url`, and that
+       * is where the task was POSTed. A real example from the mainnet catalog
+       * is an agent whose card sends every client to its marketing site, which
+       * 404s, while the service itself sits on a different host entirely.
+       * Without the chain in the message, that is indistinguishable from a bug
+       * here - and the agent's owner cannot see what to fix.
+       */
+      const registered = this.opts.endpoint.url;
+      const via =
+        target === registered
+          ? ` at ${target}`
+          : ` at ${target}, the address its own agent card declares (registered as ${registered})`;
+
+      /**
+       * 402 is an answer, not a silence.
+       *
+       * An agent charging for its work has told Bench something specific and
+       * deliberate, and filing that under "registered, but nothing usable
+       * answered" would be a fact about a working agent published as a broken
+       * one. It declines, for a reason the catalog can state.
+       */
+      if (res.status === 402) {
+        throw new BenchError(
+          'PROTOCOL_NONCONFORMANT',
+          `agent requires payment before it will take a task (HTTP 402${via})`,
+        );
+      }
       throw new BenchError(
         'ENDPOINT_UNREACHABLE',
-        `agent returned HTTP ${res.status} to the audition task`,
+        `agent returned HTTP ${res.status} to the audition task${via}`,
       );
     }
 
