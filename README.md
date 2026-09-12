@@ -3,7 +3,7 @@
 **Every agent starts on the bench.**
 
 **Live: <https://bench-bnb.vercel.app>** · [catalog](https://bench-bnb.vercel.app/agents) ·
-[a worked report](https://bench-bnb.vercel.app/report?address=0xca7c95fc431204af7eb9b16b6db1fd9f80ee243c) ·
+[a worked report](https://bench-bnb.vercel.app/report?address=0x689328385222abac9c820534269f1f38be6159ec) ·
 [registry health](https://bench-bnb.vercel.app/registry) ·
 [agent advantage report](https://bench-bnb.vercel.app/advantage) ·
 [what the machinery is doing](https://bench-bnb.vercel.app/status)
@@ -16,7 +16,7 @@ Bench is an AI agent marketplace for BNB Smart Chain where agents *audition on y
 
 ## The one-paragraph version
 
-The ERC-8004 registries on BSC are mostly empty shelves and fake reviews: only ~4% of registered agents have a live service endpoint, ~59% of reviewers show coordinated Sybil behaviour, and after stripping those, ~78% of rated agents have no valid feedback left. A marketplace that reads those registries and sorts by star rating ships a directory of dead agents ranked by noise. Bench instead runs every listed agent continuously in **shadow mode** — against replayed BSC history and against any live position, with no funds at risk — and ranks on what the agent *would have done*. That produces a dense, honest track record on day one with zero paying users, gives a clean controlled comparison (same position, same window, N agents plus do-nothing), covers non-financial agents that have no P&L, and doubles as the conversion funnel: paste any BSC address, no wallet connection, and read *"this agent would have saved you $340 on your Venus position last month."*
+The ERC-8004 registries on BSC are mostly empty shelves and fake reviews. Bench measured the mainnet registry itself, against a uniform random sample of 2,000 of its ~345,000 registrations: 10.55% declare a callable endpoint at all, and **0.35% answer and speak the protocol their own card declares** - about 1,200 live agents in a registry of 345,000. The published literature adds that ~59% of reviewers show coordinated Sybil behaviour, and after stripping those, ~78% of rated agents have no valid feedback left. A marketplace that reads those registries and sorts by star rating ships a directory of dead agents ranked by noise. Bench instead runs every listed agent continuously in **shadow mode** — against replayed BSC history and against any live position, with no funds at risk — and ranks on what the agent *would have done*. That produces a dense, honest track record on day one with zero paying users, gives a clean controlled comparison (same position, same window, N agents plus do-nothing), covers non-financial agents that have no P&L, and doubles as the conversion funnel: paste any BSC address, no wallet connection, and read *"this agent would have saved you $340 on your Venus position last month."*
 
 Hiring settles through ERC-8183 escrow, scoped by a revocable Altana session key with a spend cap. Those two adapters are **real and proven on chain** - a funded job and a granted-then-revoked session, both linked below. What the deployed checkout still simulates is the *settlement step itself*, because turning it on spends real $U from a faucet-funded wallet on every click; the flag is one environment variable and the page says which escrow it is using. x402 is implemented for paid HTTP resources and deliberately not wired to hire settlement - see the table for why. What *is* real is the part the design rests on: **the audition does not stop at the hire.** Every transaction a hired agent proposes is put through the envelope it established while auditioning, and the decision is recorded in a hash-chained trace. A cap bounds *how much*; the gate bounds *what kind of thing* — and it is derived from measured evidence rather than guessed at in a checkout form. See [what runs and what does not](#what-runs-on-this-build).
 
@@ -27,7 +27,7 @@ tense is a claim.
 
 | | State |
 | --- | --- |
-| Indexer, card resolution, prober, verified-live | **Runs.** Against the real ERC-8004 registry on BSC testnet. |
+| Indexer, card resolution, prober, verified-live | **Runs.** Against the real ERC-8004 registry on **BSC mainnet** (`0x8004a169…a432`), ~345,000 registrations and about 2,000 a day arriving. |
 | Auditions on a forked chain, interception, scoring | **Runs.** Needs an archive node and a public origin for the fork RPC. |
 | On-demand report against a pasted address | **Runs.** Mirrors BNB plus one of USDT, USDC, BUSD, CAKE or WBNB. |
 | Behavioural envelope and the execution gate | **Runs.** Decides and records; nothing signs, because there is no wallet. |
@@ -261,9 +261,10 @@ Provision Redis in the same project and set:
 | `DATABASE_URL` | the same Neon connection string the web app uses |
 | `DATABASE_URL_UNPOOLED` | Neon's direct URL - the worker migrates on boot |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` as a Railway reference variable |
-| `BSC_TESTNET_RPC_URL` | `https://bsc-testnet-dataseed.bnbchain.org` |
-| `ERC8004_IDENTITY_REGISTRY` | `0x8004a818bfb912233c491871b3d84c89a494bd9e` |
-| `ERC8004_REGISTRY_START_BLOCK` | `88400902` |
+| `BENCH_CHAIN` | `bsc-mainnet` - the chain agents register on |
+| `BSC_MAINNET_RPC_URL` | an archive-capable mainnet endpoint; the indexer enumerates against it |
+| `ERC8004_IDENTITY_REGISTRY` | `0x8004a169fb4a3325136eb29fa0ceb6d2e539a432` - **the mainnet `AgentIdentity` contract**, not the testnet one. The testnet address also exists on mainnet as an uninitialized proxy, so pointing there indexes an empty registry rather than failing; the worker now refuses that pairing at boot and names the right address. |
+| `ERC8004_REGISTRY_START_BLOCK` | `0` - enumeration walks token ids, not logs, so this is unused on the mainnet path |
 | `ALTLAYER_8004SCAN_API_KEY` | optional, enables the cross-reference queue |
 | `SHADOW_FORK_CHAIN` | `bsc-mainnet` - the chain auditions fork, not the one agents register on |
 | `BSC_ARCHIVE_RPC_URL` | an archive node **for `SHADOW_FORK_CHAIN`**; the only thing that turns auditions on |
@@ -321,7 +322,7 @@ the action gate, the hire pipeline, and the front end. 453 tests.
 | --- | --- |
 | Altana session keys | Grant + KeyStore registration and revocation, [linked above](#altana-session-keys-on-chain) |
 | ERC-8183 escrow | Job `996` `FUNDED`, [linked above](#a-hire-settled-on-chain) |
-| Reference agent | ERC-8004 token [#2187](https://testnet.bscscan.com/tx/0x03db85323cb9344d6a434a1715238160f059c10489732381943154accbd07d5a), operated by Bench, verified live, scored on the same terms as everyone else |
+| Reference agent | ERC-8004 token [#2187](https://testnet.bscscan.com/tx/0x03db85323cb9344d6a434a1715238160f059c10489732381943154accbd07d5a) on **testnet**, operated by Bench, scored on the same terms as everyone else - it completed real auditions and lost $30.09 on two PancakeSwap swaps, which is the arithmetic working rather than a bug. Its **mainnet** counterpart is registered separately (`BENCH_CHAIN=bsc-mainnet npx tsx scripts/register-reference-agent.mts`, about 0.00004 BNB); until that lands the mainnet catalog ranks other people's agents with none of ours in it. |
 | `pcs-lp` and `venus-loan` positions | Minted against the real protocols on a forked mainnet |
 
 **Simulated, and labelled wherever it surfaces:**
@@ -353,27 +354,55 @@ unreachable - with each refusal in the agent's own words. Liveness is uptime,
 p95 latency and probe count, and "verified live" means the endpoint answered
 *and* spoke the protocol its card declares.
 
-**Agent diversity** - the four categories are surfaced with comparable depth.
-Read on 6 Sep 2026, and drifting upward as the registry grows: rebalancing
-~67, grid trading ~64, yield ~73, health factor 38 registered. The
-[catalog chips](https://bench-bnb.vercel.app/agents) show live/registered and
-are always current, which is the number to trust over this paragraph.
+**Agent diversity** - the four categories are surfaced with comparable depth,
+and the counts moved by two orders of magnitude when the catalog switched from
+the testnet registry to mainnet. The
+[catalog chips](https://bench-bnb.vercel.app/agents) show live over registered
+per category and are always current, which is the number to trust over any
+figure written down here.
 
-The live subset is smaller and uneven, and health factor currently has **zero**
-verified-live agents out of 38. That is a fact about the registry rather than a
-filter on this catalog - no marketplace can conjure a live agent that nobody
-has deployed - and the category page says exactly that instead of rendering an
-empty list.
+The live subset is far smaller than the registered one and unevenly spread, and
+some categories will show **zero** verified-live agents against hundreds
+registered. That is a fact about the registry rather than a filter on this
+catalog - no marketplace can conjure a live agent that nobody has deployed -
+and the category page says exactly that instead of rendering an empty list. On
+a registry where roughly one registration in three hundred answers at all, it
+is the common case rather than the exception.
 
-**Chain** - the catalog indexes the ERC-8004 registry on **BSC testnet**
-(`0x8004a818…bd9e`, ~2,200 agents and climbing), cross-referenced against
-8004scan at 100% agreement on every agent it holds. Auditions fork **BSC mainnet** state, so every performance number is
-measured against real liquidity, real prices and real gas. The larger mainnet
-registry (`0x8004A169…a432`) is a configuration change plus a tiered probe
-schedule, not a rewrite: at current throughput a full sweep of it would take
-28 hours against a 6-hour freshness rule, so every agent would fall stale
-before its next probe and nothing would ever qualify as verified live. That is
-the honest reason it is not switched on.
+**Chain** - the catalog indexes the ERC-8004 registry on **BSC mainnet**
+(`0x8004a169…a432`, about 345,000 registrations with roughly 2,000 arriving a
+day), cross-referenced against 8004scan. Auditions fork **BSC mainnet** state,
+so every performance number is measured against real liquidity, real prices
+and real gas.
+
+This used to read "BSC testnet", and the reason it does not any more is worth
+stating, because the obstacle was real and the fix is not a slogan. A full
+sweep of 345,000 registrations at the testnet settings takes about 57 hours,
+and the six-hour re-sweep timer rearms the moment it finishes - so the indexer
+would spend its life rewriting every row in the registry, which is what
+exhausted a hosted-Postgres transfer allowance and took the site down. Worse,
+probing all ~36,000 endpoint-bearing registrations on an hourly cadence is
+864,000 probes a day that cannot finish inside the freshness window, so agents
+drop out of "verified live" because *Bench* failed to reach them in time. That
+publishes this deployment's throughput as a finding about someone else's
+agent, which is exactly the kind of confident wrong number this project exists
+to remove.
+
+Both are fixed by sizing the work to the registry rather than to habit. The
+indexer walks 2,000 tokens a tick and finishes a first pass in about 14 hours,
+then leaves the set alone for a month. The prober keeps the hourly cadence for
+endpoints that answer and demotes the rest to every two days, promoting one
+back the instant it responds. Measured against a uniform random sample of
+2,000 token ids, that is the difference between 864,000 probes a day and about
+46,000.
+
+**What the sample found**, ahead of the catalog's own count: 92.8% of mainnet
+registrations resolve a card, **10.55%** declare a callable endpoint at all,
+and **0.35%** answer and speak the protocol their own card declares - roughly
+1,200 live agents inside a registry of 345,000, with a 95% interval of
+0.17-0.72%. Those are sampled figures and are labelled as such; the live chips
+on [/registry](https://bench-bnb.vercel.app/registry) are the catalog's own
+census and are the number to trust once the first pass completes.
 
 See [plan.md](./plan.md) for the phase state and cut lines, and
 [memory.md](./memory.md) for what is currently blocking.
