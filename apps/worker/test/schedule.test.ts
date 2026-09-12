@@ -69,3 +69,32 @@ describe('scheduleTick', () => {
     expect(asReal.added).toHaveLength(1);
   });
 });
+
+/**
+ * The indexer's first mainnet stall: "job stalled more than allowable limit",
+ * on a tick that walks 2,000 tokens and resolves their cards over HTTP. BullMQ
+ * defaults a job's lock to 30 seconds and fails it after one missed renewal,
+ * which is sized for short jobs and not for these.
+ */
+describe('workerOpts', () => {
+  it('gives a lock longer than the slowest tick takes', async () => {
+    const { workerOpts, CADENCE_MS } = await import('../src/queues.js');
+    // A tick must be able to outlive its own cadence without being declared
+    // stalled: the indexer walking 2,000 tokens routinely runs into the next
+    // interval, and that is normal rather than a fault.
+    expect(workerOpts.lockDuration).toBeGreaterThan(CADENCE_MS.indexer);
+    expect(workerOpts.lockDuration).toBeGreaterThanOrEqual(10 * 60_000);
+  });
+
+  it('tolerates more than one stall, because every tick is idempotent', async () => {
+    const { workerOpts } = await import('../src/queues.js');
+    // A deploy landing mid-tick orphans the lock. Failing the job on the first
+    // such event loses a sweep to a routine push.
+    expect(workerOpts.maxStalledCount).toBeGreaterThan(1);
+  });
+
+  it('keeps one tick at a time, which the fork budget and cursors rely on', async () => {
+    const { workerOpts } = await import('../src/queues.js');
+    expect(workerOpts.concurrency).toBe(1);
+  });
+});

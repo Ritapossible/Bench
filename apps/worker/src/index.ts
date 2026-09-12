@@ -39,7 +39,7 @@ import {
 } from '@bench/services';
 import { Queue, Worker } from 'bullmq';
 import { startHealthServer, type TickOutcome } from './health.js';
-import { CADENCE_MS, QUEUE, redisOptionsFrom, scheduleTick } from './queues.js';
+import { CADENCE_MS, QUEUE, redisOptionsFrom, scheduleTick, workerOpts } from './queues.js';
 
 /**
  * How long raw probe results are kept.
@@ -360,7 +360,7 @@ async function main(): Promise<void> {
         await audition.recordStats(await repo.stats(cfg.BENCH_CHAIN));
       },
       // concurrency 1: two indexer ticks would race on the same checkpoint.
-      { ...redis, concurrency: 1 },
+      { ...redis, ...workerOpts },
     ),
     new Worker(
       QUEUE.prober,
@@ -406,7 +406,7 @@ async function main(): Promise<void> {
           }
         }
       },
-      { ...redis, concurrency: 1 },
+      { ...redis, ...workerOpts },
     ),
     new Worker(
       QUEUE.anchor,
@@ -419,7 +419,7 @@ async function main(): Promise<void> {
             : `[bench:anchor] holding, ${r.pending} probes pending`,
         );
       },
-      { ...redis, concurrency: 1 },
+      { ...redis, ...workerOpts },
     ),
     /**
      * Auditions against a position a reader pasted, rather than the shared one.
@@ -543,7 +543,7 @@ async function main(): Promise<void> {
           throw err;
         }
       },
-      { ...redis, concurrency: 1 },
+      { ...redis, ...workerOpts },
     ),
     new Worker(
       QUEUE.audition,
@@ -612,7 +612,7 @@ async function main(): Promise<void> {
         console.log(`[bench:audition] ${summary}`);
       },
       // One at a time: each audition holds a forked chain per agent.
-      { ...redis, concurrency: 1 },
+      { ...redis, ...workerOpts },
     ),
     new Worker(
       QUEUE.scorer,
@@ -653,7 +653,7 @@ async function main(): Promise<void> {
             `thin=${r.thin} retracted=${r.retracted}`,
         );
       },
-      { ...redis, concurrency: 1 },
+      { ...redis, ...workerOpts },
     ),
     new Worker(
       QUEUE.crossref,
@@ -672,7 +672,7 @@ async function main(): Promise<void> {
             `confirmed=${summary.confirmed} agreement=${(summary.agreementBps / 100).toFixed(1)}%`,
         );
       },
-      { ...redis, concurrency: 1 },
+      { ...redis, ...workerOpts },
     ),
   ];
 

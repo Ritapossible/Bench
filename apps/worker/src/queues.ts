@@ -143,6 +143,30 @@ export function redisOptionsFrom(url: string): { connection: RedisOptions } {
  * forever, and an unbounded completed-job list is a slow Redis memory leak
  * that only shows up after the demo has been running for a week.
  */
+/**
+ * Worker options, and why the lock is measured in minutes.
+ *
+ * BullMQ declares a job stalled when its lock goes unrenewed for
+ * `lockDuration`, which defaults to 30 seconds, and `maxStalledCount`
+ * defaults to 1 - so a single missed renewal fails the job outright. That is
+ * sized for short jobs. An indexer tick on mainnet walks 2,000 tokens and
+ * resolves their cards over HTTP, and an on-demand report drives up to forty
+ * agents on forked chains; neither finishes in thirty seconds, and a deploy
+ * landing mid-tick orphans the lock entirely. The indexer's first stall on
+ * mainnet arrived exactly that way.
+ *
+ * Every tick in this worker is idempotent - the indexer upserts by
+ * (chain, tokenId) and only advances its cursor after the write lands, the
+ * prober appends probe rows, the report claims its request row - so retrying a
+ * stalled job repeats work rather than corrupting it. That is what makes a
+ * higher stall tolerance the right answer instead of a mask over one.
+ */
+export const workerOpts = {
+  concurrency: 1,
+  lockDuration: 10 * 60_000,
+  maxStalledCount: 3,
+} as const;
+
 export const repeatOpts = (everyMs: number) => ({
   repeat: { every: everyMs },
   removeOnComplete: { count: 100 },
