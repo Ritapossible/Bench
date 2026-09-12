@@ -62,6 +62,17 @@ export class FakeRegistryClient implements RegistryClient {
     return { agents, lastTokenId: last, reachedEnd: agents.length < limit };
   }
 
+  async headTokenId(): Promise<bigint> {
+    return this.agents.reduce((hi, a) => (a.id.tokenId > hi ? a.id.tokenId : hi), 0n);
+  }
+
+  /** Inclusive, and holes are skipped rather than ending the read. */
+  async readTokenRange(fromTokenId: bigint, toTokenId: bigint): Promise<readonly AgentRecord[]> {
+    return [...this.agents]
+      .filter((a) => a.id.tokenId >= fromTokenId && a.id.tokenId <= toTokenId)
+      .sort((a, b) => (a.id.tokenId < b.id.tokenId ? -1 : 1));
+  }
+
   async getAgent(id: AgentId): Promise<AgentRecord | null> {
     return this.agents.find((a) => a.id.tokenId === id.tokenId && a.id.chain === id.chain) ?? null;
   }

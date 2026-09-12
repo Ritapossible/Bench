@@ -57,8 +57,12 @@ const ENUMERATE_BATCH = 200;
 const DEFAULT_ENUMERATE_LIMIT = 5_000;
 /** Consecutive missing ids before the walk concludes the registry has ended. */
 const DEFAULT_GAP_TOLERANCE = 25;
+/** The head moves by ~2,000 a day; asking once a tick is enough. */
+const HEAD_CACHE_MS = 10 * 60_000;
 
 export class Erc8004RegistryClient implements RegistryClient {
+  #head: { id: bigint; at: number } | null = null;
+
   readonly #client: PublicClient;
   readonly #cards: CardResolver;
   readonly #opts: RegistryClientOptions;
@@ -146,6 +150,69 @@ export class Erc8004RegistryClient implements RegistryClient {
       card: null,
       registeredAt: new Date(0),
     };
+  }
+
+  /**
+   * The highest minted token id, found by doubling then bisecting.
+   *
+   * `totalSupply()` reverts on both deployments, so there is nothing to read.
+   * Roughly forty `ownerOf` calls, and the result is cached briefly because
+   * the indexer asks once a tick and the answer moves by about two thousand a
+   * day.
+   */
+  async headTokenId(): Promise<bigint> {
+    const now = Date.now();
+    if (this.#head !== null && now - this.#head.at < HEAD_CACHE_MS) return this.#head.id;
+
+    const exists = async (id: bigint): Promise<boolean> => {
+      const [owner] = await this.#batch([id], 'ownerOf');
+      return owner !== null && owner !== undefined;
+    };
+
+    let lo = 0n;
+    let hi = 1n;
+    while (await exists(hi)) {
+      lo = hi;
+      hi *= 2n;
+      // A registry larger than this is not a registry we can walk anyway, and
+      // an unbounded doubling against a misbehaving node would never return.
+      if (hi > 1n << 26n) break;
+    }
+    while (lo + 1n < hi) {
+      const mid = (lo + hi) / 2n;
+      if (await exists(mid)) lo = mid;
+      else hi = mid;
+    }
+    this.#head = { id: lo, at: now };
+    return lo;
+  }
+
+  /** An inclusive range, holes skipped rather than treated as the end. */
+  async readTokenRange(fromTokenId: bigint, toTokenId: bigint): Promise<readonly AgentRecord[]> {
+    if (toTokenId < fromTokenId) return [];
+    const agents: AgentRecord[] = [];
+    for (let start = fromTokenId; start <= toTokenId; start += BigInt(ENUMERATE_BATCH)) {
+      const end = start + BigInt(ENUMERATE_BATCH) - 1n;
+      const last = end > toTokenId ? toTokenId : end;
+      const ids: bigint[] = [];
+      for (let id = start; id <= last; id += 1n) ids.push(id);
+      const [owners, uris] = await Promise.all([
+        this.#batch(ids, 'ownerOf'),
+        this.#batch(ids, 'tokenURI'),
+      ]);
+      for (const [i, tokenId] of ids.entries()) {
+        const owner = owners[i];
+        if (owner === null || owner === undefined) continue;
+        agents.push({
+          id: { chain: this.#opts.chain, tokenId },
+          owner: owner as Address,
+          cardUri: uris[i] ?? '',
+          card: null,
+          registeredAt: new Date(0),
+        });
+      }
+    }
+    return agents;
   }
 
   /**

@@ -334,7 +334,13 @@ async function main(): Promise<void> {
         // every free BSC endpoint prunes it, so a log scan reaches this month
         // and nothing before it; ownerOf and tokenURI are current state and
         // reach the whole registry. See Indexer.enumerationTick.
-        const r = await indexer.enumerationTick();
+        // Newest-first on mainnet: see recentFirstTick. Ascending on testnet,
+        // where 2,400 tokens are covered in half an hour and the order buys
+        // nothing worth a second code path being exercised.
+        const r =
+          cfg.BENCH_CHAIN === 'bsc-mainnet'
+            ? await indexer.recentFirstTick()
+            : await indexer.enumerationTick();
         // A registry with no token minted since the last tick is the normal
         // steady state, not a stall.
         outcome.set(QUEUE.indexer, r.upserted > 0 || r.resweeping ? 'worked' : 'nothing-due');

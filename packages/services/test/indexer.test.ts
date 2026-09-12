@@ -49,6 +49,14 @@ class StubRegistry implements RegistryClient {
   async headBlock(): Promise<bigint> {
     return this.head;
   }
+  async headTokenId(): Promise<bigint> {
+    return this.agents.reduce((hi, a) => (a.id.tokenId > hi ? a.id.tokenId : hi), 0n);
+  }
+  async readTokenRange(from: bigint, to: bigint): Promise<readonly AgentRecord[]> {
+    return [...this.agents]
+      .filter((a) => a.id.tokenId >= from && a.id.tokenId <= to)
+      .sort((a, b) => (a.id.tokenId < b.id.tokenId ? -1 : 1));
+  }
   async listAgents(q?: ListAgentsQuery): Promise<readonly AgentRecord[]> {
     this.lastQuery = q;
     return this.agents;

@@ -35,6 +35,13 @@ export interface IndexerOptions {
    * the existing catalog is not a fix in production.
    */
   readonly resweepAfterMs?: number;
+  /**
+   * Walk the registry from its newest token id downward.
+   *
+   * See `recentFirstTick`. Off by default, because on a small registry the
+   * order does not matter and ascending is simpler to reason about.
+   */
+  readonly recentFirst?: boolean;
   readonly chain: ChainName;
   /** Registry deployment block. Starting at 0 wastes hours on empty ranges. */
   readonly startBlock: bigint;
@@ -116,6 +123,9 @@ export function indexerProfileFor(chain: string): {
 }
 
 export class Indexer {
+  /** Whether this process has refreshed the top of the registry yet. */
+  #refreshedTop = false;
+
   /**
    * When the last full pass began, in this process.
    *
@@ -202,6 +212,65 @@ export class Indexer {
     await this.repo.setTokenCursor(this.opts.chain, 0n);
     this.#lastSweepAt = now;
     return true;
+  }
+
+  /**
+   * ============================================================================
+   * Index the newest end of the registry first.
+   * ============================================================================
+   *
+   * Walking from token zero is the obvious order and the wrong one for a
+   * registry this size. Measured against BSC mainnet: of the oldest 28,000
+   * registrations, 1.27% declare a callable endpoint and none of 1,500 sampled
+   * answered their own protocol, while registry-wide the same script measures
+   * 11.40% and 0.45%. So an ascending walk spends its first thirteen hours
+   * ingesting the deadest slice there is, and publishes a catalog of it.
+   *
+   * Descending costs exactly the same total work and puts the useful agents in
+   * front. The cursor is the same column, reinterpreted as a low-water mark:
+   * the lowest id indexed so far.
+   *
+   * **The first tick after a boot always re-reads the top.** New registrations
+   * arrive above the head - about two thousand a day here - so the newest batch
+   * is the one most worth refreshing, and a restart should not have to reach
+   * the bottom before it notices them. It also makes the switch from an
+   * ascending deployment self-healing: whatever id the old walk left behind is
+   * overwritten with the real head on the first tick, rather than being
+   * mistaken for a descent already in progress.
+   *
+   * Reaching zero starts again from the head, which by then has moved.
+   */
+  async recentFirstTick(): Promise<EnumerationTickResult> {
+    const head = await this.registry.headTokenId();
+    const batch = BigInt(this.opts.batchSize ?? DEFAULTS.batchSize);
+    const stored = (await this.repo.checkpoint(this.opts.chain))?.lastTokenId ?? null;
+
+    const fromTop = !this.#refreshedTop || stored === null || stored <= 0n || stored > head;
+    this.#refreshedTop = true;
+
+    const to = fromTop ? head : stored - 1n;
+    const rawFrom = to - batch + 1n;
+    const from = rawFrom < 0n ? 0n : rawFrom;
+
+    const discovered = await this.registry.readTokenRange(from, to);
+    const withCards = await this.attachCards(discovered);
+    const upserted = await this.repo.upsertAgents(withCards);
+    // After the write, as everywhere else here: checkpointing first would turn
+    // a failed upsert into a permanently skipped range.
+    await this.repo.setTokenCursor(this.opts.chain, from);
+
+    return {
+      resweeping: fromTop && stored !== null && stored > 0n && stored <= head,
+      // The descent has covered the whole registry when it lands on zero; the
+      // next tick starts again from a head that has moved since.
+      reachedEnd: from === 0n,
+      fromTokenId: from,
+      lastTokenId: to,
+      discovered: discovered.length,
+      cardsResolved: withCards.filter((r) => r.card !== null).length,
+      cardsFailed: withCards.filter((r) => r.card === null).length,
+      upserted,
+    };
   }
 
   /**

@@ -55,6 +55,27 @@ export interface RegistryClient {
    * holding its own RPC client — a second place for the chain config to drift.
    */
   headBlock(): Promise<bigint>;
+  /**
+   * The highest token id the registry has minted.
+   *
+   * Needed because the useful end of a large registry is the *recent* end. On
+   * BSC mainnet the oldest 28,000 registrations declare a callable endpoint
+   * 1.27% of the time against 11.40% registry-wide, so a catalog that fills
+   * from zero spends its first half-day ingesting the deadest slice of the
+   * registry while showing almost nothing live.
+   *
+   * There is no `totalSupply` on these contracts - it reverts - so this is
+   * found by doubling past the end and bisecting back, about forty reads.
+   */
+  headTokenId(): Promise<bigint>;
+  /**
+   * Read an inclusive range of token ids, skipping the ones that do not exist.
+   *
+   * Unlike `enumerateAgents`, a gap does not end the read: walking downward
+   * through a registry, holes are burned or never-minted ids in the middle of
+   * it, and stopping at one would truncate the pass.
+   */
+  readTokenRange(fromTokenId: bigint, toTokenId: bigint): Promise<readonly AgentRecord[]>;
   listAgents(q?: ListAgentsQuery): Promise<readonly AgentRecord[]>;
   /**
    * Discover agents by walking token ids rather than registration logs.
