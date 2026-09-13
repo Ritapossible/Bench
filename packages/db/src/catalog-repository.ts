@@ -70,29 +70,51 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 const LIVENESS_HISTORY_LIMIT = 500;
 
 /**
- * The card as it is stored, which is the card without `raw`.
+ * ============================================================================
+ * What a card costs to keep, weighed against what it can ever be used for.
+ * ============================================================================
  *
- * `raw` is the entire original registration object, kept so a later parser
- * improvement could re-mine cards already indexed without re-fetching them.
- * That was a fair trade at 2,400 testnet agents. At 345,879 mainnet ones it is
- * the single largest thing in this database - it duplicates the name,
- * description and endpoints that sit beside it in their own fields, and on
- * this registry it also carries whatever else a stranger put in their
- * registration, which includes pasted shell scripts and multi-kilobyte prose.
+ * Two trims, both forced by a 512 MB ceiling that 345,879 mainnet
+ * registrations went through - every write failing with "could not extend
+ * file", the prober unable to record a probe, and the catalog reporting zero
+ * verified-live agents because liveness could not be refreshed rather than
+ * because anything had died.
  *
- * Nothing reads it. Not one page, not one service - checked before removing
- * it. And the database it filled has a 512 MB ceiling, which it hit: every
- * write began failing with "could not extend file", the prober stopped
- * recording probes, and the catalog reported zero verified-live agents because
- * liveness could no longer be refreshed rather than because anything had died.
+ * **`raw` goes for every card.** It is the whole original registration, kept
+ * so a later parser improvement could re-mine indexed cards without
+ * re-fetching. Fair at 2,400 testnet agents; at 345,879 it duplicates the
+ * name, description and endpoints stored beside it in their own columns, and
+ * on this registry it also carries whatever else a stranger put in a
+ * registration - pasted shell scripts, multi-kilobyte prose, JSON fragments.
+ * Nothing reads it; re-mining still works and costs a re-fetch, which the
+ * sweep already does.
  *
- * Re-mining is still possible; it costs a re-fetch, which is what the
- * indexer's sweep already does.
+ * **A card with nothing callable in it keeps only its name.** Measured over a
+ * uniform sample, 88.6% of these registrations declare no A2A or MCP endpoint
+ * at all: they cannot be probed, auditioned or hired, and no page shows more
+ * of them than a name and a category. Their descriptions are the single
+ * largest remaining weight in the table and are read by nobody.
+ *
+ * The row itself stays, and the card stays non-null, which matters: the
+ * registry-health figures are `count(*)` and `count(card is not null)` over
+ * this table, and they are the denominators that make "0.45% live" mean
+ * anything. Dropping the rows would have made the headline number cheaper to
+ * store and impossible to state.
  */
 function storable(card: AgentCard | null): Omit<AgentCard, 'raw'> | null {
   if (card === null) return null;
   const { raw: _raw, ...rest } = card;
-  return rest;
+
+  const callable = rest.endpoints.some((e) => e.protocol === 'a2a' || e.protocol === 'mcp');
+  if (callable) return rest;
+
+  return {
+    name: rest.name,
+    description: '',
+    category: rest.category,
+    endpoints: [],
+    permissions: { contractAllowlist: [], requiresTokenApprovals: false },
+  };
 }
 
 export class PgCatalogRepository implements CatalogRepository {
