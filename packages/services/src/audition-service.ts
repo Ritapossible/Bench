@@ -49,6 +49,8 @@ export interface AuditionServiceOptions {
   readonly agentTimeoutMs?: number;
   /** Skip agents auditioned more recently than this. */
   readonly reauditionAfterMs?: number;
+  /** How long a failed attempt holds an agent off. See DEFAULTS. */
+  readonly retryFailedAfterMs?: number;
   readonly clock?: () => Date;
 }
 
@@ -113,6 +115,25 @@ const DEFAULTS = {
   maxConcurrentForks: 3,
   agentTimeoutMs: 90_000,
   reauditionAfterMs: 24 * 60 * 60 * 1000,
+  /**
+   * How long a *failed* attempt holds an agent off. Much shorter, and the
+   * reason is not politeness to the agent - it is that the two hold different
+   * kinds of fact.
+   *
+   * A completed audition is a measurement, and re-measuring the same agent on
+   * the same position inside a day buys nothing. A failure is an unfinished
+   * attempt, and about half of the ones in the catalog turned out to be Bench
+   * asking wrongly - a missing `kind` on the A2A message, a task POSTed at an
+   * agent card, an audition paragraph stuffed into `token_in`. Every one of
+   * those was fixed in an afternoon and every one of them would have kept
+   * publishing "could not be driven" under a stranger's name for a further
+   * twenty-four hours, because the record of Bench's own mistake was treated
+   * as a reason not to try again.
+   *
+   * A retry that still fails costs one refusal, which is cheap: the failures
+   * are fast, and the fork is not seeded until an agent accepts the task.
+   */
+  retryFailedAfterMs: 60 * 60 * 1000,
 } as const;
 
 /** Builds the shim that drives a given agent. Injected so tests need no network. */
@@ -170,6 +191,8 @@ export class AuditionService {
 
     const now = this.now();
     const cutoff = now.getTime() - (this.opts.reauditionAfterMs ?? DEFAULTS.reauditionAfterMs);
+    const retryCutoff =
+      now.getTime() - (this.opts.retryFailedAfterMs ?? DEFAULTS.retryFailedAfterMs);
 
     const candidates: { agent: (typeof page.entries)[number]['record']; shim: ShadowAgent }[] = [];
     let skipped = 0;
@@ -186,12 +209,17 @@ export class AuditionService {
      * considered agent and got slower as the catalog grew - the wrong
      * direction for the same reason the catalog's own reads are batched.
      */
-    const lastRunAt = new Map<string, number>();
+    const lastRun = new Map<string, { readonly at: number; readonly completed: boolean }>();
     await Promise.all(
       page.entries.map(async (entry) => {
         const recent = await this.deps.store.runsFor(entry.record.id, 1);
-        const at = recent[0]?.finishedAt ?? recent[0]?.startedAt ?? null;
-        if (at !== null) lastRunAt.set(agentKeyOf(entry.record.id), at.getTime());
+        const run = recent[0];
+        const at = run?.finishedAt ?? run?.startedAt ?? null;
+        if (run === undefined || at === null) return;
+        lastRun.set(agentKeyOf(entry.record.id), {
+          at: at.getTime(),
+          completed: run.status === 'complete',
+        });
       }),
     );
 
@@ -214,9 +242,9 @@ export class AuditionService {
         continue;
       }
       const last =
-        opts.ignoreRecency === true ? null : (lastRunAt.get(agentKeyOf(entry.record.id)) ?? null);
-      if (last !== null && last >= cutoff) {
-        skip('audited recently');
+        opts.ignoreRecency === true ? null : (lastRun.get(agentKeyOf(entry.record.id)) ?? null);
+      if (last !== null && last.at >= (last.completed ? cutoff : retryCutoff)) {
+        skip(last.completed ? 'audited recently' : 'attempt failed recently');
         continue;
       }
       const shim = this.deps.agentFor({ agent: entry.record });

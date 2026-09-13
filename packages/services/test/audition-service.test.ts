@@ -286,6 +286,51 @@ describe('AuditionService skip reasons', () => {
     expect(r.auditioned).toBe(0);
   });
 
+  /**
+   * A failed attempt and a completed one are not the same fact.
+   *
+   * About half the failures in the live catalog turned out to be Bench asking
+   * wrongly - a missing `kind` on the A2A message, a task POSTed at an agent
+   * card, an audition paragraph stuffed into `token_in`. Holding those off for
+   * the full day would have kept publishing "could not be driven" under
+   * strangers' names for twenty-four hours after the fix, because the record
+   * of Bench's own mistake counted as a reason not to try again.
+   */
+  it('retries a failed attempt sooner than it re-runs a completed one', async () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const run = (tokenId: bigint, status: ShadowRun['status']): ShadowRun => ({
+      id: `r-${tokenId}`,
+      agent: { chain: 'bsc-testnet', tokenId },
+      window: window_,
+      position,
+      status,
+      startedAt: twoHoursAgo,
+      finishedAt: twoHoursAgo,
+      egressSpentUsd: 0,
+      gasSpentUsd: 0,
+    });
+    class PerAgentStore extends StubStore {
+      override async runsFor(a: { readonly tokenId: bigint }): Promise<readonly ShadowRun[]> {
+        if (a.tokenId === 1n) return [run(1n, 'complete')];
+        if (a.tokenId === 2n) return [run(2n, 'failed')];
+        return [];
+      }
+    }
+    const svc = build(
+      [agent(1n, true), agent(2n, true)],
+      new PerAgentStore(),
+      new FakeForks([10_000, 10_000]),
+    );
+
+    const r = await svc.tick(window_, position);
+
+    // Completed two hours ago: inside the day, left alone. Failed two hours
+    // ago: outside the hour, asked again.
+    expect(r.skipReasons['audited recently']).toBe(1);
+    expect(r.skipReasons['attempt failed recently']).toBeUndefined();
+    expect(r.auditioned).toBe(1);
+  });
+
   it('reports nothing to explain when nothing was skipped', async () => {
     const svc = build([], new StubStore(), new FakeForks([]));
     const r = await svc.tick(window_, position);
