@@ -74,7 +74,11 @@ const ACTION_HINTS = [
 
 interface McpTool {
   readonly name: string;
-  readonly inputSchema?: { readonly properties?: Record<string, unknown> };
+  readonly inputSchema?: {
+    readonly properties?: Record<string, unknown>;
+    /** Which of them the server will reject the call for omitting. */
+    readonly required?: readonly string[];
+  };
 }
 
 function chooseTool(tools: readonly McpTool[]): McpTool | null {
@@ -98,13 +102,77 @@ function taskText(ctx: ShadowAgentContext): string {
 }
 
 /**
- * Fill whatever the tool asked for with the task.
+ * The audition's facts, keyed by what an argument is called.
  *
- * A tool's schema is the agent author's, so there is no argument name this can
- * rely on. Every string-shaped top-level property gets the task text and the
- * endpoint, which is cheap and means a server naming its argument `prompt`,
- * `query`, `task` or `input` is all handled without a list of guesses that
- * would go stale.
+ * Matched in order, so the more specific pattern wins: `accountPrivateKey`
+ * contains "account", and answering it with the address rather than the key
+ * hands the agent something it cannot sign with.
+ *
+ * This is a mapping from argument *names* to the same facts for every agent,
+ * not a table of per-agent request bodies. Every agent still gets the same
+ * task, the same position and the same window; what varies is only which of
+ * its own argument names each fact lands in.
+ */
+function factsFor(ctx: ShadowAgentContext): readonly (readonly [RegExp, string])[] {
+  const cap = ctx.position.capital;
+  const human = (Number(cap.amount) / 10 ** cap.decimals).toString();
+  // The counter-asset, where the position names one. A spot position is held
+  // against the chain's native token, which is what a swap out of it targets.
+  const counter =
+    typeof ctx.position.params['token1'] === 'string' ? ctx.position.params['token1'] : 'WBNB';
+  return [
+    [/private_?key|secret|signer_?key/i, ctx.controllerKey],
+    [/rpc|endpoint|node_?url|provider_?url/i, ctx.rpcUrl],
+    [/account|address|wallet|owner|holder|from_?addr/i, ctx.controller],
+    [/token_?in|from_?token|sell_?token|input_?token|base_?token/i, cap.token],
+    [/token_?out|to_?token|buy_?token|output_?token|quote_?token/i, counter],
+    [/amount|size|qty|quantity|notional/i, human],
+    [/slippage/i, '100'],
+    [/symbol|ticker/i, cap.symbol],
+    [/chain|network/i, 'bsc'],
+  ];
+}
+
+/** A value of the right type for a property we have no fact for. */
+function placeholder(schema: unknown): unknown {
+  const rec = (typeof schema === 'object' && schema !== null ? schema : {}) as Record<
+    string,
+    unknown
+  >;
+  if ('default' in rec) return rec['default'];
+  if (Array.isArray(rec['enum']) && rec['enum'].length > 0) return rec['enum'][0];
+  switch (rec['type']) {
+    case 'integer':
+    case 'number':
+      return typeof rec['minimum'] === 'number' ? rec['minimum'] : 0;
+    case 'boolean':
+      return false;
+    case 'array':
+      return [];
+    case 'object':
+      return {};
+    default:
+      return '';
+  }
+}
+
+/**
+ * Fill whatever the tool asked for.
+ *
+ * The first version put the task prose into every string property. That is
+ * right for a tool whose argument is called `prompt` or `query` and wrong for
+ * every tool with a schema that means something: SwapGod declares
+ * `swap_quote(token_in, token_out, amount_in)`, all three required strings, and
+ * received three copies of a paragraph beginning "You are being evaluated on a
+ * spot position". The agent answered "Unknown tool or invalid arguments" and
+ * Bench published "could not be driven" against its name - a verdict about
+ * Bench's request, recorded as a fact about the agent.
+ *
+ * So: map by name first. If nothing maps, the tool takes free text and gets
+ * the prose as before. If something maps, the tool has a real schema and its
+ * remaining properties get prose only where the name suggests free text -
+ * anything else required is filled with a value of the right type so the call
+ * is at least well-formed, and anything else optional is left out.
  */
 function argumentsFor(tool: McpTool, ctx: ShadowAgentContext): Record<string, unknown> {
   const props = tool.inputSchema?.properties;
@@ -118,16 +186,42 @@ function argumentsFor(tool: McpTool, ctx: ShadowAgentContext): Record<string, un
     };
   }
 
+  const facts = factsFor(ctx);
+  const required = new Set(tool.inputSchema?.required ?? []);
   const args: Record<string, unknown> = {};
+  const unmatched: [string, unknown][] = [];
+
   for (const [key, schema] of Object.entries(props)) {
-    const type = (schema as { type?: unknown } | null)?.type;
-    if (type !== undefined && type !== 'string') continue;
-    args[key] = /rpc|endpoint|url|node/i.test(key)
-      ? ctx.rpcUrl
-      : /account|address|wallet|from/i.test(key)
-        ? ctx.controller
-        : task;
+    const fact = facts.find(([pattern]) => pattern.test(key));
+    if (fact !== undefined) {
+      const type = (schema as { type?: unknown } | null)?.type;
+      // Numeric arguments still want the number, not the string spelling of it.
+      args[key] =
+        (type === 'integer' || type === 'number') &&
+        fact[1] !== '' &&
+        !Number.isNaN(Number(fact[1]))
+          ? Number(fact[1])
+          : fact[1];
+      continue;
+    }
+    unmatched.push([key, schema]);
   }
+
+  const structured = Object.keys(args).length > 0;
+  for (const [key, schema] of unmatched) {
+    const type = (schema as { type?: unknown } | null)?.type;
+    const freeText =
+      /task|prompt|query|question|instruction|message|request|description|goal/i.test(key);
+    if (freeText && (type === undefined || type === 'string')) {
+      args[key] = task;
+    } else if (!structured && (type === undefined || type === 'string')) {
+      // No schema worth reading: the old behaviour, which is right here.
+      args[key] = task;
+    } else if (required.has(key)) {
+      args[key] = placeholder(schema);
+    }
+  }
+
   return Object.keys(args).length === 0
     ? { task, rpcUrl: ctx.rpcUrl, account: ctx.controller }
     : args;

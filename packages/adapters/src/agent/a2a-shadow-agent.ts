@@ -153,6 +153,11 @@ export class A2AShadowAgent implements ShadowAgent {
       method: 'message/send',
       params: {
         message: {
+          // Required by A2A 0.3.0 and omitted here since the first version.
+          // One agent in the catalog says so precisely - "params.message must
+          // be a Message with kind, role and a non-empty parts array" - and
+          // Bench recorded that as the agent declining the audition.
+          kind: 'message',
           role: 'user',
           parts: [part],
           messageId: `bench-${this.id}-${ctx.window.id}`,

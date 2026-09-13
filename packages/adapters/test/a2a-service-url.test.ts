@@ -90,16 +90,26 @@ describe('resolveA2AServiceUrl', () => {
     );
   });
 
-  it('does not fetch an endpoint that is already a service', async () => {
-    let called = false;
-    const spy = (async () => {
-      called = true;
-      throw new Error('should not be called');
-    }) as never;
+  it('drives a service endpoint unchanged when the GET is not a card', async () => {
+    // The endpoint is asked either way - a shape test guessed `/card` wrong
+    // and published a 404 about a working agent - but an answer that is not a
+    // card changes nothing about where the task is sent.
     await expect(
-      resolveA2AServiceUrl('https://proofera-lp.tangvu.dev/', { fetchImpl: spy }),
+      resolveA2AServiceUrl('https://proofera-lp.tangvu.dev/', {
+        fetchImpl: fetchOk('method not allowed', 405),
+      }),
     ).resolves.toBe('https://proofera-lp.tangvu.dev/');
-    expect(called).toBe(false);
+  });
+
+  it('follows a card at a path no shape test would have guessed', async () => {
+    // Two registrations in the catalog point at exactly this, and the service
+    // they name is one path segment up.
+    const url = 'https://api.bortagent.xyz/api/a2a/11168/card';
+    await expect(
+      resolveA2AServiceUrl(url, {
+        fetchImpl: fetchOk('{"url":"https://api.bortagent.xyz/api/a2a/11168"}'),
+      }),
+    ).resolves.toBe('https://api.bortagent.xyz/api/a2a/11168');
   });
 
   it('drives the registered url when the card cannot be read', async () => {

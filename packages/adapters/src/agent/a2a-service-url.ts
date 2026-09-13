@@ -27,7 +27,19 @@ import { safeFetch } from '../net/safe-fetch.js';
  * it does not need one.
  */
 
-/** Card-shaped: a well-known path, or anything ending in `.json`. */
+/**
+ * Card-shaped: a well-known path, anything ending in `.json`, or a path whose
+ * last segment is some spelling of "card".
+ *
+ * Kept as a description rather than a gate. Two registrations in the catalog
+ * point their A2A service at `https://api.bortagent.xyz/api/a2a/<id>/card`,
+ * which is neither well-known nor `.json`, so the hop was skipped, the task
+ * was POSTed at the card, and the catalog published "agent returned HTTP 404
+ * to the audition task" about an agent whose card names a working service one
+ * path segment up. A guess from the shape of a URL decided whether an agent
+ * got a fair hearing; now the guess only decides whether a mismatch is
+ * surprising.
+ */
 export function looksLikeAgentCard(url: string): boolean {
   let path: string;
   try {
@@ -35,7 +47,9 @@ export function looksLikeAgentCard(url: string): boolean {
   } catch {
     return false;
   }
-  return path.startsWith('/.well-known/') || path.endsWith('.json');
+  if (path.startsWith('/.well-known/') || path.endsWith('.json')) return true;
+  const last = path.replace(/\/+$/, '').split('/').pop() ?? '';
+  return last === 'card' || last === 'agent-card' || last === 'agentcard';
 }
 
 /**
@@ -115,8 +129,17 @@ export async function resolveA2AService(
     readonly fetchImpl?: typeof safeFetch;
   } = {},
 ): Promise<ResolvedA2AService> {
-  if (!looksLikeAgentCard(endpointUrl)) return { url: endpointUrl, card: null };
-
+  /**
+   * Asked of every endpoint, not only card-shaped ones.
+   *
+   * The shape test above cannot be the gate. It got `/card` wrong and there is
+   * no reason to believe it has stopped being wrong - registrations are
+   * written by strangers and the convention is not enforced anywhere. A GET is
+   * safe by definition, an A2A service that does not serve its card answers
+   * something this refuses to parse, and every failure path already falls back
+   * to the registered URL unchanged. One request against a fork held for
+   * minutes is not a cost worth a wrong answer.
+   */
   const fetchOne = opts.fetchImpl ?? safeFetch;
   try {
     const res = await fetchOne(endpointUrl, {

@@ -276,7 +276,21 @@ describe('an agent that works asynchronously', () => {
       impl: (async (_url: string, opts?: { body?: string }) => {
         const parsed =
           opts?.body === undefined ? {} : (JSON.parse(opts.body) as { method?: string });
-        if (parsed.method !== undefined) methods.push(parsed.method);
+        // The driver GETs the endpoint first to see whether it is an agent
+        // card naming a service elsewhere. That is not a JSON-RPC call and
+        // must not consume a scripted reply - counting it once cost this
+        // script its first response and made the task appear to settle a poll
+        // early.
+        if (parsed.method === undefined) {
+          return {
+            status: 405,
+            body: 'method not allowed',
+            headers: new Headers(),
+            truncated: false,
+            latencyMs: 1,
+          };
+        }
+        methods.push(parsed.method);
         const body = bodies[Math.min(i, bodies.length - 1)] ?? '{}';
         i += 1;
         return { status: 200, body, headers: new Headers(), truncated: false, latencyMs: 1 };

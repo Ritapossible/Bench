@@ -101,16 +101,33 @@ export function taskText(ctx: ShadowAgentContext): string {
  * audition's own facts under names that say what they are.
  */
 export function taskData(ctx: ShadowAgentContext, skillId: string): Record<string, unknown> {
-  return {
-    skill: skillId,
+  const facts = {
     task_description: taskText(ctx),
     rpc_url: ctx.rpcUrl,
     chain: 'bnb-smart-chain',
     account: ctx.controller,
-    // The key is in the payload as well as the prose. An agent that reads
-    // structured input should not have to parse a secret out of a sentence,
-    // and one that cannot sign cannot be auditioned at all.
     account_private_key: ctx.controllerKey,
+  };
+  return {
+    skill: skillId,
+    /**
+     * The same facts again, nested.
+     *
+     * Two agents in the catalog refuse a flat payload and say what they want
+     * in the refusal: `no data part named a skill. Include { "kind": "data",
+     * "data": { "skill": "...", "input": ... } }`. Bench was already sending
+     * `skill` and was recorded as declined for the half it was not sending.
+     *
+     * Both spellings go in the same part rather than becoming a second
+     * attempt, because they carry identical facts - an agent reading either
+     * reads the same audition - and a retry costs a round trip on a held fork
+     * to communicate nothing new.
+     */
+    input: facts,
+    // Flat as well as nested: the key is in the payload as well as the prose,
+    // because an agent that reads structured input should not have to parse a
+    // secret out of a sentence, and one that cannot sign cannot be auditioned.
+    ...facts,
     position: {
       kind: ctx.position.kind,
       label: ctx.position.label,
