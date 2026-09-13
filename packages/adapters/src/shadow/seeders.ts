@@ -254,22 +254,52 @@ async function callAs(ctx: SeedContext, to: string, data: Hex, value = 0n): Prom
    * guard, because the failure then surfaces two calls later as an
    * uninterpretable "math error" from the protocol.
    */
+  const started = Date.now();
   const receipt = await waitForReceipt(ctx, hash);
   if (receipt === null) {
-    throw new BenchError('FORK_UNAVAILABLE', `seeding call to ${to} was never mined`);
+    // The elapsed time is in the message because "never mined" cannot be
+    // acted on: a call that will never mine and one that needed a second
+    // longer than we waited read identically, and the fix is different.
+    throw new BenchError(
+      'FORK_UNAVAILABLE',
+      `seeding call to ${to} was not mined within ${Math.round((Date.now() - started) / 1000)}s`,
+    );
   }
   if (receipt.status === '0x0') {
     throw new BenchError('FORK_UNAVAILABLE', `seeding call to ${to} reverted`);
   }
 }
 
+/**
+ * Six seconds was a budget for a local fork; this one is backed by a remote
+ * archive node.
+ *
+ * anvil auto-mines, so on a warm local fork the receipt is there on the second
+ * poll and forty tries at 150ms was generous. Forking BSC mainnet from a
+ * hosted archive node is a different shape: executing a transaction that
+ * touches contracts anvil has not cached yet blocks on upstream fetches, one
+ * network round trip per cold storage slot, and a PancakeSwap swap touches
+ * many. The first audition to run against mainnet failed on exactly this -
+ * "seeding call was never mined" - having waited six seconds for a fork that
+ * was still pulling state.
+ *
+ * Thirty seconds, polled at a widening interval so a warm fork still returns
+ * on the second try and a cold one is not asked two hundred times. A call that
+ * genuinely cannot mine still fails; it now fails against a budget matched to
+ * where the state actually lives.
+ */
+const RECEIPT_BUDGET_MS = 30_000;
+
 async function waitForReceipt(ctx: SeedContext, hash: string): Promise<{ status?: string } | null> {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  const deadline = Date.now() + RECEIPT_BUDGET_MS;
+  let waitMs = 100;
+  while (Date.now() < deadline) {
     const receipt = (await ctx.rpc('eth_getTransactionReceipt', [hash])) as {
       status?: string;
     } | null;
     if (receipt !== null) return receipt;
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    waitMs = Math.min(waitMs * 2, 1_000);
   }
   return null;
 }
