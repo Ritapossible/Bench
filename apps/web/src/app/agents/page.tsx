@@ -1,5 +1,6 @@
 import { AGENT_CATEGORIES, isThin, type AgentCategory } from '@bench/core';
 import { data, isLiveData } from '@/lib/data/index';
+import { showLiveOnly } from '@/lib/catalog-view';
 import { CatalogFilter, type AgentRow } from '@/components/CatalogFilter';
 import { agentHref } from '@/lib/format';
 
@@ -33,7 +34,6 @@ export default async function AgentsPage({
   // Verified-live is the default view, and `?live=false` opts out. That way a
   // shared link carries the filter it was shared under, which the old client
   // state could not do.
-  const chosen = params.live !== undefined;
   let liveOnly = params.live !== 'false';
   const category = AGENT_CATEGORIES.includes(params.category as never)
     ? (params.category as AgentCategory)
@@ -61,19 +61,10 @@ export default async function AgentsPage({
   let agents = initial;
   let counts = initialCounts;
 
-  /**
-   * Never open on an empty page.
-   *
-   * Verified-live is the right default once anything is verified, and a
-   * catalog of ten thousand agents behind a filter matching none of them is a
-   * marketplace that looks empty rather than one that looks selective. That is
-   * what a visitor saw while the prober worked through its backlog: "Showing 0
-   * of 0 indexed" over a registry the same page reports as 346,449.
-   *
-   * Only when the filter was not asked for. `?live=true` is a deliberate
-   * request and an honest zero is the right answer to it.
-   */
-  if (!chosen && liveOnly && agents.entries.length === 0) {
+  // Never open on an empty page - but only when the filter was not asked for.
+  // See showLiveOnly, which is a separate function because the condition that
+  // used to live here was true for every array ever made.
+  if (liveOnly && !showLiveOnly(params.live, agents.length)) {
     liveOnly = false;
     [agents, counts] = await Promise.all([
       data.listAgents({ verifiedLiveOnly: false, ...(category === 'all' ? {} : { category }) }),

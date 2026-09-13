@@ -94,14 +94,23 @@ export function CatalogFilter({
   readonly liveOnly: boolean;
   readonly totalIndexed: number;
 }) {
+  /**
+   * Every link says which view it leads to, including the default one.
+   *
+   * `live` used to be written only when false, so turning the filter back on
+   * produced a bare `/agents` - the same URL as a first visit, and therefore
+   * not a choice the page could see. With the empty-catalog fallback in front
+   * of it that made the checkbox unturn-on-able whenever nothing was verified:
+   * click, land on `/agents`, fall back to off, box still empty. Saying it
+   * both ways costs a query parameter and makes the toggle mean something.
+   */
   const href = (next: { category?: string; live?: boolean }): string => {
     const c = next.category ?? category;
     const l = next.live ?? liveOnly;
     const params = new URLSearchParams();
     if (c !== 'all') params.set('category', c);
-    if (!l) params.set('live', 'false');
-    const q = params.toString();
-    return q === '' ? '/agents' : `/agents?${q}`;
+    params.set('live', l ? 'true' : 'false');
+    return `/agents?${params.toString()}`;
   };
 
   const shown = rows;
