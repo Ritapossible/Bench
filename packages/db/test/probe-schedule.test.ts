@@ -95,6 +95,38 @@ describeDb('dueForProbe scheduling', () => {
     expect(await catalog.dueForProbe(10, HOUR)).toHaveLength(0);
   });
 
+  it('puts an endpoint part-way to a verdict ahead of never-probed ones', async () => {
+    /**
+     * The ordering that decides whether "verified live" can ever leave zero.
+     *
+     * A verdict needs three probes, the prober takes two hundred endpoints a
+     * tick, and the indexer adds thousands of never-probed endpoints a day.
+     * Ordered by probe count ascending, the unprobed always win and no
+     * endpoint reaches a third probe - which is how a reference agent
+     * answering in 276ms with 100% uptime sat at "probes: 1" while the front
+     * page reported nought live.
+     */
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+    await catalog.recordProbe(probeAt(2n, tenMinAgo));
+
+    const due = await catalog.dueForProbe(10, HOUR, BOOTSTRAP);
+    expect(due[0]?.agent.tokenId).toBe(2n);
+    // And the unprobed ones are still offered, behind it rather than never.
+    expect(ids(due)).toEqual([1n, 2n, 3n]);
+  });
+
+  it('does not let a settled endpoint jump the unprobed queue', async () => {
+    // Rank 2: three probes is a verdict, so it waits its hourly turn behind
+    // every endpoint nobody has asked yet.
+    const twoHoursAgo = Date.now() - 2 * HOUR;
+    for (let i = 0; i < 3; i += 1) {
+      await catalog.recordProbe(probeAt(2n, new Date(twoHoursAgo + i * 1_000)));
+    }
+
+    const due = await catalog.dueForProbe(10, HOUR, BOOTSTRAP);
+    expect(due.map((t) => t.agent.tokenId).at(-1)).toBe(2n);
+  });
+
   it('does not re-offer one probed within the bootstrap window', async () => {
     // Gentleness matters: these are strangers' hosts, not ours.
     const thirtySecAgo = new Date(Date.now() - 30 * 1000);
