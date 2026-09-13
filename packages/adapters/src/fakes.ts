@@ -171,9 +171,13 @@ export class InMemoryCatalogRepository implements CatalogRepository {
     return summarizeProbes(agent, this.#probes.get(agentKey(agent)) ?? []);
   }
 
-  async dueForProbe(limit: number, staleAfterMs: number): Promise<readonly ProbeTarget[]> {
+  async dueForProbe(
+    limit: number,
+    staleAfterMs: number,
+    bootstrap?: { readonly afterMs: number; readonly untilProbeCount: number },
+  ): Promise<readonly ProbeTarget[]> {
     const now = Date.now();
-    const targets: ProbeTarget[] = [];
+    const targets: (ProbeTarget & { readonly seen: number })[] = [];
 
     for (const record of this.#agents.values()) {
       // No card means no declared endpoint to probe. Those agents are still
@@ -185,15 +189,34 @@ export class InMemoryCatalogRepository implements CatalogRepository {
           forEndpoint.length === 0
             ? null
             : new Date(Math.max(...forEndpoint.map((p) => p.at.getTime())));
-        if (lastProbedAt !== null && now - lastProbedAt.getTime() < staleAfterMs) continue;
-        targets.push({ agent: record.id, endpoint, lastProbedAt });
+        const age = lastProbedAt === null ? Infinity : now - lastProbedAt.getTime();
+        const stillBootstrapping =
+          bootstrap !== undefined &&
+          forEndpoint.length < bootstrap.untilProbeCount &&
+          age >= bootstrap.afterMs;
+        if (age < staleAfterMs && !stillBootstrapping) continue;
+        targets.push({ agent: record.id, endpoint, lastProbedAt, seen: forEndpoint.length });
       }
     }
 
-    // Never-probed first, then least-recently-probed: a large catalog cycles
-    // fairly instead of starving its tail.
-    targets.sort((a, b) => (a.lastProbedAt?.getTime() ?? -1) - (b.lastProbedAt?.getTime() ?? -1));
-    return targets.slice(0, limit);
+    /**
+     * Finish verdicts before starting new ones, then least-recently-probed.
+     *
+     * Mirrors CatalogRepository deliberately. Ordering on recency alone put
+     * every never-probed endpoint ahead of one probed twice, so with an
+     * indexer adding thousands of unprobed endpoints a day nothing ever
+     * reached the three probes a verdict needs.
+     */
+    const rank = ({ seen }: { readonly seen: number }): number => {
+      if (seen === 0) return 1;
+      if (bootstrap !== undefined && seen < bootstrap.untilProbeCount) return 0;
+      return 2;
+    };
+    targets.sort(
+      (a, b) =>
+        rank(a) - rank(b) || (a.lastProbedAt?.getTime() ?? -1) - (b.lastProbedAt?.getTime() ?? -1),
+    );
+    return targets.slice(0, limit).map(({ seen: _seen, ...t }) => t);
   }
 
   async unanchoredProbes(limit: number): Promise<readonly ProbeResult[]> {

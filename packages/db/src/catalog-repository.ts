@@ -394,9 +394,29 @@ export class PgCatalogRepository implements CatalogRepository {
                  or (${stale})
                  or (${seen} < ${bootstrap?.untilProbeCount ?? 0} and ${lastAt} < ${bootstrapCutoff})`,
       )
-      // Endpoints with no verdict yet come first: a probe that completes a
-      // verdict is worth more than the nth probe of one already decided.
-      .orderBy(sql`${seen} asc, ${lastAt} asc nulls first`)
+      /**
+       * Finish verdicts before starting new ones.
+       *
+       * `seen asc` did the opposite of what its comment claimed. Every
+       * never-probed endpoint sorts ahead of one probed twice, and the indexer
+       * adds thousands of never-probed endpoints a day, so the backlog never
+       * empties and nothing ever reaches the three probes `isVerifiedLive`
+       * requires. The site sat at "0 verified live" indefinitely - with a
+       * reference agent whose own page read uptime 100%, p95 276ms, probes 1.
+       *
+       * So an endpoint part-way to a verdict outranks an unprobed one. It
+       * cannot starve discovery: a part-way endpoint needs at most two more
+       * probes and then leaves the class, and the bootstrap cadence keeps it
+       * out of the batch for two minutes between them.
+       */
+      .orderBy(
+        sql`case
+              when ${seen} = 0 then 1
+              when ${seen} < ${bootstrap?.untilProbeCount ?? 0} then 0
+              else 2
+            end asc,
+            ${lastAt} asc nulls first`,
+      )
       .limit(limit);
 
     return rows.map((r) => ({
