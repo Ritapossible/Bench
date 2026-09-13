@@ -420,6 +420,22 @@ export class PgCatalogRepository implements CatalogRepository {
     return first === undefined ? 0 : Number(first.bytes);
   }
 
+  /**
+   * The registry's size, as opposed to the catalog's.
+   *
+   * `token_id` is numeric(78) rather than bigint - registry ids are uint256 -
+   * so the max has to be taken numerically and cast back, not compared as
+   * text, where '9' sorts after '346444'.
+   */
+  async highestTokenId(chain: ChainName): Promise<bigint | null> {
+    const rows = await this.db.execute(
+      sql`select max(token_id)::text as top from agents where chain = ${chain}`,
+    );
+    const first = (rows as unknown as { rows: { top: string | null }[] }).rows[0];
+    const top = first?.top ?? null;
+    return top === null ? null : BigInt(top);
+  }
+
   async unanchoredProbes(limit: number): Promise<readonly ProbeResult[]> {
     const rows = await this.db
       .select({

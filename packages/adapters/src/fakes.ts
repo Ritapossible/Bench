@@ -124,6 +124,15 @@ export class InMemoryCatalogRepository implements CatalogRepository {
     return this.fakeSizeBytes;
   }
 
+  async highestTokenId(chain: ChainName): Promise<bigint | null> {
+    let top: bigint | null = null;
+    for (const r of this.#agents.values()) {
+      if (r.id.chain !== chain) continue;
+      if (top === null || r.id.tokenId > top) top = r.id.tokenId;
+    }
+    return top;
+  }
+
   readonly #agents = new Map<string, AgentRecord>();
   readonly #probes = new Map<string, ProbeResult[]>();
   readonly #checkpoints = new Map<ChainName, IndexerCheckpoint>();

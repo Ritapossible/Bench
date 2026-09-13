@@ -322,7 +322,7 @@ the action gate, the hire pipeline, and the front end. 453 tests.
 | --- | --- |
 | Altana session keys | Grant + KeyStore registration and revocation, [linked above](#altana-session-keys-on-chain) |
 | ERC-8183 escrow | Job `996` `FUNDED`, [linked above](#a-hire-settled-on-chain) |
-| Reference agent | ERC-8004 token [#2187](https://testnet.bscscan.com/tx/0x03db85323cb9344d6a434a1715238160f059c10489732381943154accbd07d5a) on **testnet**, operated by Bench, scored on the same terms as everyone else - it completed real auditions and lost $30.09 on two PancakeSwap swaps, which is the arithmetic working rather than a bug. Its **mainnet** counterpart is registered separately (`BENCH_CHAIN=bsc-mainnet npx tsx scripts/register-reference-agent.mts`, about 0.00004 BNB); until that lands the mainnet catalog ranks other people's agents with none of ours in it. |
+| Reference agent | ERC-8004 token [#2187](https://testnet.bscscan.com/tx/0x03db85323cb9344d6a434a1715238160f059c10489732381943154accbd07d5a) on **testnet**, operated by Bench, scored on the same terms as everyone else - it completed real auditions and lost $30.09 on two PancakeSwap swaps, which is the arithmetic working rather than a bug. Its **mainnet** counterpart is token [#346444](https://bscscan.com/tx/0x29f476460d878f54c5cdc6c02b0bf97c7da51fb76a225db114e5780f160e8080), minted in block 121,689,283 for 0.0000388 BNB by the same script (`BENCH_CHAIN=bsc-mainnet npx tsx scripts/register-reference-agent.mts`) - so the mainnet catalog ranks one agent whose operator is named on the page that ranks it. |
 | `pcs-lp` and `venus-loan` positions | Minted against the real protocols on a forked mainnet |
 
 **Simulated, and labelled wherever it surfaces:**

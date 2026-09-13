@@ -466,6 +466,10 @@ export const fixtureData: BenchData = {
     return statsAt(0);
   },
 
+  async registryHead() {
+    return 346_444;
+  },
+
   async catalogHistory() {
     return Array.from({ length: 21 }, (_, i) => statsAt(20 - i));
   },

@@ -52,7 +52,7 @@ const STEPS = [
 ];
 
 export default async function Home() {
-  const stats = await data.catalogStats();
+  const [stats, head] = await Promise.all([data.catalogStats(), data.registryHead()]);
   const live = liveShareBps(stats);
 
   return (
@@ -89,30 +89,41 @@ export default async function Home() {
       {/* ---------- measured, not asserted ---------- */}
       <section className="wrap section-tight">
         <div className="statgrid">
+          {/*
+            Two different numbers, and conflating them is the one mistake this
+            block cannot make. `head` is how many agents the registry holds;
+            `stats.registered` is how many of them Bench has indexed, which is
+            smaller because the indexer walks newest-first inside a storage
+            budget. The cell below used to print the second under the first's
+            label, which both understated the registry by two orders of
+            magnitude and made every ratio after it read against the wrong
+            denominator.
+          */}
           <div className="statcell">
-            <div className="statnum">{stats.registered}</div>
-            <div className="statlabel">Agents registered on BSC</div>
+            <div className="statnum">{head === null ? '-' : head.toLocaleString()}</div>
+            <div className="statlabel">Agents in the BSC registry</div>
           </div>
           <div className="statcell">
-            <div className="statnum">{stats.withResolvableCard}</div>
+            <div className="statnum">{stats.registered.toLocaleString()}</div>
+            <div className="statlabel">Indexed by Bench, newest first</div>
+          </div>
+          <div className="statcell">
+            <div className="statnum">{stats.withResolvableCard.toLocaleString()}</div>
             <div className="statlabel">With a resolvable agent card</div>
           </div>
           <div className="statcell">
-            <div className="statnum">{stats.verifiedLive}</div>
-            <div className="statlabel">Verified live - respond and conform</div>
-          </div>
-          <div className="statcell">
-            <div className="statnum">{pct(live)}</div>
+            <div className="statnum">{stats.verifiedLive.toLocaleString()}</div>
             <div className="statlabel">
               <Link href="/registry" style={{ color: 'inherit' }}>
-                Of the registry is real →
+                Verified live - {pct(live)} of what is indexed →
               </Link>
             </div>
           </div>
         </div>
         <p className="tiny" style={{ marginTop: '0.85rem' }}>
-          Bench’s own measurement, recomputed daily against what it has indexed - not a figure
-          quoted from a paper.
+          Bench’s own measurement, recomputed every tick against what it has indexed - not a figure
+          quoted from a paper. The registry is walked newest first, so the indexed slice is the live
+          end of it.
         </p>
       </section>
 

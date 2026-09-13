@@ -5,11 +5,14 @@ real transaction; nothing here is staged, and no number is typed in by hand.
 
 - **App** https://bench-bnb.vercel.app
 - **Chain** BSC **mainnet** for the registry
-  (`0x8004a169fb4a3325136eb29fa0ceb6d2e539a432`, ~345,000 agents), forked BSC
+  (`0x8004a169fb4a3325136eb29fa0ceb6d2e539a432`, ~346,000 agents), forked BSC
   mainnet for auditions
-- **Reference agent** registered on the mainnet registry by
-  `BENCH_CHAIN=bsc-mainnet npx tsx scripts/register-reference-agent.mts`. Put
-  its token id here once it lands - the testnet predecessor was #2187.
+- **Reference agent** ERC-8004 token **#346444** on the mainnet registry,
+  minted in block 121,689,283 for 0.0000388 BNB
+  ([tx](https://bscscan.com/tx/0x29f476460d878f54c5cdc6c02b0bf97c7da51fb76a225db114e5780f160e8080)). Owned by
+  `0x164fb22B34bb187E739627EFaC0C70A3fDD8B942`, and scored on exactly the same
+  terms as every other agent in the catalog. The testnet predecessor was
+  #2187.
 
 > **Every number below is an example, not a script line.** The registry grows
 > by about 2,000 agents a day and the live count moves with it. Read what is on
@@ -168,8 +171,7 @@ agent declined the task: INVALID_ANALYSIS_INPUT
 
 ## 5. The evidence trail (~45s)
 
-Open the reference agent: **/agents/bsc-mainnet/&lt;token id&gt;** (the id the
-registration script printed).
+Open the reference agent: **/agents/bsc-mainnet/346444**.
 
 Show, in order:
 

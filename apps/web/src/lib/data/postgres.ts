@@ -169,6 +169,14 @@ export function createPgData(connectionString: string): BenchData {
       return catalog.stats(CHAIN);
     },
 
+    async registryHead(): Promise<number | null> {
+      const top = await catalog.highestTokenId(CHAIN);
+      // Token ids on this registry are sequential from 1, so the highest id
+      // seen is the registration count. Number() is safe at 3.5e5 and stays
+      // safe five orders of magnitude past it.
+      return top === null ? null : Number(top);
+    },
+
     async catalogHistory(): Promise<readonly CatalogStats[]> {
       const history = await audition.statsHistory(CHAIN);
       // Before the indexer has run twice there is no trend to draw. Return

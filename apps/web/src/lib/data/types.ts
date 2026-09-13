@@ -33,6 +33,15 @@ export interface BenchData {
   advantage(): Promise<AdvantageReport>;
   /** Catalog density - the ~4% claim, computed against what we actually indexed. */
   catalogStats(): Promise<CatalogStats>;
+  /**
+   * How big the registry is, as distinct from how much of it Bench holds.
+   *
+   * The indexer walks newest-first and stops at a storage budget, so the row
+   * count is progress, not population. Presenting progress as population is
+   * how the front page came to say "4,019 agents registered on BSC" about a
+   * registry holding 346,444 of them.
+   */
+  registryHead(): Promise<number | null>;
   /** Same measurement over time, for the public registry health dashboard. */
   catalogHistory(): Promise<readonly CatalogStats[]>;
   /**

@@ -84,6 +84,18 @@ export interface CatalogRepository {
    * "is there room" is a question about the store rather than about a agent.
    */
   sizeBytes(): Promise<number>;
+  /**
+   * Highest token id indexed on this chain, or null before the first tick.
+   *
+   * Not the same question as "how many agents are indexed", and the difference
+   * is the whole honesty of the front page. Bench indexes the registry newest
+   * first and cannot hold all of it, so the count of rows is how far it has
+   * got; the highest id it has seen is how big the registry is. Labelling the
+   * first as the second said "4,019 agents registered on BSC" while the
+   * registry held 346,444 - a number that undersells the problem the project
+   * exists to measure, and is simply false.
+   */
+  highestTokenId(chain: ChainName): Promise<bigint | null>;
   /** Probes not yet covered by an onchain anchor, oldest first. */
   unanchoredProbes(limit: number): Promise<readonly ProbeResult[]>;
   markProbesAnchored(upTo: Date, digest: Hex, txHash: Hex): Promise<number>;
