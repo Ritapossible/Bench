@@ -51,6 +51,10 @@ import { CADENCE_MS, QUEUE, redisOptionsFrom, scheduleTick, workerOpts } from '.
  * claim whose evidence has to outlive the sweep.
  */
 const PROBE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+/** What retention falls back to once the database is close to its ceiling. */
+const SHORT_PROBE_RETENTION_MS = 24 * 60 * 60 * 1000;
+/** The share of the ceiling at which that happens - before the wall, not at it. */
+const PROBE_RETENTION_PRESSURE = 0.8;
 
 /**
  * Agents an on-demand report will drive.
@@ -404,6 +408,8 @@ async function main(): Promise<void> {
       QUEUE.prober,
       async () => {
         const r = await prober.tick();
+        const usedBytes = await repo.sizeBytes();
+        const ceilingBytes = cfg.BENCH_MAX_DB_MB * 1024 * 1024;
         /**
          * Retention, on the queue that creates the rows.
          *
@@ -411,12 +417,33 @@ async function main(): Promise<void> {
          * removed one. Bounded per tick so a long-neglected table is worked
          * down over several passes rather than in one statement that locks it.
          */
-        const pruned = await repo.pruneProbeResults(PROBE_RETENTION_MS, {
+        /**
+         * Retention shortens as the database fills.
+         *
+         * The storage guard on the indexer stops the catalog growing, but the
+         * prober keeps writing rows into whatever is left - so on its own the
+         * guard trades a catalog that stops for a database that still fills,
+         * just more slowly. Seven days of history is worth keeping when there
+         * is room for it and worth nothing at all if keeping it is what stops
+         * liveness being recorded, because `agent_liveness` is a rolling
+         * summary and no answer on the site reads the raw rows.
+         */
+        const retentionMs =
+          usedBytes >= ceilingBytes * PROBE_RETENTION_PRESSURE
+            ? SHORT_PROBE_RETENTION_MS
+            : PROBE_RETENTION_MS;
+        const pruned = await repo.pruneProbeResults(retentionMs, {
           // Only meaningful while anchoring runs. With it off, no row is ever
           // anchored, so keeping unanchored rows would retain everything.
           keepUnanchored: anchoringConfigured,
         });
-        if (pruned > 0) console.log(`[bench:prober] pruned ${pruned} anchored probe results`);
+        if (pruned > 0) {
+          const days = Math.round(retentionMs / 86_400_000);
+          console.log(
+            `[bench:prober] pruned ${pruned} probe results older than ${days}d` +
+              (retentionMs === PROBE_RETENTION_MS ? '' : ' (storage pressure)'),
+          );
+        }
 
         // Nothing due once every endpoint has been probed inside the staleness
         // window - that is the schedule working. Targets that were selected and
@@ -425,6 +452,10 @@ async function main(): Promise<void> {
         lastResult.set(
           QUEUE.prober,
           `probed=${r.probed} reachable=${r.reachable} conformant=${r.conformant}` +
+            // The same gauge the indexer publishes. Repeated here because the
+            // prober ticks whether or not the indexer has anything to do, and
+            // the reading nobody can see is the one that fills the disk.
+            ` db=${Math.round(usedBytes / 1e6)}/${cfg.BENCH_MAX_DB_MB}MB` +
             (r.reasons[0] === undefined ? '' : ` top=${r.reasons[0][1]}x ${r.reasons[0][0]}`),
         );
         if (r.probed > 0) {

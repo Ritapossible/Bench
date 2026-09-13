@@ -109,12 +109,27 @@ const pct = (x: number): string => `${(x * 100).toFixed(2)}%`;
 
 const top = process.env['BENCH_MAINNET_TOP_ID'];
 const highest = top === undefined ? await highestTokenId() : BigInt(top);
+/**
+ * Optional lower bound on the sample.
+ *
+ * The registry is not homogeneous: the oldest tokens resolve a card three
+ * times out of four and the newest ones nineteen times out of twenty, so a
+ * uniform sample over the whole range answers a different question from "what
+ * is in the catalog right now". The indexer walks downward from the head, so
+ * the catalog is a band at the top - and the only way to check the prober's
+ * verdict against an independent measurement is to sample the same band.
+ */
+const floor = BigInt(process.env['BENCH_MAINNET_FLOOR_ID'] ?? 1);
+const span = Number(highest - floor) + 1;
 console.log(`registry ${REGISTRY} on BSC mainnet, highest token id ${highest.toLocaleString()}`);
-console.log(`sampling ${SAMPLE.toLocaleString()} ids uniformly at random\n`);
+console.log(
+  `sampling ${SAMPLE.toLocaleString()} ids uniformly at random ` +
+    `from ${floor.toLocaleString()}-${highest.toLocaleString()}\n`,
+);
 
 const ids = new Set<bigint>();
-while (ids.size < Math.min(SAMPLE, Number(highest))) {
-  ids.add(BigInt(1 + Math.floor(Math.random() * Number(highest))));
+while (ids.size < Math.min(SAMPLE, span)) {
+  ids.add(floor + BigInt(Math.floor(Math.random() * span)));
 }
 const sample = [...ids];
 
