@@ -69,6 +69,32 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
  */
 const LIVENESS_HISTORY_LIMIT = 500;
 
+/**
+ * The card as it is stored, which is the card without `raw`.
+ *
+ * `raw` is the entire original registration object, kept so a later parser
+ * improvement could re-mine cards already indexed without re-fetching them.
+ * That was a fair trade at 2,400 testnet agents. At 345,879 mainnet ones it is
+ * the single largest thing in this database - it duplicates the name,
+ * description and endpoints that sit beside it in their own fields, and on
+ * this registry it also carries whatever else a stranger put in their
+ * registration, which includes pasted shell scripts and multi-kilobyte prose.
+ *
+ * Nothing reads it. Not one page, not one service - checked before removing
+ * it. And the database it filled has a 512 MB ceiling, which it hit: every
+ * write began failing with "could not extend file", the prober stopped
+ * recording probes, and the catalog reported zero verified-live agents because
+ * liveness could no longer be refreshed rather than because anything had died.
+ *
+ * Re-mining is still possible; it costs a re-fetch, which is what the
+ * indexer's sweep already does.
+ */
+function storable(card: AgentCard | null): Omit<AgentCard, 'raw'> | null {
+  if (card === null) return null;
+  const { raw: _raw, ...rest } = card;
+  return rest;
+}
+
 export class PgCatalogRepository implements CatalogRepository {
   constructor(private readonly db: Db) {}
 
@@ -85,7 +111,7 @@ export class PgCatalogRepository implements CatalogRepository {
             owner: r.owner,
             cardUri: r.cardUri,
             category: r.card?.category ?? 'other',
-            card: r.card,
+            card: storable(r.card),
             cardError: r.cardError ?? null,
             registeredAt: r.registeredAt,
           })
@@ -665,7 +691,10 @@ function toRecord(row: AgentRow): AgentRecord {
     id: { chain: row.chain as ChainName, tokenId: BigInt(row.tokenId) },
     owner: row.owner as Address,
     cardUri: row.cardUri,
-    card: (row.card as AgentCard | null) ?? null,
+    // `raw` is not persisted - see `storable`. Restored as null rather than
+    // left absent, so a card read back from the database satisfies the same
+    // type as one just parsed, and no caller has to know which it is holding.
+    card: row.card === null ? null : { ...(row.card as Omit<AgentCard, 'raw'>), raw: null },
     ...(row.cardError === null ? {} : { cardError: row.cardError }),
     registeredAt: row.registeredAt,
   };
