@@ -1,11 +1,25 @@
 import { isThin, type Score } from '@bench/core';
 
+/**
+ * Three states, not two.
+ *
+ * "Non-conformant" is a measurement, and this badge was printing it for agents
+ * nobody had measured. The catalog holds tens of thousands of agents and the
+ * prober reaches two hundred a tick, so on the day this was written almost
+ * every row on the site was asserting a probe result that did not exist -
+ * including Bench's own reference agent, minted an hour earlier, whose
+ * endpoint answers JSON-RPC correctly. An unprobed agent is unmeasured, and
+ * saying so is both honest and more useful: it tells a reader the queue has
+ * not reached this one yet rather than that it failed.
+ */
 export function LiveBadge({
   live,
   conformant,
+  probed,
 }: {
   readonly live: boolean;
   readonly conformant: boolean;
+  readonly probed: boolean;
 }) {
   if (live) {
     return (
@@ -14,6 +28,7 @@ export function LiveBadge({
       </span>
     );
   }
+  if (!probed) return <span className="badge badge-plain">Not probed yet</span>;
   return <span className="badge badge-dead">{conformant ? 'Not verified' : 'Non-conformant'}</span>;
 }
 

@@ -166,6 +166,9 @@ export function CatalogFilter({
                   <span className="badge badge-live">
                     <span className="dot" /> Verified live
                   </span>
+                ) : r.probeCount === 0 ? (
+                  // Unmeasured, not failed. See LiveBadge.
+                  <span className="badge badge-plain">Not probed yet</span>
                 ) : (
                   <span className="badge badge-dead">
                     {r.conformant ? 'Not verified' : 'Non-conformant'}
@@ -188,11 +191,13 @@ export function CatalogFilter({
                   <>
                     <span className="small ink">No auditions yet</span>
                     <span className="tiny">
-                      {r.drivable
-                        ? r.verifiedLive
+                      {!r.drivable
+                        ? 'No A2A or MCP endpoint to drive'
+                        : r.verifiedLive
                           ? 'Queued for audition'
-                          : 'Not verified live - cannot be auditioned yet'
-                        : 'No A2A or MCP endpoint to drive'}
+                          : r.probeCount === 0
+                            ? 'Waiting on its first probe'
+                            : 'Not verified live - cannot be auditioned yet'}
                     </span>
                   </>
                 ) : (

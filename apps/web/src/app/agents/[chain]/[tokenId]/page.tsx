@@ -52,7 +52,11 @@ export default async function AgentPage({
         {/* header */}
         <div className="stack stack-16">
           <div className="row" style={{ gap: '0.6rem' }}>
-            <LiveBadge live={verifiedLive} conformant={liveness.conformant} />
+            <LiveBadge
+              live={verifiedLive}
+              conformant={liveness.conformant}
+              probed={liveness.probeCount > 0}
+            />
             <span className="badge badge-plain">{CATEGORY_LABEL[card?.category ?? 'other']}</span>
             {agent.score ? <ThinBadge score={agent.score} /> : null}
           </div>
