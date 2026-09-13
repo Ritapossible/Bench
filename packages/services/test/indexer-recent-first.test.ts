@@ -44,8 +44,8 @@ class Registry implements Partial<RegistryClient> {
   }
 }
 
-const build = (reg: Registry) =>
-  new Indexer(reg as unknown as RegistryClient, new InMemoryCatalogRepository(), {
+const build = (reg: Registry, repo = new InMemoryCatalogRepository()) =>
+  new Indexer(reg as unknown as RegistryClient, repo, {
     chain: 'bsc-mainnet',
     startBlock: 0n,
     batchSize: 100,
@@ -72,12 +72,35 @@ describe('recentFirstTick', () => {
     // New registrations arrive above the head - about 2,000 a day here - so a
     // restart should see them before finishing a descent that takes hours.
     const reg = new Registry(10_000n);
-    const first = build(reg);
+    const repo = new InMemoryCatalogRepository();
+    const first = build(reg, repo);
     await first.recentFirstTick();
     await first.recentFirstTick();
     reg.head = 10_500n;
-    const afterRestart = await build(reg).recentFirstTick();
+    const afterRestart = await build(reg, repo).recentFirstTick();
     expect(afterRestart.lastTokenId).toBe(10_500n);
+  });
+
+  it('resumes the descent below where the last boot reached', async () => {
+    // The cursor is a low-water mark. Writing the top batch's floor into it on
+    // every restart discards the descent, and a worker redeploying more often
+    // than a full pass takes never reaches the bottom - which held a live
+    // catalog at 4,000 of 346,000 agents while every tick reported a full
+    // batch discovered. Sharing the repository is the whole point of this
+    // test: with a fresh one per boot there is no cursor to lose.
+    const reg = new Registry(10_000n);
+    const repo = new InMemoryCatalogRepository();
+    const first = build(reg, repo);
+    await first.recentFirstTick(); // 9,901..10,000
+    await first.recentFirstTick(); // 9,801..9,900
+
+    reg.head = 10_500n;
+    const rebooted = build(reg, repo);
+    await rebooted.recentFirstTick(); // 10,401..10,500, the new head
+    const resumed = await rebooted.recentFirstTick();
+
+    expect(resumed.lastTokenId).toBe(9_800n);
+    expect(resumed.fromTokenId).toBe(9_701n);
   });
 
   it('never reads below zero', async () => {

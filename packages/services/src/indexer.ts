@@ -238,6 +238,14 @@ export class Indexer {
    * overwritten with the real head on the first tick, rather than being
    * mistaken for a descent already in progress.
    *
+   * **That refresh must not cost the descent.** The cursor is a low-water
+   * mark, so writing the top batch's floor into it after a restart throws away
+   * every id below - and a worker that redeploys more often than it takes to
+   * reach the bottom never gets there at all. This was not hypothetical: four
+   * deploys in an hour held the catalog at four thousand agents while the
+   * indexer reported a full batch discovered every tick. So the cursor only
+   * ever moves down.
+   *
    * Reaching zero starts again from the head, which by then has moved.
    */
   async recentFirstTick(): Promise<EnumerationTickResult> {
@@ -257,13 +265,18 @@ export class Indexer {
     const upserted = await this.repo.upsertAgents(withCards);
     // After the write, as everywhere else here: checkpointing first would turn
     // a failed upsert into a permanently skipped range.
-    await this.repo.setTokenCursor(this.opts.chain, from);
+    //
+    // The low-water mark never rises. On a top refresh `from` is near the head
+    // and `stored` is wherever the descent had reached, so taking the smaller
+    // of the two keeps the progress and still records the newest batch.
+    const mark = stored !== null && stored > 0n && stored < from ? stored : from;
+    await this.repo.setTokenCursor(this.opts.chain, mark);
 
     return {
       resweeping: fromTop && stored !== null && stored > 0n && stored <= head,
       // The descent has covered the whole registry when it lands on zero; the
       // next tick starts again from a head that has moved since.
-      reachedEnd: from === 0n,
+      reachedEnd: mark === 0n,
       fromTokenId: from,
       lastTokenId: to,
       discovered: discovered.length,
