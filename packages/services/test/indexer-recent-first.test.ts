@@ -44,11 +44,16 @@ class Registry implements Partial<RegistryClient> {
   }
 }
 
-const build = (reg: Registry, repo = new InMemoryCatalogRepository()) =>
+const build = (
+  reg: Registry,
+  repo = new InMemoryCatalogRepository(),
+  topRefreshEveryMs = 3_600_000,
+) =>
   new Indexer(reg as unknown as RegistryClient, repo, {
     chain: 'bsc-mainnet',
     startBlock: 0n,
     batchSize: 100,
+    topRefreshEveryMs,
   });
 
 describe('recentFirstTick', () => {
@@ -119,6 +124,31 @@ describe('recentFirstTick', () => {
     reg.head = 200n;
     const wrapped = await ix.recentFirstTick();
     expect(wrapped.lastTokenId).toBe(200n);
+  });
+
+  it('goes back to the head on a schedule, not only after a restart', async () => {
+    // A full descent of this registry takes about fourteen hours and ~2,000
+    // agents register a day, so a walk that only ever moves downward would
+    // take most of a day to notice one that registered this morning.
+    const reg = new Registry(10_000n);
+    const repo = new InMemoryCatalogRepository();
+    const ix = build(reg, repo, 0); // refresh every tick
+    await ix.recentFirstTick();
+    reg.head = 10_400n;
+    const second = await ix.recentFirstTick();
+    expect(second.lastTokenId).toBe(10_400n);
+    // And the descent is still where it was, not reset to the new head.
+    expect((await repo.checkpoint('bsc-mainnet'))?.lastTokenId).toBe(9_901n);
+  });
+
+  it('keeps descending between top refreshes', async () => {
+    const reg = new Registry(10_000n);
+    // An hour apart, so only the first tick of this test refreshes the top.
+    const ix = build(reg, new InMemoryCatalogRepository());
+    await ix.recentFirstTick();
+    reg.head = 10_400n;
+    const second = await ix.recentFirstTick();
+    expect(second.lastTokenId).toBe(9_900n);
   });
 
   it('indexes what it reads', async () => {

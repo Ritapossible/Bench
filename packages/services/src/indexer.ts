@@ -42,6 +42,13 @@ export interface IndexerOptions {
    * order does not matter and ascending is simpler to reason about.
    */
   readonly recentFirst?: boolean;
+  /**
+   * How often the descending walk goes back to re-read the head.
+   *
+   * See `recentFirstTick`. Defaults to an hour, which on this registry is
+   * about eighty new registrations.
+   */
+  readonly topRefreshEveryMs?: number;
   readonly chain: ChainName;
   /** Registry deployment block. Starting at 0 wastes hours on empty ranges. */
   readonly startBlock: bigint;
@@ -86,6 +93,7 @@ const DEFAULTS = {
    * data: URIs - and short enough that a mutated card is not stale for a day.
    */
   resweepAfterMs: 6 * 60 * 60 * 1000,
+  topRefreshEveryMs: 60 * 60 * 1000,
   confirmations: 15n,
   batchSize: 500,
   cardConcurrency: 8,
@@ -124,7 +132,8 @@ export function indexerProfileFor(chain: string): {
 
 export class Indexer {
   /** Whether this process has refreshed the top of the registry yet. */
-  #refreshedTop = false;
+  /** Epoch ms of the last top refresh; 0 so the first tick always does one. */
+  #lastTopRefreshAt = 0;
 
   /**
    * When the last full pass began, in this process.
@@ -230,13 +239,16 @@ export class Indexer {
    * front. The cursor is the same column, reinterpreted as a low-water mark:
    * the lowest id indexed so far.
    *
-   * **The first tick after a boot always re-reads the top.** New registrations
-   * arrive above the head - about two thousand a day here - so the newest batch
-   * is the one most worth refreshing, and a restart should not have to reach
-   * the bottom before it notices them. It also makes the switch from an
-   * ascending deployment self-healing: whatever id the old walk left behind is
-   * overwritten with the real head on the first tick, rather than being
-   * mistaken for a descent already in progress.
+   * **The top is re-read on the first tick after a boot, and hourly after
+   * that.** New registrations arrive above the head - about two thousand a day
+   * here - and a full descent takes fourteen hours, so a walk that only ever
+   * moves downward would take most of a day to notice an agent that registered
+   * this morning. On a marketplace whose claim is that it measures the live
+   * end of the registry, that is the wrong end of the trade. An hourly refresh
+   * costs one tick in twelve and bounds the delay at about eighty
+   * registrations. It also makes the switch from an ascending deployment
+   * self-healing: whatever id the old walk left behind is overwritten with the
+   * real head, rather than being mistaken for a descent already in progress.
    *
    * **That refresh must not cost the descent.** The cursor is a low-water
    * mark, so writing the top batch's floor into it after a restart throws away
@@ -253,8 +265,13 @@ export class Indexer {
     const batch = BigInt(this.opts.batchSize ?? DEFAULTS.batchSize);
     const stored = (await this.repo.checkpoint(this.opts.chain))?.lastTokenId ?? null;
 
-    const fromTop = !this.#refreshedTop || stored === null || stored <= 0n || stored > head;
-    this.#refreshedTop = true;
+    const sinceTopRefresh = Date.now() - this.#lastTopRefreshAt;
+    const fromTop =
+      sinceTopRefresh >= (this.opts.topRefreshEveryMs ?? DEFAULTS.topRefreshEveryMs) ||
+      stored === null ||
+      stored <= 0n ||
+      stored > head;
+    if (fromTop) this.#lastTopRefreshAt = Date.now();
 
     const to = fromTop ? head : stored - 1n;
     const rawFrom = to - batch + 1n;
