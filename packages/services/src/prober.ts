@@ -139,7 +139,30 @@ const DEFAULTS = {
  * tiering would buy nothing and would only make the rule harder to state.
  */
 export function proberProfileFor(chain: string): ProberOptions {
-  return chain === 'bsc-mainnet' ? { coldAfterMs: 2 * 24 * 60 * 60 * 1000 } : {};
+  return chain === 'bsc-mainnet'
+    ? {
+        coldAfterMs: 2 * 24 * 60 * 60 * 1000,
+        /**
+         * Three times the default, because the set that has to cycle is three
+         * orders of magnitude bigger than the one this number was chosen for.
+         *
+         * A verdict needs three probes, so an endpoint the prober has met once
+         * has to come round twice more before it can be called live or dead.
+         * On mainnet there are thousands of those at any moment and the batch
+         * was two hundred: the first verdicts landed about three and a half
+         * hours after a deploy, and until they did the site showed an empty
+         * catalog behind its verified-live filter.
+         *
+         * Probing is almost entirely waiting - concurrency 32, a ten-second
+         * ceiling - so six hundred endpoints is well inside a five-minute tick
+         * and works out at about two requests a second spread across six
+         * hundred different hosts. The limit that matters here is courtesy to
+         * strangers' servers, not our own throughput, and this is still under
+         * one request per host per hour.
+         */
+        batchSize: 600,
+      }
+    : {};
 }
 
 export class Prober {
