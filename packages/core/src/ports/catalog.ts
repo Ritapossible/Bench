@@ -77,6 +77,13 @@ export interface CatalogRepository {
      */
     coldAfterMs?: number,
   ): Promise<readonly ProbeTarget[]>;
+  /**
+   * How many bytes this database occupies.
+   *
+   * On the port because the worker has to decide whether to keep indexing, and
+   * "is there room" is a question about the store rather than about a agent.
+   */
+  sizeBytes(): Promise<number>;
   /** Probes not yet covered by an onchain anchor, oldest first. */
   unanchoredProbes(limit: number): Promise<readonly ProbeResult[]>;
   markProbesAnchored(upTo: Date, digest: Hex, txHash: Hex): Promise<number>;

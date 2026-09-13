@@ -81,6 +81,28 @@ const schema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
 
+  /**
+   * How large this deployment's database may get, in megabytes.
+   *
+   * Not a guess at a vendor's plan - the number that stops the catalog from
+   * being the thing that takes the site down. Two databases have filled here.
+   * The first exhausted a transfer allowance, the second a 512 MB storage cap:
+   * every write began failing with "could not extend file", the prober could
+   * not record a probe, and the registry page reported zero verified-live
+   * agents because liveness could no longer be refreshed rather than because
+   * anything had died.
+   *
+   * Both times the cause was the same: Bench measures everything about the
+   * agents it indexes and nothing about itself. The ceiling is deliberately
+   * below a free 512 MB plan, because the plan counts retained history as well
+   * as live rows and the margin is where that lives.
+   *
+   * Measured, so it can be reasoned about: 600 real mainnet registrations cost
+   * 887 bytes each including indexes, so the full 345,462 would be about
+   * 307 MB of agents alone, before probe history.
+   */
+  BENCH_MAX_DB_MB: z.coerce.number().positive().default(380),
+
   SHADOW_EGRESS_BUDGET_USD: z.coerce.number().positive().default(0.25),
   // Defaults to the data hosts an agent plausibly needs, rather than to the
   // empty string. Empty means deny-all, which is the right *failure* mode but a

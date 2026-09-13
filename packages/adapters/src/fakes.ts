@@ -117,6 +117,13 @@ const agentKey = (id: AgentId): string => `${id.chain}:${id.tokenId.toString()}`
  * and mirrored there deliberately rather than by coincidence.
  */
 export class InMemoryCatalogRepository implements CatalogRepository {
+  /** Settable, so a test can put the worker up against its ceiling. */
+  fakeSizeBytes = 0;
+
+  async sizeBytes(): Promise<number> {
+    return this.fakeSizeBytes;
+  }
+
   readonly #agents = new Map<string, AgentRecord>();
   readonly #probes = new Map<string, ProbeResult[]>();
   readonly #checkpoints = new Map<ChainName, IndexerCheckpoint>();

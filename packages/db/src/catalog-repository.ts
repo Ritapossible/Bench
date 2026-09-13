@@ -406,6 +406,20 @@ export class PgCatalogRepository implements CatalogRepository {
     }));
   }
 
+  /**
+   * `pg_database_size`, which counts what a hosted plan counts: tables,
+   * indexes and the bloat that a delete leaves behind until it is vacuumed.
+   * Reading the sum of table sizes instead would under-report exactly when it
+   * matters most.
+   */
+  async sizeBytes(): Promise<number> {
+    const rows = await this.db.execute(
+      sql`select pg_database_size(current_database())::bigint as bytes`,
+    );
+    const first = (rows as unknown as { rows: { bytes: string | number }[] }).rows[0];
+    return first === undefined ? 0 : Number(first.bytes);
+  }
+
   async unanchoredProbes(limit: number): Promise<readonly ProbeResult[]> {
     const rows = await this.db
       .select({

@@ -337,6 +337,35 @@ async function main(): Promise<void> {
         // Newest-first on mainnet: see recentFirstTick. Ascending on testnet,
         // where 2,400 tokens are covered in half an hour and the order buys
         // nothing worth a second code path being exercised.
+        /**
+         * Stop growing the catalog before the database stops accepting
+         * writes.
+         *
+         * Two databases have filled under this worker. Each time the first
+         * sign was not a warning but a failure - "could not extend file" on
+         * every insert, the prober unable to record a probe, and the registry
+         * page reporting zero verified-live agents because liveness could no
+         * longer be refreshed. A catalog that has stopped growing is a
+         * limitation a reader can see and understand; a database that has
+         * stopped accepting writes looks like the product is broken.
+         *
+         * The indexer is the only queue that grows without bound, so it is the
+         * one that yields. Probing, auditions and reports keep running against
+         * what is already indexed.
+         */
+        const usedBytes = await repo.sizeBytes();
+        const ceilingBytes = cfg.BENCH_MAX_DB_MB * 1024 * 1024;
+        if (usedBytes >= ceilingBytes) {
+          const used = Math.round(usedBytes / 1e6);
+          outcome.set(QUEUE.indexer, 'nothing-due');
+          lastResult.set(
+            QUEUE.indexer,
+            `holding at ${used} MB of ${cfg.BENCH_MAX_DB_MB} MB - catalog is as deep as this ` +
+              'database allows. Raise BENCH_MAX_DB_MB, or the plan, to index further back.',
+          );
+          return;
+        }
+
         const r =
           cfg.BENCH_CHAIN === 'bsc-mainnet'
             ? await indexer.recentFirstTick()
@@ -348,6 +377,9 @@ async function main(): Promise<void> {
           QUEUE.indexer,
           `tokens ${r.fromTokenId}-${r.lastTokenId} discovered=${r.discovered} ` +
             `cards=${r.cardsResolved}/${r.cardsResolved + r.cardsFailed}` +
+            // Published every tick rather than only at the ceiling: the number
+            // that matters is the one nobody was watching.
+            ` db=${Math.round(usedBytes / 1e6)}/${cfg.BENCH_MAX_DB_MB}MB` +
             (r.resweeping ? ' re-sweeping' : ''),
         );
         console.log(
