@@ -1028,7 +1028,11 @@ textarea.field {
   gap: 0.25rem;
   min-width: 0;
 }
-.propose .input {
+/* Promoted out of `.propose`, because a second form now needs it.
+   Scoped to one component, an input style is a component; used by two, it is
+   the app's input style, and leaving the dispute form to invent its own is how
+   two text boxes on the same page stop looking like the same product. */
+.input {
   width: 100%;
   padding: 0.5rem 0.6rem;
   border-radius: 0.5rem;
@@ -1036,4 +1040,26 @@ textarea.field {
   background: transparent;
   color: inherit;
   font-size: 0.9rem;
+  font-family: inherit;
+}
+textarea.input {
+  resize: vertical;
+  min-height: 2.6rem;
+  line-height: 1.5;
+}
+/* Visible focus, because this form is reachable and submittable by keyboard
+   alone and a browser's default ring disappears against the dark slab. */
+.input:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+/* The disclosure that holds the dispute form. A `<summary>` styled as a button
+   still needs its marker removed in WebKit, which ignores `list-style`. */
+summary.btn {
+  display: inline-block;
+  list-style: none;
+}
+summary.btn::-webkit-details-marker {
+  display: none;
 }

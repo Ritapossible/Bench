@@ -26,3 +26,9 @@ next-env.d.ts
 
 # Redis snapshots, written wherever redis-server was started from.
 *.rdb
+
+# Python bytecode. Machine- and version-specific, and it was checked in by
+# accident: five .pyc files that change on every test run and mean nothing to a
+# reviewer.
+__pycache__/
+*.pyc

@@ -152,6 +152,50 @@ whatever the truth, and only easy complaints would ever get made.
 
 ---
 
+## The record the replay reads
+
+A breach ruling is arithmetic over two things: the terms, pinned by digest at
+hire time, and **the action record**, fetched at adjudication from a URL pinned
+at the same moment.
+
+```
+GET /api/hires/<id>/actions
+
+{"hire_id": "h_…",
+ "actions": [{"seq": 1, "at": 1767225600, "to": "0x…", "value": "100",
+              "data": "0x38ed1739", "token": "0x…"}],
+ "revoked_at": null}
+```
+
+Three decisions inside that small object:
+
+**Only admitted actions are in it.** The decision trace holds every proposal
+including the refused ones, hash-chained, and it is a different artifact
+answering a different question. A refused proposal never reached a chain;
+replaying one would find a breach in Bench's own gate correctly saying no.
+
+**`revoked_at` travels in the record, not in the terms.** Terms are digest-pinned
+at hire time, before anyone knows there will be a dispute — and revocation
+happens afterwards. A `revoked_at` inside the digest would therefore be empty
+for every hire that has not yet gone wrong, which makes *"it kept spending after
+I revoked"* — the breach a hirer is angriest about — unprovable by construction.
+So it is published as part of what happened, and held to the same standard as
+the rest of the record.
+
+**A missing record is not an empty record.** `404` and `{"actions": []}` are
+different claims: the first goes `unresolved`, the second can dismiss. A hire
+with no stored actions answers `404` rather than clearing an agent on evidence
+Bench does not have.
+
+Bench is the record's likeliest publisher, and the arbiter treats it that way —
+`marketplace`, never `independent`. Every fetched copy must agree or the dispute
+goes unresolved, which is what makes publishing a competing record worth
+something. **Publishing nothing is not neutrality**: an arbiter with no record to
+read answers `unresolved` every time, and that quietly favours whoever is
+already holding the money.
+
+---
+
 ## Evidence has an owner, and the tally says so
 
 `evidence_independence()` is free to call and is the view worth putting in
@@ -291,9 +335,13 @@ appearing there unnoticed is how an unintended write ships — and asserts that
 
 ## Deploying
 
+Deployed on **Studio Next** — chain `61997`, RPC `https://studio-next.genlayer.com/api`,
+explorer `https://explorer-studio-dev.genlayer.com/`.
+
 ```bash
 genlayer deploy --contract contracts/genlayer/arbiter.py \
-  --args 6 200000 75 15 2 86400 86400 604800
+  --rpc https://studio-next.genlayer.com/api \
+  --args 6 200000 75 15 2 86400 86400 604800 10000000000000000
 ```
 
 | # | Parameter | Default | Meaning |
@@ -306,6 +354,7 @@ genlayer deploy --contract contracts/genlayer/arbiter.py \
 | 6 | `extension_period` | `86400` | Seconds added per extension. |
 | 7 | `answer_period` | `86400` | How long the respondent has to file before anyone may rule. |
 | 8 | `claim_period` | `604800` | How long the dispute stays adjudicable. |
+| 9 | `min_bond` | `10000000000000000` | 0.01 GEN. The floor a filing must pay. A bond the docs call a deterrent and the contract does not enforce is not a deterrent. |
 
 Fixed at construction. There are no admin setters — an arbiter whose thresholds
 the deployer can move afterwards is an arbiter the deployer controls.
@@ -313,24 +362,48 @@ the deployer can move afterwards is an arbiter the deployer controls.
 Then set on Bench:
 
 ```
-GENLAYER_RPC_URL=https://rpc-bradbury.genlayer.com
+GENLAYER_RPC_URL=https://studio-next.genlayer.com/api
+GENLAYER_CHAIN=studio-next
 GENLAYER_ARBITER_ADDRESS=0x…
 GENLAYER_MARKETPLACE_DOMAIN=bench-bnb.vercel.app
+BENCH_PUBLIC_WEB_URL=https://bench-bnb.vercel.app
 ```
 
-The third is a **disclosure about Bench's own interest**, which is why it is
-configured rather than derived from a request header a caller controls.
+`GENLAYER_MARKETPLACE_DOMAIN` is a **disclosure about Bench's own interest**,
+which is why it is configured rather than derived from a request header a caller
+controls. `BENCH_PUBLIC_WEB_URL` is where the action record is published;
+validators fetch it from outside the process, so a localhost origin makes every
+breach dispute unresolvable.
 
-Without the first two the dispute layer reports itself unavailable, every write
-refuses, and the hire page says so in as many words. That is the intended
-behaviour of an unconfigured deployment, not a degraded one.
+Without an RPC and an address the dispute layer reports itself unavailable,
+every write refuses, and the hire page says so in as many words. That is the
+intended behaviour of an unconfigured deployment, not a degraded one.
+
+### A hire is keyed on the address that registered it
+
+`register_hire` stores under `<registrar>/<hireId>`, not under the bare id, and
+refuses a key that does not begin with the caller's own address.
+
+Registration has to be open to anyone: the party holding both halves of a hire
+at the moment it is created is the marketplace, which is neither the client nor
+the respondent. Keyed on the bare id, whoever learned an id first could register
+it, name themselves client, and leave the real client permanently unable to open
+a dispute — `hire already registered`, for ever, with no way to correct it.
+Bench's ids are opaque, so that attack needs a guess, and resting access control
+on an id being hard to guess is not a guarantee this codebase builds on.
+
+Bench's adapter forms the key from its signing key's own address. A deployment
+that reads disputes without holding a key must set
+`GENLAYER_REGISTRAR_ADDRESS`, because a reader that cannot name the registrar
+cannot name a hire — and it refuses to start rather than answering every lookup
+with an empty list, which would render a live dispute as no dispute.
 
 ---
 
 ## What this does not claim
 
 - **It is not deployed by this repository.** The contract builds, lints as one
-  contract class, and passes 84 tests; an address on a live network is a
+  contract class, and passes 91 tests; an address on a live network is a
   separate act and this document does not pretend to one.
 - **`register_hire` is called by Bench**, because Bench is the party holding both
   halves at hire time. `registered_by` is a public view for exactly that reason,

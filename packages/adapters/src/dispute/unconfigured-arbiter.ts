@@ -1,11 +1,13 @@
 import { BenchError } from '@bench/core';
 import type {
   DisputeFiling,
+  DisputeLimits,
   DisputeRecord,
   DisputeResolver,
   DisputeTerms,
   EvidenceIndependence,
   HireRegistration,
+  PinnedHire,
 } from '@bench/core';
 
 /**
@@ -42,6 +44,22 @@ export class UnconfiguredArbiter implements DisputeResolver {
     );
   }
 
+  /**
+   * Bounds, even here. The panel renders the "switched off" state and never
+   * shows the form, but a caller asking what the floor is should get a number
+   * rather than an exception - and these are the contract's own defaults.
+   */
+  async limits(): Promise<DisputeLimits> {
+    return {
+      minBond: 10_000_000_000_000_000n,
+      answerPeriodSec: 86_400,
+      claimPeriodSec: 604_800,
+      maxSources: 6,
+      maxExtensions: 2,
+      minConfidence: 75,
+    };
+  }
+
   async registerHire(_registration: HireRegistration): Promise<{ readonly termsHash: string }> {
     this.#refuse();
   }
@@ -67,6 +85,10 @@ export class UnconfiguredArbiter implements DisputeResolver {
    * that has a perfectly good answer.
    */
   async get(_disputeId: number): Promise<DisputeRecord | null> {
+    return null;
+  }
+
+  async registration(_hireId: string): Promise<PinnedHire | null> {
     return null;
   }
 

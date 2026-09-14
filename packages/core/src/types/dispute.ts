@@ -181,6 +181,87 @@ export const hasIndependentEvidence = (tally: EvidenceIndependence): boolean =>
   tally.independent > 0;
 
 /**
+ * The key a hire is registered under on the arbiter, mirroring `hire_key` in
+ * `contracts/genlayer/lib/arbiter_core.py`.
+ *
+ * **Bench's own hire id cannot be the key.** Registration is open to anyone -
+ * it has to be, because the party holding both halves of a hire at the moment
+ * it is created is the marketplace, which is neither the client nor the
+ * respondent. Keyed on the bare id, whoever learned an id first could register
+ * it, name themselves client, and leave the real client permanently unable to
+ * open a dispute. Bench's ids are opaque, so that needs a guess - and resting
+ * access control on an id being hard to guess is exactly the weak guarantee
+ * this codebase does not build on.
+ *
+ * Prefixing with the registrant's own address removes the race: two registrars
+ * cannot collide, and the key says who registered it.
+ *
+ * Lower-cased on both sides, because an address that differs only in checksum
+ * casing is the same account and must not produce a second, unreachable hire.
+ */
+export const hireKey = (registrar: string, hireId: string): string =>
+  `${registrar.toLowerCase()}/${hireId}`;
+
+/** Who registered a hire, read straight back off its key. */
+export const registrarOf = (key: string): string =>
+  key.includes('/') ? (key.split('/', 1)[0] ?? '') : '';
+
+/** The bare Bench hire id inside a key, or the input when it carries no prefix. */
+export const hireIdOf = (key: string): string => {
+  const cut = key.indexOf('/');
+  return cut === -1 ? key : key.slice(cut + 1);
+};
+
+/**
+ * One admitted action, in the shape the arbiter replays.
+ *
+ * Seconds and decimal strings rather than `Date` and `bigint`, because this is
+ * what gets published: the validators parse it with `json.loads` and the
+ * digest they compare is taken over the parsed value. A field that serialises
+ * differently in two places is a record that disagrees with itself.
+ *
+ * **Only actions the gate admitted are recorded.** A proposal the gate refused
+ * was never signed and never happened; putting it in the record would
+ * manufacture a breach out of Bench's own safety rail doing its job. The trace
+ * keeps the refusals, and the trace is not the record.
+ */
+export interface RecordedAction {
+  readonly seq: number;
+  /** Unix seconds. Each action is judged by the clock when it happened. */
+  readonly at: number;
+  readonly to: string | null;
+  /** Base units, decimal, as a string. */
+  readonly value: string;
+  readonly data: string;
+  readonly token: string;
+}
+
+/**
+ * The published action record: what the arbiter fetches and replays.
+ *
+ * `revoked_at` rides in the record rather than in the pinned terms, and that is
+ * the only place it can live. Terms are digest-pinned at hire time, before
+ * anyone knows there will be a dispute - and revocation happens later, so a
+ * `revoked_at` inside them would be either absent for ever or a value that
+ * changes after the digest was taken. Spending past the kill switch is the
+ * breach a hirer is angriest about, and pinning it into the terms would make it
+ * unprovable.
+ *
+ * It is evidence, not testimony: the record's likeliest publisher is Bench,
+ * which the arbiter classifies as `marketplace`, and every published copy has
+ * to agree or the dispute goes unresolved.
+ */
+export interface ActionRecord {
+  readonly hire_id: string;
+  readonly actions: readonly RecordedAction[];
+  /** Unix seconds, or null while the mandate is still live. */
+  readonly revoked_at: number | null;
+}
+
+/** Seconds, floored. The contract compares integers and has no milliseconds. */
+export const atSeconds = (at: Date): number => Math.floor(at.getTime() / 1000);
+
+/**
  * An action as the dispute sees it.
  *
  * `InterceptedAction` plus the token the value moved in, because the action

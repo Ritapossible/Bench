@@ -3,7 +3,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { replayAgainstTerms, type DisputedAction } from '../src/types/dispute.js';
+import {
+  hireIdOf,
+  hireKey,
+  registrarOf,
+  replayAgainstTerms,
+  type DisputedAction,
+} from '../src/types/dispute.js';
 import type { BehaviouralEnvelope, EnvelopePolicy } from '../src/types/envelope.js';
 import type { HireMandate } from '../src/types/mandate.js';
 import type { Address, Hex } from '../src/types/primitives.js';
@@ -68,9 +74,17 @@ interface Vector {
   };
 }
 
+interface KeyVector {
+  readonly registrar: string;
+  readonly hire_id: string;
+  readonly key: string;
+  readonly round_trip: string;
+}
+
 const file = JSON.parse(readFileSync(VECTORS, 'utf8')) as {
   readonly version: number;
   readonly cases: readonly Vector[];
+  readonly keys: readonly KeyVector[];
 };
 
 const mandateOf = (v: Vector): HireMandate => ({
@@ -179,6 +193,28 @@ describe('dispute conformance vectors', () => {
       ).toEqual(v.expect.findings.map((f) => ({ rule: f.rule, seq: f.seq })));
       expect(audit.envelopeAdvisory).toBe(v.expect.envelope_advisory);
       expect(audit.actionsConsidered).toBe(v.expect.actions_considered);
+    });
+  }
+});
+
+describe('the hire key', () => {
+  /**
+   * The one divergence that would not raise.
+   *
+   * A terms digest computed differently across the boundary fails loudly:
+   * `adjudicate` refuses and says the terms do not match. A *key* computed
+   * differently fails silently - Bench writes one row and reads another,
+   * `disputes_for` answers with an empty list, and the hire page renders "no
+   * dispute" over a hire that has one. So it gets a vector too.
+   */
+  for (const k of file.keys) {
+    it(`matches the Python for ${k.hire_id}`, () => {
+      expect(hireKey(k.registrar, k.hire_id)).toBe(k.key);
+      expect(registrarOf(k.key)).toBe(k.registrar.toLowerCase());
+      // An id containing a separator of its own must survive the round trip:
+      // both sides split once, at the first slash, and never on the last.
+      expect(hireIdOf(k.key)).toBe(k.round_trip);
+      expect(hireIdOf(k.key)).toBe(k.hire_id);
     });
   }
 });

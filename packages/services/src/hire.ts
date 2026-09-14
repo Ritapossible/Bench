@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import {
   appendTrace,
+  atSeconds,
   applySpend,
   assertTransition,
   BenchError,
@@ -351,7 +352,34 @@ export class HireOrchestrator {
         ? `admitted ${formatBaseUnits(candidate.value, record.mandate.bounds.totalSpendCap.decimals)} ${record.mandate.bounds.totalSpendCap.symbol} to ${candidate.to ?? 'contract creation'}`
         : explanation,
     );
-    if (allowed) next = { ...next, mandateState: applySpend(next.mandateState, candidate.value) };
+    if (allowed) {
+      /**
+       * Admitted actions are recorded; refused ones are not.
+       *
+       * This is the record the arbiter fetches and replays when a dispute is
+       * opened on the breach ground, so what goes in it decides what can be
+       * proved. A refusal never reached a chain - putting it here would let a
+       * replay find a breach in Bench's own gate having correctly said no.
+       * The refusal is in the trace, which is a different artifact answering a
+       * different question.
+       */
+      const at = this.now();
+      next = {
+        ...next,
+        mandateState: applySpend(next.mandateState, candidate.value),
+        actions: [
+          ...(next.actions ?? []),
+          {
+            seq: (next.actions?.length ?? 0) + 1,
+            at: atSeconds(at),
+            to: candidate.to === null ? null : candidate.to.toLowerCase(),
+            value: candidate.value.toString(),
+            data: candidate.data,
+            token: candidate.token.toLowerCase(),
+          },
+        ],
+      };
+    }
     await this.deps.store.put(next);
 
     return { allowed, rules, explanation, envelopeAdvisory: e.advisory };

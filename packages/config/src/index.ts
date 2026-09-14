@@ -153,6 +153,27 @@ const schema = z.object({
   GENLAYER_RPC_URL: z.string().url().optional(),
   GENLAYER_ARBITER_ADDRESS: hexAddress.optional(),
   /**
+   * Which GenLayer network, because the RPC URL alone does not say.
+   *
+   * The SDK needs the chain's own descriptor - its id, and whether it speaks
+   * the Studio JSON-RPC dialect or drives the consensus contract directly - and
+   * pointing a Studio endpoint at a testnet descriptor fails as a malformed
+   * call rather than as a misconfiguration. Defaults to `studio-next`, which is
+   * where the Arbiter is deployed.
+   */
+  GENLAYER_CHAIN: z
+    .enum(['localnet', 'studionet', 'studio-next', 'testnet-bradbury', 'testnet-asimov'])
+    .default('studio-next'),
+  /**
+   * The address hires are registered under on the arbiter.
+   *
+   * A hire is keyed on `<registrar>/<hireId>` so nobody can claim an id they
+   * did not create. Defaults to the signing key's own address, so this is only
+   * needed by a deployment that reads disputes without holding a key - or by
+   * one whose signing key has rotated since the hires were registered.
+   */
+  GENLAYER_REGISTRAR_ADDRESS: hexAddress.optional(),
+  /**
    * Bench's own host, handed to the arbiter so it can mark Bench's data as
    * `marketplace` rather than `independent` in the evidence tally.
    *

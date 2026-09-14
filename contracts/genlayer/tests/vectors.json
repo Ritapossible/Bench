@@ -938,5 +938,25 @@
         "actions_considered": 0
       }
     }
+  ],
+  "keys": [
+    {
+      "registrar": "0xABABABABABABABABABABABABABABABABABABABAB",
+      "hire_id": "h_01JQZ9",
+      "key": "0xabababababababababababababababababababab/h_01JQZ9",
+      "round_trip": "h_01JQZ9"
+    },
+    {
+      "registrar": "0xabababababababababababababababababababab",
+      "hire_id": "h_01JQZ9",
+      "key": "0xabababababababababababababababababababab/h_01JQZ9",
+      "round_trip": "h_01JQZ9"
+    },
+    {
+      "registrar": "0x1212121212121212121212121212121212121212",
+      "hire_id": "weird/id",
+      "key": "0x1212121212121212121212121212121212121212/weird/id",
+      "round_trip": "weird/id"
+    }
   ]
 }

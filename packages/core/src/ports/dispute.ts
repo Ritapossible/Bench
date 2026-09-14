@@ -1,6 +1,10 @@
+import { DEFAULT_ENVELOPE_POLICY } from '../types/envelope.js';
+import { atSeconds } from '../types/dispute.js';
 import type { AgentId } from '../types/agent.js';
 import type { Address } from '../types/primitives.js';
+import type { HireRecord } from './hire-store.js';
 import type {
+  ActionRecord,
   DisputeGround,
   DisputeState,
   EvidenceIndependence,
@@ -44,6 +48,70 @@ export interface DisputeTerms {
     readonly action_tolerance_bps: number;
     readonly require_known_recipient: boolean;
     readonly require_known_selector: boolean;
+  };
+}
+
+/**
+ * The terms of a hire, in the exact shape the arbiter pins and replays.
+ *
+ * **One function, used at registration and at adjudication.** The contract
+ * refuses to rule unless the terms it is handed hash to the digest recorded at
+ * hire time, so two call sites building this structure independently would not
+ * produce a bug that looks like a bug - it would produce "terms do not match
+ * the digest recorded at hire time", which reads as a party rewriting the deal.
+ *
+ * `revoked_at` is deliberately absent. Terms are pinned before anyone knows
+ * there will be a dispute; revocation happens afterwards, so a revocation
+ * inside the digest would be either always empty or a value that changes after
+ * the digest was taken. It travels in the published action record instead,
+ * where it belongs - it is something that happened, not something agreed.
+ */
+export function disputeTermsFor(hire: HireRecord): DisputeTerms {
+  const b = hire.mandate.bounds;
+  const policy = hire.envelopePolicy ?? DEFAULT_ENVELOPE_POLICY;
+  return {
+    mandate: {
+      total_cap: b.totalSpendCap.amount.toString(),
+      per_tx_cap: b.perTxCap.amount.toString(),
+      allowlist: b.contractAllowlist.map((a) => a.toLowerCase()),
+      expires_at: atSeconds(b.expiresAt),
+      max_actions: b.maxActions,
+      token: b.totalSpendCap.token.toLowerCase(),
+    },
+    envelope: {
+      recipients: hire.envelope.recipients.map((a) => a.toLowerCase()),
+      selectors: hire.envelope.selectors.map((sel) => sel.toLowerCase()),
+      max_single_value: hire.envelope.maxSingleValueWei.toString(),
+      max_cumulative_value: hire.envelope.maxCumulativeValueWei.toString(),
+      max_action_count: hire.envelope.maxActionCount,
+      sample_size: hire.envelope.sampleSize,
+    },
+    policy: {
+      value_tolerance_bps: policy.valueToleranceBps,
+      action_tolerance_bps: policy.actionToleranceBps,
+      require_known_recipient: policy.requireKnownRecipient,
+      require_known_selector: policy.requireKnownSelector,
+    },
+  };
+}
+
+/**
+ * The action record Bench publishes at the URL it pinned at hire time.
+ *
+ * This is the one piece of the breach ground Bench is still responsible for,
+ * and the arbiter treats it accordingly: it is classified `marketplace` rather
+ * than `independent`, every published copy has to agree or the dispute goes
+ * unresolved, and the remedy against a doctored record is for the other side to
+ * publish its own. Bench publishing nothing at all is not neutrality - it makes
+ * every breach dispute unresolvable, which quietly favours whoever holds the
+ * money.
+ */
+export function actionRecordFor(hire: HireRecord): ActionRecord {
+  const revoked = hire.mandateState.revokedAt;
+  return {
+    hire_id: hire.id,
+    actions: hire.actions ?? [],
+    revoked_at: revoked === null || revoked === undefined ? null : atSeconds(revoked),
   };
 }
 
@@ -122,14 +190,64 @@ export interface DisputeVerdictRecord {
   readonly observed: Readonly<Record<string, unknown>> | null;
 }
 
+/**
+ * A hire as the arbiter holds it, or `null` when it holds none.
+ *
+ * The distinction is the whole of what a hire page needs to say. An unpinned
+ * hire cannot be disputed at all - `open_dispute` refuses with "hire not
+ * registered" - and offering a filing form over one would cost the hirer a
+ * transaction to be told no at the moment they are angriest.
+ */
+export interface PinnedHire {
+  readonly hireId: string;
+  readonly agentRef: string;
+  readonly client: Address;
+  readonly respondent: Address;
+  readonly termsHash: string;
+  /** Where the action record is published. Pinned before anyone knew. */
+  readonly recordUrl: string;
+  readonly registeredAt: Date;
+  readonly registeredBy: Address;
+}
+
+/** The arbiter's construction-time bounds, as a UI needs them. */
+export interface DisputeLimits {
+  /** Below this a filing is refused. The form must not offer less. */
+  readonly minBond: bigint;
+  /** Seconds the respondent gets before anyone may rule. */
+  readonly answerPeriodSec: number;
+  readonly claimPeriodSec: number;
+  readonly maxSources: number;
+  readonly maxExtensions: number;
+  /** Below this an `unmet` reading is downgraded to `unresolved`. */
+  readonly minConfidence: number;
+}
+
 export interface DisputeResolver {
   /** True when an arbiter is actually configured. Nothing below works otherwise. */
   readonly available: boolean;
   /** Where the arbiter lives, for a UI that has to say so. */
   readonly locator: { readonly chain: string; readonly address: string } | null;
 
+  /**
+   * The bounds the contract was deployed with.
+   *
+   * Read from the chain rather than mirrored in Bench's config: a form that
+   * offers a bond the contract would refuse wastes a user's transaction to be
+   * told no, and two copies of a number that must agree is how they stop
+   * agreeing.
+   */
+  limits(): Promise<DisputeLimits>;
   /** Pin a hire's terms. Called when the hire is created, not when it fails. */
   registerHire(registration: HireRegistration): Promise<{ readonly termsHash: string }>;
+  /**
+   * What the arbiter holds for this hire, or null.
+   *
+   * Free, and the question a hire page has to answer before it offers anyone a
+   * dispute form: terms that were never pinned cannot be ruled on, and finding
+   * that out through a refused payable transaction is the wrong moment.
+   */
+  registration(hireId: string): Promise<PinnedHire | null>;
   openDispute(filing: DisputeFiling): Promise<DisputeRecord>;
   /** The respondent's filing. Adjudication refuses until its window closes. */
   answer(disputeId: number, evidenceUrls: readonly string[]): Promise<DisputeRecord>;

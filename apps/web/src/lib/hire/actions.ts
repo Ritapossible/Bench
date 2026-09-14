@@ -7,6 +7,7 @@ import { BenchError, deriveEnvelope, type Address, type ConsentStep } from '@ben
 import { data } from '@/lib/data/index';
 import { SETTLEMENT_TOKEN, hireOrchestrator, hireStore, settlementToken } from '@/lib/hire/runtime';
 import { currentOwner } from '@/lib/hire/owner';
+import { tryPin } from '@/lib/dispute/pin';
 
 /**
  * A settlement amount, in whatever token this deployment actually settles in.
@@ -163,6 +164,23 @@ export async function createHire(form: FormData): Promise<void> {
   if (attempt.ok === false) {
     redirect(`/agents/${input.chain}/${input.tokenId}/hire?error=${attempt.code}`);
   }
+
+  /**
+   * Pin the terms on the arbiter, now, while nobody knows there will be a
+   * dispute.
+   *
+   * This is the whole reason registration is a separate call from filing. Terms
+   * that arrive with a complaint are the complaining party stating the rules
+   * they were owed; terms pinned at hire time are a fact about the past, and
+   * the contract refuses to rule on anything else.
+   *
+   * Awaited but never fatal. A hire whose terms did not pin is still a hire -
+   * failing the creation over a second chain being slow would be the wrong
+   * trade by a wide margin - and the hire page reports the unpinned state and
+   * offers the retry rather than letting a hirer discover it at the moment they
+   * want to complain.
+   */
+  await tryPin(attempt.record);
 
   revalidatePath('/hires');
   redirect(`/hires/${attempt.record.id}`);

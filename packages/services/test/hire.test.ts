@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  actionRecordFor,
   deriveEnvelope,
+  disputeTermsFor,
   verifyTrace,
   type Address,
   type EscrowClient,
   type EscrowJob,
+  type HireRecord,
   type Hex,
   type InterceptedAction,
   type PaymentClient,
@@ -313,5 +316,91 @@ describe('authorizeAction — both bounds', () => {
     const d = await o.authorizeAction(h.id, candidate(VENUS, 150n));
     expect(d.allowed).toBe(true);
     expect(d.envelopeAdvisory).toBe(true);
+  });
+});
+
+describe('the action record a dispute is replayed against', () => {
+  const candidate = (to: Address, value: bigint) => ({
+    to,
+    value,
+    data: '0x' as Hex,
+    token: USDT,
+  });
+
+  /**
+   * The record and the trace answer different questions, and conflating them
+   * would break the dispute layer in the direction that favours the claimant.
+   *
+   * The trace is every decision the gate made, refusals included, hash-chained
+   * so nobody can rewrite what Bench decided. The record is what actually
+   * happened - and a refused proposal never reached a chain, so replaying one
+   * would find a breach in the gate correctly saying no.
+   */
+  it('holds the admitted actions and not the refused ones', async () => {
+    const { o, store } = build();
+    const h = await o.hire(request());
+
+    expect((await o.authorizeAction(h.id, candidate(VENUS, 100n))).allowed).toBe(true);
+    expect((await o.authorizeAction(h.id, candidate(STRANGER, 100n))).allowed).toBe(false);
+    expect((await o.authorizeAction(h.id, candidate(VENUS, 10n))).allowed).toBe(true);
+
+    const stored = await store.get(h.id);
+    expect(stored?.actions?.map((a) => a.value)).toEqual(['100', '10']);
+    // Recipients lower-cased, because the arbiter compares them against a
+    // lower-cased allowlist and a checksummed address would miss every entry.
+    expect(stored?.actions?.every((a) => a.to === VENUS.toLowerCase())).toBe(true);
+    // Sequential from one, independently of how many proposals were refused in
+    // between: the replay orders by `seq` and gaps would read as a record with
+    // actions missing from it.
+    expect(stored?.actions?.map((a) => a.seq)).toEqual([1, 2]);
+    // The refusal is still in the trace. Both artifacts exist; they are not the
+    // same artifact.
+    expect(stored?.trace.some((t) => t.outcome === 'blocked')).toBe(true);
+  });
+
+  it('publishes a record the arbiter can replay, with revocation in it', async () => {
+    const { o, store } = build();
+    const h = await o.hire(request());
+    await o.authorizeAction(h.id, candidate(VENUS, 100n));
+
+    const before = actionRecordFor((await store.get(h.id)) as HireRecord);
+    expect(before.revoked_at).toBeNull();
+    expect(before.actions[0]?.at).toBe(
+      Math.floor(new Date('2026-08-26T00:00:00Z').getTime() / 1000),
+    );
+
+    await o.revoke(h.id);
+    const after = actionRecordFor((await store.get(h.id)) as HireRecord);
+    /**
+     * Revocation travels in the record rather than in the pinned terms, and it
+     * has to: terms are digest-pinned at hire time and revocation happens
+     * later, so a `revoked_at` inside them would be absent for every hire that
+     * has not yet gone wrong. Spending past the kill switch is the breach a
+     * hirer is angriest about, and pinning it into the terms would make it
+     * unprovable.
+     */
+    expect(after.revoked_at).toBe(Math.floor(new Date('2026-08-26T00:00:00Z').getTime() / 1000));
+    expect(after.actions).toEqual(before.actions);
+  });
+
+  it('builds the same terms twice, because the contract hashes them', async () => {
+    /**
+     * `adjudicate` refuses unless the terms it is handed hash to the digest
+     * pinned at registration. Two call sites building the structure
+     * independently would not produce a bug that reads as a bug - it would
+     * produce "terms do not match the digest recorded at hire time", which
+     * reads as a party rewriting the deal after the fact.
+     */
+    const { o, store } = build();
+    const h = await o.hire(request());
+    await o.authorizeAction(h.id, candidate(VENUS, 100n));
+
+    const atHire = disputeTermsFor(h);
+    const atAdjudication = disputeTermsFor((await store.get(h.id)) as HireRecord);
+    expect(atAdjudication).toEqual(atHire);
+    // And the parts a replay actually reads are the hire's own bounds, not
+    // defaults that happen to agree with them today.
+    expect(atHire.mandate.allowlist).toContain(VENUS.toLowerCase());
+    expect(atHire.mandate.token).toBe(USDT.toLowerCase());
   });
 });

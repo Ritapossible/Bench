@@ -86,6 +86,7 @@ def test_every_public_method_is_accounted_for() -> None:
         "hire",
         "limits",
         "owed_to",
+        "total",
     ]
     assert sorted(writes) == [
         "adjudicate",

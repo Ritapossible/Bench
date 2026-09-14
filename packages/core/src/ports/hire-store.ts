@@ -1,3 +1,4 @@
+import type { RecordedAction } from '../types/dispute.js';
 import type { AgentId } from '../types/agent.js';
 import type { BehaviouralEnvelope, EnvelopePolicy } from '../types/envelope.js';
 import type { HireState, TraceEntry } from '../types/hire-flow.js';
@@ -35,6 +36,20 @@ export interface HireRecord {
   readonly escrowJobId: string | null;
   readonly paymentTxHash: Hex | null;
   readonly trace: readonly TraceEntry[];
+  /**
+   * The actions the gate admitted, in the shape the arbiter replays.
+   *
+   * Separate from `trace` rather than derived from it, and the distinction is
+   * the point. The trace is every decision, refusals included, hash-chained so
+   * nobody can rewrite what Bench decided. The record is what actually
+   * happened - and a refused proposal did not happen, so replaying it would
+   * manufacture a breach out of the gate working correctly.
+   *
+   * Optional because hires created before this existed have none, and a record
+   * that is absent is honestly absent: the arbiter answers `unresolved` on a
+   * record it cannot read rather than clearing the agent.
+   */
+  readonly actions?: readonly RecordedAction[];
   readonly createdAt: Date;
   readonly failureReason?: string;
 }

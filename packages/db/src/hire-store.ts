@@ -13,6 +13,7 @@ import {
   type Hex,
   type MandateState,
   type TokenAmount,
+  type RecordedAction,
   type TraceEntry,
 } from '@bench/core';
 
@@ -203,6 +204,7 @@ function toRecord(row: Row): HireRecord {
     escrowJobId: row.escrowJobId,
     paymentTxHash: row.paymentTxHash as Hex | null,
     trace,
+    ...(row.actions === null ? {} : { actions: row.actions as unknown as RecordedAction[] }),
     createdAt: row.createdAt,
     ...(row.failureReason === null ? {} : { failureReason: row.failureReason }),
   };
@@ -222,6 +224,7 @@ function toRow(r: HireRecord): typeof schema.hires.$inferInsert {
     envelope: encEnvelope(r.envelope),
     envelopePolicy: r.envelopePolicy ?? null,
     trace: encTrace(r.trace),
+    actions: r.actions === undefined ? null : [...r.actions],
     paymentTxHash: r.paymentTxHash,
     failureReason: r.failureReason ?? null,
     createdAt: r.createdAt,

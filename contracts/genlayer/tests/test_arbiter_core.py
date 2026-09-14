@@ -27,6 +27,7 @@ from arbiter_core import (  # noqa: E402
     ORIGIN_RESPONDENT,
     ORIGIN_UNCLASSIFIED,
     REASON_ANSWER_WINDOW_OPEN,
+    REASON_BAD_HIRE_KEY,
     REASON_NOT_CLIENT,
     REASON_NOT_RESPONDENT,
     REASON_SETTLED,
@@ -44,12 +45,16 @@ from arbiter_core import (  # noqa: E402
     canonical_leader_verdict,
     canonicalize_verdict,
     classify_source,
+    replay_actions,
     derive_ruling,
     dispute_salt,
     has_independent_evidence,
+    hire_key,
     independence,
+    registrar_of,
     screen_adjudication,
     screen_answer,
+    screen_hire_key,
     screen_open,
     settle,
     terms_digest,
@@ -64,6 +69,7 @@ LIMITS = Limits(
     max_extensions=2,
     extension_period=86_400,
     answer_period=86_400,
+    min_bond=10_000_000_000_000_000,
 )
 
 DOMAINS = {
@@ -380,3 +386,96 @@ def test_the_prompt_salt_is_per_dispute() -> None:
 def test_grounds_are_the_two_the_contract_knows() -> None:
     assert GROUND_BREACH == "BREACH"
     assert GROUND_DELIVERY == "DELIVERY"
+
+
+# --- registration keys ----------------------------------------------------
+
+
+def test_a_hire_id_must_name_the_account_registering_it() -> None:
+    """Registration is open to anyone, so the key has to close the race.
+
+    The party holding both halves of a hire when it is created is the
+    marketplace, which is neither the client nor the respondent - so
+    `register_hire` cannot be restricted to a party. Keyed on a bare id, anyone
+    who learned an id first could claim it, name themselves client, and leave
+    the real client permanently unable to open a dispute.
+
+    Bench's ids are opaque, and "hard to guess" is not an access control.
+    """
+    assert screen_hire_key("0xabc/h_1", "0xABC").ok is True  # case-insensitive
+    assert screen_hire_key("h_1", "0xabc").reason == REASON_BAD_HIRE_KEY
+    assert screen_hire_key("0xdef/h_1", "0xabc").reason == REASON_BAD_HIRE_KEY
+    # A prefix with nothing after it is not an id.
+    assert screen_hire_key("0xabc/", "0xabc").ok is False
+    assert screen_hire_key("", "0xabc").ok is False
+
+
+def test_the_key_says_who_registered_the_hire() -> None:
+    # `registered_by` is also a stored field, but reading it off the key means a
+    # caller can tell before it fetches anything - and a hire registered by
+    # neither party nor the marketplace is worth a second look.
+    assert hire_key("0xBench", "h_1") == "0xbench/h_1"
+    assert registrar_of(hire_key("0xBench", "h_1")) == "0xbench"
+    assert registrar_of("no-slash") == ""
+
+
+def test_two_registrars_cannot_collide_on_one_id() -> None:
+    assert hire_key("0xaaa", "h_1") != hire_key("0xbbb", "h_1")
+
+
+def test_revocation_may_arrive_with_the_record_rather_than_the_terms() -> None:
+    """The kill switch has to be provable, and the pinned terms cannot carry it.
+
+    Terms are digest-pinned at hire time, before anyone knows there will be a
+    dispute. Revocation happens afterwards. So a `revoked_at` inside the digest
+    is absent for every hire that has not yet gone wrong, and "it kept spending
+    after I revoked" - the breach a hirer is angriest about - would be
+    unprovable by construction.
+
+    It rides in the published action record instead, held to the same standard
+    as everything else in there: every published copy must agree, or the arbiter
+    goes unresolved rather than ruling.
+    """
+    terms = {
+        "mandate": {
+            "total_cap": 10**18,
+            "per_tx_cap": 10**18,
+            "allowlist": ["0x" + "33" * 20],
+            "expires_at": 2_000_000_000,
+            "max_actions": 9,
+            "token": "0x" + "55" * 20,
+        },
+        "envelope": {
+            "recipients": ["0x" + "33" * 20],
+            "selectors": ["0x38ed1739"],
+            "max_single_value": 10**18,
+            "max_cumulative_value": 10**18,
+            "max_action_count": 9,
+            "sample_size": 5,
+        },
+        "policy": {
+            "value_tolerance_bps": 0,
+            "action_tolerance_bps": 0,
+            "require_known_recipient": True,
+            "require_known_selector": True,
+        },
+    }
+    actions = [
+        {"seq": 1, "at": 1_000, "to": "0x" + "33" * 20, "value": 1, "data": "0x38ed1739"},
+        {"seq": 2, "at": 3_000, "to": "0x" + "33" * 20, "value": 1, "data": "0x38ed1739"},
+    ]
+
+    # No revocation anywhere: a clean hire.
+    assert replay_actions(actions, terms)["findings"] == []
+
+    # Revoked between the two actions. The first stands, the second does not -
+    # revocation is a moment, and a flag could only pick one answer for a hire
+    # where both are true.
+    found = replay_actions(actions, terms, 2_000)["findings"]
+    assert found == [{"rule": "revoked", "seq": 2}]
+
+    # A pinned revocation still wins: the conformance vectors carry one, and a
+    # value in the digest is stronger evidence than a value that was fetched.
+    pinned = dict(terms)
+    pinned["mandate"] = {**terms["mandate"], "revoked_at": 500}
+    assert {f["seq"] for f in replay_actions(actions, pinned, 2_000)["findings"]} == {1, 2}

@@ -120,6 +120,9 @@ REASON_HIRE_NOT_FOUND = "hire not registered"
 REASON_HIRE_EXISTS = "hire already registered"
 REASON_NOT_CLIENT = "only the client may open a dispute"
 REASON_TERMS_MISMATCH = "terms do not match the digest recorded at hire time"
+REASON_NO_TERMS = "adjudicating a breach needs the terms it was hired under"
+REASON_BAD_HIRE_KEY = "hire_id must be prefixed with the registrant's own address"
+REASON_BOND_TOO_SMALL = "filing bond is below the minimum"
 
 U256_MAX = (1 << 256) - 1
 
@@ -135,6 +138,7 @@ class Limits:
     max_extensions: int
     extension_period: int
     answer_period: int
+    min_bond: int
 
 
 @dataclass(frozen=True)
@@ -246,6 +250,40 @@ def has_independent_evidence(tally: dict) -> bool:
     return int(tally.get(ORIGIN_INDEPENDENT, 0)) > 0
 
 
+def hire_key(registrar: str, hire_id: str) -> str:
+    """The storage key for a registration: the registrant, then the id.
+
+    **A hire id alone cannot be the key.** `register_hire` is open to anyone -
+    it has to be, because the party holding both halves of a hire at the moment
+    it is created is the marketplace, which is neither the client nor the
+    respondent. Keyed on the bare id, anyone who learned an id before Bench
+    registered it could register it first, name themselves client, and leave the
+    real client permanently unable to open a dispute: `REASON_HIRE_EXISTS` for
+    ever, with no way to correct it.
+
+    Bench's hire ids are opaque, so that attack needs a guess. Resting an
+    access-control property on an id being hard to guess is exactly the kind of
+    weak guarantee this codebase does not build on. Prefixing the id with the
+    registrant's own address removes the race entirely: two registrars cannot
+    collide, the key says who registered it, and no caller needs a second
+    argument to look one up.
+    """
+    return f"{registrar.lower()}/{hire_id}"
+
+
+def screen_hire_key(key: str, sender: str) -> Screen:
+    """A registration key must name the account presenting it."""
+    prefix = f"{sender.lower()}/"
+    if not isinstance(key, str) or not key.startswith(prefix) or len(key) <= len(prefix):
+        return Screen(False, REASON_BAD_HIRE_KEY)
+    return Screen(True)
+
+
+def registrar_of(key: str) -> str:
+    """Who registered a hire, read straight off its key."""
+    return key.split("/", 1)[0] if "/" in key else ""
+
+
 # --- the replay -----------------------------------------------------------
 
 # Rule names. These are the strings `packages/core` uses; the conformance
@@ -305,7 +343,7 @@ def _lower_set(values) -> set:
     return {str(v).lower() for v in (values or [])}
 
 
-def replay_actions(actions: list, terms: dict) -> dict:
+def replay_actions(actions: list, terms: dict, revoked_at=None) -> dict:
     """Replay a hire's recorded actions against the terms it was hired under.
 
     This is Bench's signing gate, run backwards. The same two checks that decide
@@ -344,7 +382,21 @@ def replay_actions(actions: list, terms: dict) -> dict:
     expires_at = int(mandate.get("expires_at", 0))
     max_actions = int(mandate.get("max_actions", 0))
     mandate_token = str(mandate.get("token", "")).lower()
-    revoked_at = mandate.get("revoked_at")
+    # Terms first, then the published record.
+    #
+    # **Revocation cannot live in the pinned terms in practice.** Terms are
+    # digest-pinned at hire time, before anyone knows there will be a dispute;
+    # revocation happens afterwards. A `revoked_at` inside the digest would
+    # therefore be absent for every real hire, and spending past the kill switch
+    # - the breach a hirer is angriest about - would be unprovable.
+    #
+    # So it travels in the action record, which is fetched rather than pinned,
+    # and is held to the same standard as the rest of the record: every
+    # published copy must agree or the dispute goes unresolved. The terms still
+    # win where they carry one, because a pinned value is stronger than a
+    # fetched one and the conformance vectors pin it.
+    pinned_revocation = mandate.get("revoked_at")
+    revoked_at = pinned_revocation if pinned_revocation is not None else revoked_at
 
     recipients = _lower_set(envelope.get("recipients"))
     selectors = _lower_set(envelope.get("selectors"))

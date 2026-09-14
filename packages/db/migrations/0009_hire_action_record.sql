@@ -1,0 +1,13 @@
+-- The action record the dispute arbiter replays.
+--
+-- Separate from `trace`, which is every decision the gate made, refusals
+-- included, hash-chained. This is what actually happened: the actions the gate
+-- admitted, in the shape the arbiter parses. A refused proposal never reached a
+-- chain, and replaying one would find a breach in Bench's own gate correctly
+-- saying no.
+--
+-- Nullable rather than defaulted to '[]': a hire from before this column
+-- existed has no record, and "no record" is a different claim from "a record
+-- showing nothing happened". The arbiter answers the first with `unresolved`
+-- and the second with a ruling.
+ALTER TABLE "hires" ADD COLUMN "actions" jsonb;

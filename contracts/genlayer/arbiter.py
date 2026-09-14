@@ -193,6 +193,9 @@ REASON_HIRE_NOT_FOUND = "hire not registered"
 REASON_HIRE_EXISTS = "hire already registered"
 REASON_NOT_CLIENT = "only the client may open a dispute"
 REASON_TERMS_MISMATCH = "terms do not match the digest recorded at hire time"
+REASON_NO_TERMS = "adjudicating a breach needs the terms it was hired under"
+REASON_BAD_HIRE_KEY = "hire_id must be prefixed with the registrant's own address"
+REASON_BOND_TOO_SMALL = "filing bond is below the minimum"
 
 U256_MAX = (1 << 256) - 1
 
@@ -208,6 +211,7 @@ class Limits:
     max_extensions: int
     extension_period: int
     answer_period: int
+    min_bond: int
 
 
 @dataclass(frozen=True)
@@ -319,6 +323,40 @@ def has_independent_evidence(tally: dict) -> bool:
     return int(tally.get(ORIGIN_INDEPENDENT, 0)) > 0
 
 
+def hire_key(registrar: str, hire_id: str) -> str:
+    """The storage key for a registration: the registrant, then the id.
+
+    **A hire id alone cannot be the key.** `register_hire` is open to anyone -
+    it has to be, because the party holding both halves of a hire at the moment
+    it is created is the marketplace, which is neither the client nor the
+    respondent. Keyed on the bare id, anyone who learned an id before Bench
+    registered it could register it first, name themselves client, and leave the
+    real client permanently unable to open a dispute: `REASON_HIRE_EXISTS` for
+    ever, with no way to correct it.
+
+    Bench's hire ids are opaque, so that attack needs a guess. Resting an
+    access-control property on an id being hard to guess is exactly the kind of
+    weak guarantee this codebase does not build on. Prefixing the id with the
+    registrant's own address removes the race entirely: two registrars cannot
+    collide, the key says who registered it, and no caller needs a second
+    argument to look one up.
+    """
+    return f"{registrar.lower()}/{hire_id}"
+
+
+def screen_hire_key(key: str, sender: str) -> Screen:
+    """A registration key must name the account presenting it."""
+    prefix = f"{sender.lower()}/"
+    if not isinstance(key, str) or not key.startswith(prefix) or len(key) <= len(prefix):
+        return Screen(False, REASON_BAD_HIRE_KEY)
+    return Screen(True)
+
+
+def registrar_of(key: str) -> str:
+    """Who registered a hire, read straight off its key."""
+    return key.split("/", 1)[0] if "/" in key else ""
+
+
 # --- the replay -----------------------------------------------------------
 
 # Rule names. These are the strings `packages/core` uses; the conformance
@@ -378,7 +416,7 @@ def _lower_set(values) -> set:
     return {str(v).lower() for v in (values or [])}
 
 
-def replay_actions(actions: list, terms: dict) -> dict:
+def replay_actions(actions: list, terms: dict, revoked_at=None) -> dict:
     """Replay a hire's recorded actions against the terms it was hired under.
 
     This is Bench's signing gate, run backwards. The same two checks that decide
@@ -417,7 +455,21 @@ def replay_actions(actions: list, terms: dict) -> dict:
     expires_at = int(mandate.get("expires_at", 0))
     max_actions = int(mandate.get("max_actions", 0))
     mandate_token = str(mandate.get("token", "")).lower()
-    revoked_at = mandate.get("revoked_at")
+    # Terms first, then the published record.
+    #
+    # **Revocation cannot live in the pinned terms in practice.** Terms are
+    # digest-pinned at hire time, before anyone knows there will be a dispute;
+    # revocation happens afterwards. A `revoked_at` inside the digest would
+    # therefore be absent for every real hire, and spending past the kill switch
+    # - the breach a hirer is angriest about - would be unprovable.
+    #
+    # So it travels in the action record, which is fetched rather than pinned,
+    # and is held to the same standard as the rest of the record: every
+    # published copy must agree or the dispute goes unresolved. The terms still
+    # win where they carry one, because a pinned value is stronger than a
+    # fetched one and the conformance vectors pin it.
+    pinned_revocation = mandate.get("revoked_at")
+    revoked_at = pinned_revocation if pinned_revocation is not None else revoked_at
 
     recipients = _lower_set(envelope.get("recipients"))
     selectors = _lower_set(envelope.get("selectors"))
@@ -992,7 +1044,6 @@ class Dispute:
 class Arbiter(gl.Contract):
     disputes: DynArray[Dispute]
     hires: TreeMap[str, HireTerms]
-    hire_disputes: TreeMap[str, DynArray[u256]]
     owed: TreeMap[str, u256]
     owner: Address
     max_sources: u256
@@ -1003,6 +1054,7 @@ class Arbiter(gl.Contract):
     extension_period: u256
     answer_period: u256
     claim_period: u256
+    min_bond: u256
 
     def __init__(
         self,
@@ -1014,6 +1066,7 @@ class Arbiter(gl.Contract):
         extension_period: int = 86_400,
         answer_period: int = 86_400,
         claim_period: int = 604_800,
+        min_bond: int = 10_000_000_000_000_000,
     ):
         """Fixed at construction. There are no admin setters.
 
@@ -1031,6 +1084,12 @@ class Arbiter(gl.Contract):
             raise gl.vm.UserError(
                 f"{ERROR_EXPECTED} claim_period must outlast answer_period"
             )
+        if min_bond <= 0:
+            # The bond is the only thing that makes filing cost anything. A
+            # contract that documents it as the deterrent against frivolous
+            # disputes and then accepts one wei has a decorative deterrent, so
+            # the floor is a construction parameter rather than a convention.
+            raise gl.vm.UserError(f"{ERROR_EXPECTED} min_bond must be positive")
         self.owner = gl.message.sender_address
         self.max_sources = u256(max_sources)
         self.max_source_bytes = u256(max_source_bytes)
@@ -1040,6 +1099,7 @@ class Arbiter(gl.Contract):
         self.extension_period = u256(extension_period)
         self.answer_period = u256(answer_period)
         self.claim_period = u256(claim_period)
+        self.min_bond = u256(min_bond)
 
     # --- internals --------------------------------------------------------
 
@@ -1052,6 +1112,7 @@ class Arbiter(gl.Contract):
             max_extensions=int(self.max_extensions),
             extension_period=int(self.extension_period),
             answer_period=int(self.answer_period),
+            min_bond=int(self.min_bond),
         )
 
     def _now(self) -> int:
@@ -1090,6 +1151,7 @@ class Arbiter(gl.Contract):
             "extension_period": lim.extension_period,
             "answer_period": lim.answer_period,
             "claim_period": int(self.claim_period),
+            "min_bond": lim.min_bond,
         }
 
     @gl.public.view
@@ -1153,10 +1215,29 @@ class Arbiter(gl.Contract):
         return tally
 
     @gl.public.view
+    def total(self) -> int:
+        """How many disputes exist. A UI paging them needs a bound."""
+        return len(self.disputes)
+
+    @gl.public.view
     def disputes_for(self, hire_id: str) -> list:
+        """Derived by scanning, not kept as an index.
+
+        The obvious shape is `TreeMap[str, DynArray[u256]]`, and it is a storage
+        shape neither of the contracts this one is modelled on uses - so it
+        would first be exercised on a live chain, holding the only record of
+        which disputes belong to which hire. A second structure that can
+        disagree with `self.disputes` is also a second thing to keep right.
+
+        `self.disputes` is authoritative and views are free, so the answer is
+        computed from it. That is linear in the number of disputes ever filed,
+        which for this contract is the correct trade: it cannot desynchronise,
+        it costs nothing to call, and a registry of disputes is not a registry
+        of agents - if this ever holds enough of them for a scan to hurt, the
+        index can be added then, against a shape that has been used in anger.
+        """
         key = _require_text(hire_id, "hire_id", MAX_ID_LEN)
-        ids = self.hire_disputes.get(key)
-        return [] if ids is None else [int(i) for i in ids]
+        return [i for i, d in enumerate(self.disputes) if str(d.hire_id) == key]
 
     @gl.public.view
     def owed_to(self, who: str) -> int:
@@ -1197,13 +1278,23 @@ class Arbiter(gl.Contract):
         registered by neither party nor the marketplace is worth a second look.
         """
         key = _require_text(hire_id, "hire_id", MAX_ID_LEN)
-        if key == "":
-            raise gl.vm.UserError(f"{ERROR_EXPECTED} hire_id must be non-empty")
+        sender = gl.message.sender_address.as_hex
+
+        # The id must name the account registering it. See `hire_key`: without
+        # this, anyone who learned an id before Bench registered it could claim
+        # it first and leave the real client permanently unable to open a
+        # dispute, and the only thing standing in the way would be the id being
+        # hard to guess.
+        namespaced = screen_hire_key(key, sender)
+        if not namespaced.ok:
+            raise gl.vm.UserError(
+                f"{ERROR_EXPECTED} {namespaced.reason}: expected {hire_key(sender, '<id>')}"
+            )
 
         screen = screen_registration(
             exists=self.hires.get(key) is not None,
             client=_require_text(client, "client", MAX_ID_LEN),
-            sender=gl.message.sender_address.as_hex,
+            sender=sender,
         )
         if not screen.ok:
             raise gl.vm.UserError(f"{ERROR_EXPECTED} {screen.reason}")
@@ -1315,8 +1406,8 @@ class Arbiter(gl.Contract):
             urls.insert(0, record_url)
 
         bond = int(gl.message.value)
-        if bond <= 0:
-            raise gl.vm.UserError(f"{ERROR_EXPECTED} a filing bond is required")
+        if bond < limits.min_bond:
+            raise gl.vm.UserError(f"{ERROR_EXPECTED} {REASON_BOND_TOO_SMALL}")
 
         now = self._now()
         domains = self._domains(terms)
@@ -1339,14 +1430,7 @@ class Arbiter(gl.Contract):
             window_end=u256(min(now + int(self.claim_period), U256_MAX)),
         )
         self.disputes.append(record)
-        dispute_id = len(self.disputes) - 1
-
-        existing = self.hire_disputes.get(key)
-        if existing is None:
-            self.hire_disputes[key] = [u256(dispute_id)]
-        else:
-            existing.append(u256(dispute_id))
-        return dispute_id
+        return len(self.disputes) - 1
 
     @gl.public.write
     def answer(self, dispute_id: int, evidence_urls: list) -> dict:
@@ -1448,7 +1532,13 @@ class Arbiter(gl.Contract):
 
         if ground == GROUND_BREACH:
             supplied = _require_text(terms, "terms", 100_000)
-            if terms_digest_matches(supplied, terms_hash) is False:
+            if supplied.strip() == "":
+                # Distinguished from a mismatch on purpose: "you did not send
+                # the terms" and "the terms you sent are not the ones this hire
+                # was registered under" send a caller to different places, and
+                # the second reads as an accusation.
+                raise gl.vm.UserError(f"{ERROR_EXPECTED} {REASON_NO_TERMS}")
+            if not terms_digest_matches(supplied, terms_hash):
                 raise gl.vm.UserError(f"{ERROR_EXPECTED} {REASON_TERMS_MISMATCH}")
             verdict = self._breach_verdict(supplied, urls, classes, record_url, allowed, limits)
         else:
@@ -1531,8 +1621,10 @@ class Arbiter(gl.Contract):
                     },
                 })
 
-            actions = records[0][1]
-            audit = replay_actions(actions, json.loads(terms_json))
+            record = records[0][1]
+            audit = replay_actions(
+                record["actions"], json.loads(terms_json), record["revoked_at"]
+            )
             ruling = ruling_from_replay(audit)
             binding = binding_findings(audit)
             status = (
@@ -1748,12 +1840,36 @@ class Arbiter(gl.Contract):
         - unable to be credited by `emit_transfer` at all - point its
         entitlement at a contract it controls.
         """
+        return self._pay_out(recipient, recipient_is_a_contract)
+
+    @gl.public.write
+    def withdraw(self, recipient_is_a_contract: bool = False) -> dict:
+        """Claim your entitlement to your own address.
+
+        Refuses by default, because this contract cannot check what the caller
+        is: an emitted call arrives with `origin_address == sender_address`, so
+        the Ethereum `tx.origin` test does not port. Passing `True` from a
+        wallet still destroys the entitlement - it is an assertion, not a proof.
+        Wallets should use `withdraw_to`.
+        """
+        return self._pay_out(gl.message.sender_address.as_hex, recipient_is_a_contract)
+
+    def _pay_out(self, recipient: str, recipient_is_a_contract: bool) -> dict:
+        """The one place value leaves this contract.
+
+        Private, and both public methods route through it rather than one
+        calling the other. `withdraw` delegating to `withdraw_to` would be an
+        internal call to a `@gl.public.write`-decorated method, and what that
+        decorator does to dispatch on this runtime is not something this
+        codebase has exercised - the two contracts it is modelled on each write
+        the transfer out in full instead. A plain helper has no such question
+        hanging over it, and it still leaves exactly one `emit_transfer` call
+        site, which `test_contract_sync.py` asserts.
+        """
         to = _parse_address(recipient, "recipient")
         _require_bool(recipient_is_a_contract, "recipient_is_a_contract")
         if not recipient_is_a_contract:
-            raise gl.vm.UserError(
-                f"{ERROR_EXPECTED} withdraw_requires_contract_recipient"
-            )
+            raise gl.vm.UserError(f"{ERROR_EXPECTED} withdraw_requires_contract_recipient")
         if to.as_hex.lower() == gl.message.contract_address.as_hex.lower():
             raise gl.vm.UserError(f"{ERROR_EXPECTED} cannot pay this contract")
 
@@ -1768,23 +1884,6 @@ class Arbiter(gl.Contract):
         self.owed[key] = u256(0)
         gl.get_contract_at(to).emit_transfer(value=u256(amount), on="accepted")
         return {"owner": key, "to": to.as_hex, "amount": amount}
-
-    @gl.public.write
-    def withdraw(self, recipient_is_a_contract: bool = False) -> dict:
-        """Claim your entitlement to your own address.
-
-        Refuses by default, because this contract cannot check what the caller
-        is: an emitted call arrives with `origin_address == sender_address`, so
-        the Ethereum `tx.origin` test does not port. Passing `True` from a
-        wallet still destroys the entitlement - it is an assertion, not a proof.
-        Wallets should use `withdraw_to`.
-        """
-        _require_bool(recipient_is_a_contract, "recipient_is_a_contract")
-        if not recipient_is_a_contract:
-            raise gl.vm.UserError(
-                f"{ERROR_EXPECTED} withdraw_requires_contract_recipient"
-            )
-        return self.withdraw_to(gl.message.sender_address.as_hex, True)
 
 
 # --- helpers used by the contract ----------------------------------------
@@ -1818,22 +1917,39 @@ def terms_digest_matches(terms_json: str, expected: str) -> bool:
     return terms_digest(parsed) == expected
 
 
-def _parse_record(body: str, cap: int) -> list | None:
+def _parse_record(body: str, cap: int) -> dict | None:
     """Read an action record out of a fetched page, or None if it is not one.
 
     Accepts either a bare list of actions or an object with an `actions` key,
     because the two shapes are both natural and refusing one would mean the
     dispute turns on a publishing convention.
+
+    Returns the record normalized, not just its actions, because `revoked_at`
+    is part of what was published and has to be part of what is compared. Two
+    copies of a hire that agree on every action and disagree about whether the
+    mandate had been revoked are two copies that disagree, and the arbiter must
+    see that rather than average it away.
     """
     try:
         parsed = json.loads(clip(body, cap))
     except (json.JSONDecodeError, TypeError, ValueError):
         return None
+    revoked_at = None
     if isinstance(parsed, dict):
+        raw_revoked = parsed.get("revoked_at")
+        if isinstance(raw_revoked, bool):
+            # `True` is an int in Python and would be a revocation one second
+            # after the epoch, finding every action in breach.
+            raw_revoked = None
+        if isinstance(raw_revoked, (int, float)) and raw_revoked > 0:
+            revoked_at = int(raw_revoked)
         parsed = parsed.get("actions")
     if not isinstance(parsed, list):
         return None
-    return [a for a in parsed if isinstance(a, dict)]
+    return {
+        "actions": [a for a in parsed if isinstance(a, dict)],
+        "revoked_at": revoked_at,
+    }
 
 
 def _fetch(url: str) -> str | None:

@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import { createAccount, createClient } from 'genlayer-js';
 import { localnet, studionet, testnetAsimov, testnetBradbury } from 'genlayer-js/chains';
 import { TransactionStatus } from 'genlayer-js/types';
-import { BenchError, classifyEvidence } from '@bench/core';
+import { BenchError, classifyEvidence, hireIdOf, hireKey } from '@bench/core';
 import type {
   DisputeFiling,
+  DisputeLimits,
   DisputeGround,
   DisputeRecord,
   DisputeResolver,
@@ -14,6 +15,7 @@ import type {
   EvidenceIndependence,
   EvidenceSource,
   HireRegistration,
+  PinnedHire,
 } from '@bench/core';
 import type { Address } from '@bench/core';
 
@@ -56,16 +58,45 @@ import type { Address } from '@bench/core';
  * so nothing about them is being asserted that the SDK does not already
  * guarantee at runtime.
  */
+/**
+ * Studio Next, which `genlayer-js@1.1.8` does not ship a constant for.
+ *
+ * Derived from `studionet` rather than written out, because the part that is
+ * genuinely different is three fields - the chain id, the RPC and the explorer -
+ * and the part that is not is a consensus ABI several thousand lines long.
+ * Copying that by hand is how a chain definition silently goes stale one
+ * release later; spreading it means an SDK upgrade carries the fix.
+ *
+ * The `isStudio` flag is the load-bearing one: the SDK branches on it in nine
+ * places to speak the Studio JSON-RPC dialect rather than driving the consensus
+ * contract directly, and Studio Next is a Studio.
+ */
+const studioNext = {
+  ...studionet,
+  id: 61_997,
+  name: 'GenLayer Studio Next',
+  rpcUrls: { default: { http: ['https://studio-next.genlayer.com/api'] } },
+  blockExplorers: {
+    default: { name: 'GenLayer Explorer', url: 'https://explorer-studio-dev.genlayer.com' },
+  },
+} as const;
+
 const CHAINS: Readonly<Record<string, unknown>> = {
   localnet,
   studionet,
+  'studio-next': studioNext,
   'testnet-bradbury': testnetBradbury,
   'testnet-asimov': testnetAsimov,
 };
 
 type SdkChain = NonNullable<NonNullable<Parameters<typeof createClient>[0]>['chain']>;
 
-export type GenLayerChainName = 'localnet' | 'studionet' | 'testnet-bradbury' | 'testnet-asimov';
+export type GenLayerChainName =
+  | 'localnet'
+  | 'studionet'
+  | 'studio-next'
+  | 'testnet-bradbury'
+  | 'testnet-asimov';
 
 export interface GenLayerArbiterOptions {
   readonly rpcUrl: string;
@@ -80,6 +111,18 @@ export interface GenLayerArbiterOptions {
    * hold a funded key to do it.
    */
   readonly privateKey?: string;
+  /**
+   * The address hires on this deployment are registered under.
+   *
+   * The arbiter keys a hire on `<registrar>/<hireId>` so nobody can claim an id
+   * they did not create - see `hire_key` in the contract. That means a reader
+   * needs to know the registrar to look a hire up, and a deployment configured
+   * for reads only has no signer to derive it from. It defaults to the signer's
+   * own address when there is one, which is the case that matters; an explicit
+   * value is for the read-only deployment, and for a Bench that rotates its
+   * signing key without orphaning every hire the old key registered.
+   */
+  readonly registrar?: Address;
   /** Bench's own host, so the arbiter can mark Bench's data as interested. */
   readonly marketplaceDomain?: string;
   /** How long to wait for a write to reach ACCEPTED. */
@@ -154,6 +197,7 @@ export class GenLayerArbiter implements DisputeResolver {
   readonly #client: Client;
   readonly #address: Address;
   readonly #canWrite: boolean;
+  readonly #registrar: string;
   readonly #retries: number;
   readonly #interval: number;
   readonly #marketplaceDomain: string | undefined;
@@ -171,11 +215,48 @@ export class GenLayerArbiter implements DisputeResolver {
     this.#marketplaceDomain = opts.marketplaceDomain;
     this.locator = { chain: chainName, address: opts.address };
 
+    const account = this.#canWrite ? createAccount(opts.privateKey as `0x${string}`) : null;
+    /**
+     * Derived from the key rather than configured beside it, so the two cannot
+     * disagree. A registrar that does not match the signer writes hires under a
+     * key its own transactions would be refused for, and the contract's refusal
+     * arrives as `bad hire key` long after the mistake was made.
+     *
+     * Refused at construction rather than at the first call, because there is
+     * no partially useful arbiter here: every hire-shaped question needs the
+     * key, and an adapter that answered `forHire` with an empty list would
+     * render a live dispute as no dispute. `buildArbiter` turns this into the
+     * unavailable state, which is a thing the UI already knows how to say.
+     */
+    const registrar = opts.registrar ?? account?.address ?? null;
+    if (registrar === null) {
+      throw new BenchError(
+        'INVALID_REQUEST',
+        'a GenLayer arbiter needs an address to register hires under: set ' +
+          'BENCH_SIGNER_PRIVATE_KEY, or GENLAYER_REGISTRAR_ADDRESS for a deployment that only ' +
+          'reads disputes. A hire is keyed on the address that registered it.',
+      );
+    }
+    this.#registrar = registrar;
+
     this.#client = createClient({
       chain: chain as SdkChain,
       endpoint: opts.rpcUrl,
-      ...(this.#canWrite ? { account: createAccount(opts.privateKey as `0x${string}`) } : {}),
+      ...(account === null ? {} : { account }),
     });
+  }
+
+  /**
+   * Bench's hire id, as the arbiter stores it.
+   *
+   * Every call that names a hire goes through here. The contract refuses a key
+   * that does not begin with the caller's own address, so a bare id would be
+   * rejected on write and would silently find nothing on read - the worse of
+   * the two, because an empty `forHire` renders as "no dispute" on a hire that
+   * has one.
+   */
+  #key(hireId: string): string {
+    return hireKey(this.#registrar, hireId);
   }
 
   #requireSigner(what: string): void {
@@ -221,11 +302,23 @@ export class GenLayerArbiter implements DisputeResolver {
     });
   }
 
+  async limits(): Promise<DisputeLimits> {
+    const raw = await this.#read('limits', []);
+    return {
+      minBond: asBigInt(field(raw, 'min_bond')),
+      answerPeriodSec: asNumber(field(raw, 'answer_period')),
+      claimPeriodSec: asNumber(field(raw, 'claim_period')),
+      maxSources: asNumber(field(raw, 'max_sources')),
+      maxExtensions: asNumber(field(raw, 'max_extensions')),
+      minConfidence: asNumber(field(raw, 'min_confidence')),
+    };
+  }
+
   async registerHire(reg: HireRegistration): Promise<{ readonly termsHash: string }> {
     this.#requireSigner('registering a hire');
     const termsHash = termsDigest(reg.terms);
     await this.#write('register_hire', [
-      reg.hireId,
+      this.#key(reg.hireId),
       `${reg.agent.chain}:${reg.agent.tokenId.toString()}`,
       reg.client,
       reg.respondent,
@@ -238,12 +331,35 @@ export class GenLayerArbiter implements DisputeResolver {
     return { termsHash };
   }
 
+  async registration(hireId: string): Promise<PinnedHire | null> {
+    let raw: unknown;
+    try {
+      raw = await this.#read('hire', [this.#key(hireId)]);
+    } catch {
+      // The contract raises `hire not registered` for one it does not have, and
+      // that is an answer rather than a failure.
+      return null;
+    }
+    const termsHash = asString(field(raw, 'terms_hash'));
+    if (termsHash === '') return null;
+    return {
+      hireId: hireIdOf(asString(field(raw, 'hire_id'))),
+      agentRef: asString(field(raw, 'agent_ref')),
+      client: asString(field(raw, 'client')) as Address,
+      respondent: asString(field(raw, 'respondent')) as Address,
+      termsHash,
+      recordUrl: asString(field(raw, 'record_url')),
+      registeredAt: atSecond(field(raw, 'registered_at')),
+      registeredBy: asString(field(raw, 'registered_by')) as Address,
+    };
+  }
+
   async openDispute(filing: DisputeFiling): Promise<DisputeRecord> {
     this.#requireSigner('opening a dispute');
     await this.#write(
       'open_dispute',
       [
-        filing.hireId,
+        this.#key(filing.hireId),
         filing.ground.toUpperCase(),
         filing.engagement,
         [...filing.criteria],
@@ -303,7 +419,7 @@ export class GenLayerArbiter implements DisputeResolver {
 
   async forHire(hireId: string): Promise<readonly number[]> {
     try {
-      return asList(await this.#read('disputes_for', [hireId])).map((v) => asNumber(v));
+      return asList(await this.#read('disputes_for', [this.#key(hireId)])).map((v) => asNumber(v));
     } catch {
       return [];
     }
@@ -383,7 +499,10 @@ export function decodeDispute(
   const verdictJson = asString(field(raw, 'verdict'));
   return {
     disputeId,
-    hireId: asString(field(raw, 'hire_id')),
+    // Back to Bench's own id: the chain stores `<registrar>/<id>`, and every
+    // caller above this line - routes, links, the hire store - knows only the
+    // second half.
+    hireId: hireIdOf(asString(field(raw, 'hire_id'))),
     ground: GROUNDS[asString(field(raw, 'ground'))] ?? 'delivery',
     state: STATES[asString(field(raw, 'state'))] ?? 'open',
     claimant: asString(field(raw, 'claimant')) as Address,

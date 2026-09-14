@@ -363,6 +363,15 @@ export const hires = pgTable(
     envelopePolicy: jsonb('envelope_policy'),
     /** Hash-chained; verified on read rather than trusted. */
     trace: jsonb('trace').notNull(),
+    /**
+     * The actions the gate admitted, published for the dispute arbiter.
+     *
+     * Not derivable from `trace`: the trace holds every decision including the
+     * refusals, and a refused proposal never happened. Nullable, because "no
+     * record" and "a record showing nothing happened" are different claims and
+     * the arbiter rules differently on them.
+     */
+    actions: jsonb('actions'),
     paymentTxHash: text('payment_tx_hash'),
     failureReason: text('failure_reason'),
     brokerIntent: text('broker_intent'),

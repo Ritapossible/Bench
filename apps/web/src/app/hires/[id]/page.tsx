@@ -102,9 +102,19 @@ export default async function HireDetail({
    * deployment nothing and never turns a hire page into an error boundary.
    */
   const disputeIds = await arbiter.forHire(hire.id);
-  const disputes = (await Promise.all(disputeIds.map((i) => arbiter.get(i)))).filter(
-    (d): d is NonNullable<typeof d> => d !== null,
-  );
+  const [disputes, disputeLimits, pinned] = await Promise.all([
+    Promise.all(disputeIds.map((i) => arbiter.get(i))).then((all) =>
+      all.filter((d): d is NonNullable<typeof d> => d !== null),
+    ),
+    // The contract's own floor, so the filing form cannot offer a bond it would
+    // refuse. Read from the chain rather than mirrored in config: two copies of
+    // a number that has to agree is how they stop agreeing.
+    arbiter.limits(),
+    // Whether the arbiter holds the rules this hire was made under. Without
+    // them there is nothing to rule against, and the panel says so rather than
+    // offering a form the chain would refuse.
+    arbiter.registration(hire.id),
+  ]);
 
   return (
     <section className="wrap section">
@@ -312,8 +322,12 @@ export default async function HireDetail({
         <DisputePanel
           available={arbiter.available}
           locator={arbiter.locator}
+          pinned={pinned}
           disputes={disputes}
-          live={live}
+          hireId={hire.id}
+          minBondGen={Number(disputeLimits.minBond) / 1e18}
+          answerHours={Math.round(disputeLimits.answerPeriodSec / 3600)}
+          outcome={typeof sp['dispute'] === 'string' ? sp['dispute'] : null}
         />
 
         <div className="slab on-dark stack stack-16">

@@ -33,6 +33,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "lib"))
 from arbiter_core import (  # noqa: E402
     MANDATE_RULES,
     binding_findings,
+    hire_key,
+    registrar_of,
     replay_actions,
     ruling_from_replay,
     terms_digest,
@@ -44,7 +46,7 @@ from arbiter_core import (  # noqa: E402
 VECTORS = pathlib.Path(__file__).resolve().parent / "vectors.json"
 
 
-def load_cases() -> list:
+def _load() -> dict:
     if not VECTORS.exists():  # pragma: no cover - a checkout without the file
         pytest.fail(
             f"{VECTORS.name} is missing. Generate it with "
@@ -52,10 +54,12 @@ def load_cases() -> list:
         )
     data = json.loads(VECTORS.read_text(encoding="utf-8"))
     assert data["version"] == 1, "vector format changed; update both readers"
-    return data["cases"]
+    return data
 
 
-CASES = load_cases()
+_DATA = _load()
+CASES = _DATA["cases"]
+KEY_CASES = _DATA["keys"]
 
 
 def _normalize(terms: dict) -> dict:
@@ -166,3 +170,18 @@ def test_a_thin_envelope_cannot_uphold_on_its_own() -> None:
     relaxed = replay_actions(_actions(thin["actions"]), permissive)
     assert {f["rule"] for f in binding_findings(relaxed)} == set()
     assert ruling_from_replay(relaxed) == RULING_DISMISSED
+
+
+@pytest.mark.parametrize("case", KEY_CASES, ids=lambda c: c["hire_id"])
+def test_the_hire_key_matches_the_typescript(case: dict) -> None:
+    """Access control, not arithmetic - and the worst thing to get quietly wrong.
+
+    A digest that disagrees across the boundary raises "terms do not match";
+    a *key* that disagrees raises nothing at all. Bench would register under one
+    row and read from another, `disputes_for` would come back empty, and a hire
+    with a live dispute would render as a hire with none. Both sides lower-case
+    the registrar for the same reason: checksum casing is presentation, and two
+    spellings of one account must not be two hires.
+    """
+    assert hire_key(case["registrar"], case["hire_id"]) == case["key"]
+    assert registrar_of(case["key"]) == case["registrar"].lower()

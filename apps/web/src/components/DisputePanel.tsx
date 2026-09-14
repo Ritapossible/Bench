@@ -1,4 +1,6 @@
-import type { DisputeRecord, EvidenceIndependence } from '@bench/core';
+import type { DisputeRecord, EvidenceIndependence, PinnedHire } from '@bench/core';
+import { RaiseDispute } from '@/components/RaiseDispute';
+import { adjudicateDispute, pinHireTerms } from '@/lib/dispute/actions';
 
 /**
  * What happens when a hire does not deliver, and who decides.
@@ -77,18 +79,79 @@ function Independence({ tally }: { readonly tally: EvidenceIndependence }) {
   );
 }
 
+/** What just happened, when the filing form redirected back here. */
+const OUTCOME: Record<string, { readonly tone: string; readonly text: string }> = {
+  filed: {
+    tone: 'badge-live',
+    text: 'Filed. The agent now has its answer window, and nobody can rule until it closes.',
+  },
+  refused: {
+    tone: 'badge-blocked',
+    text: 'The arbiter refused that filing. The usual causes are a bond below the minimum, or a hire that was never registered with it.',
+  },
+  malformed: {
+    tone: 'badge-blocked',
+    text: 'That filing was incomplete. A dispute needs what you hired the agent to do, and at least one statement about what should have happened.',
+  },
+  unavailable: {
+    tone: 'badge-plain',
+    text: 'Disputes are not adjudicated on this deployment, so there was nowhere to file it.',
+  },
+  pinned: {
+    tone: 'badge-live',
+    text: 'Terms pinned. The arbiter now holds the rules this hire was made under, and a dispute can be ruled against them.',
+  },
+  'pin-failed': {
+    tone: 'badge-blocked',
+    text: 'The terms did not reach the arbiter. Usually a GenLayer key with no balance, or the chain not answering - the hire itself is unaffected, and this can be retried.',
+  },
+  ruled: {
+    tone: 'badge-live',
+    text: 'Adjudicated. The ruling below is the validators’ own, reached independently and compared.',
+  },
+  'not-ruled': {
+    tone: 'badge-blocked',
+    text: 'The arbiter would not rule yet. Either the answer window is still open, or this dispute has already settled.',
+  },
+};
+
 export function DisputePanel({
   available,
   locator,
   disputes,
-  live,
+  hireId,
+  pinned,
+  minBondGen,
+  answerHours,
+  outcome,
 }: {
   readonly available: boolean;
   readonly locator: { readonly chain: string; readonly address: string } | null;
   readonly disputes: readonly DisputeRecord[];
-  /** Whether this hire still has authority - a dispute is only useful if it did something. */
-  readonly live: boolean;
+  /**
+   * Not gated on whether the hire is still live, deliberately.
+   *
+   * A dispute is about work that already happened, and a revoked or settled
+   * hire is exactly when someone wants to raise one. An earlier draft hid the
+   * form once authority ended, which withdrew the remedy at the moment it
+   * became useful.
+   */
+  readonly hireId: string;
+  readonly minBondGen: number;
+  readonly answerHours: number;
+  /**
+   * What the arbiter holds for this hire, or null when it holds nothing.
+   *
+   * The filing form is offered only over a pinned hire. `open_dispute` refuses
+   * an unregistered one outright, and discovering that through a payable
+   * transaction - at the moment a hirer is angriest - is the wrong way to find
+   * out.
+   */
+  readonly pinned: PinnedHire | null;
+  /** The `?dispute=` code the filing form redirected with, if any. */
+  readonly outcome: string | null;
 }) {
+  const said = outcome === null ? null : (OUTCOME[outcome] ?? null);
   if (!available) {
     return (
       <div className="card stack stack-12">
@@ -123,6 +186,15 @@ export function DisputePanel({
         )}
       </div>
 
+      {said === null ? null : (
+        <div className="row" style={{ gap: '0.5rem', alignItems: 'flex-start' }}>
+          <span className={`badge ${said.tone}`}>Filing</span>
+          <p className="small ink" role="status">
+            {said.text}
+          </p>
+        </div>
+      )}
+
       <p className="body">
         Ruled on by an Intelligent Contract on GenLayer, where each validator fetches the evidence
         and runs the judgment itself. Not by us: we list this agent and take a cut of this hire.
@@ -133,12 +205,18 @@ export function DisputePanel({
         </p>
       )}
 
+      <Pinned hireId={hireId} pinned={pinned} />
+
       {disputes.length === 0 ? (
-        <p className="small">
-          {live
-            ? 'No dispute has been raised on this hire. Raising one costs a filing bond, which returns unless the arbiter positively finds the agent delivered.'
-            : 'No dispute was raised on this hire.'}
-        </p>
+        <div className="stack stack-12">
+          <p className="small">
+            No dispute has been raised on this hire. Raising one costs a filing bond, which returns
+            unless the arbiter positively finds the agent delivered.
+          </p>
+          {pinned === null ? null : (
+            <RaiseDispute hireId={hireId} minBondGen={minBondGen} answerHours={answerHours} />
+          )}
+        </div>
       ) : (
         <div className="stack stack-16">
           {disputes.map((d) => {
@@ -189,17 +267,94 @@ export function DisputePanel({
                 <Independence tally={tally} />
 
                 {d.state === 'open' ? (
-                  <p className="tiny">
-                    {Date.now() < d.answerEndsAt.getTime()
-                      ? `The agent has until ${d.answerEndsAt.toISOString()} to file its own evidence. Nobody can rule before then - a verdict taken on one side's documents is one side's verdict.`
-                      : `Open for adjudication. Anyone may call it, and the window closes ${d.windowEndsAt.toISOString()}.`}
-                  </p>
+                  <div className="stack stack-8">
+                    <p className="tiny">
+                      {Date.now() < d.answerEndsAt.getTime()
+                        ? `The agent has until ${d.answerEndsAt.toISOString()} to file its own evidence. Nobody can rule before then - a verdict taken on one side's documents is one side's verdict.`
+                        : `Open for adjudication. Anyone may call it, and the window closes ${d.windowEndsAt.toISOString()}.`}
+                    </p>
+                    {Date.now() < d.answerEndsAt.getTime() ? null : (
+                      <form action={adjudicateDispute}>
+                        <input type="hidden" name="hireId" value={hireId} />
+                        <input type="hidden" name="disputeId" value={d.disputeId} />
+                        <button type="submit" className="btn btn-primary btn-sm">
+                          Ask the arbiter to rule
+                        </button>
+                        <p className="tiny" style={{ marginTop: '0.5rem' }}>
+                          Anyone may press this, and it is the only call in the dispute that costs
+                          anything. Restricting it to you would let the agent pay privately for the
+                          window to lapse. Consensus takes minutes: validators fetch the evidence
+                          and each reach a ruling of their own before the answers are compared.
+                        </p>
+                      </form>
+                    )}
+                  </div>
                 ) : null}
               </div>
             );
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Whether the arbiter holds the rules this hire was made under.
+ *
+ * The most easily skipped state in the whole layer and the one that decides
+ * whether any of it works. Terms are pinned at hire time, before anyone knows
+ * there will be a dispute - that is what makes them a fact about the past
+ * rather than a position in the present - and a hire whose terms never reached
+ * the chain cannot be disputed at all. Said here, plainly, rather than
+ * discovered through a refused payable transaction later.
+ */
+function Pinned({
+  hireId,
+  pinned,
+}: {
+  readonly hireId: string;
+  readonly pinned: PinnedHire | null;
+}) {
+  if (pinned === null) {
+    return (
+      <div className="stack stack-8">
+        <div className="row" style={{ gap: '0.5rem', alignItems: 'center' }}>
+          <span className="badge badge-thin">Terms not pinned</span>
+        </div>
+        <p className="small">
+          The arbiter does not hold the rules this hire was made under, so it cannot rule on it.
+          Terms are normally pinned the moment a hire is created; this one did not reach the chain.
+        </p>
+        <form action={pinHireTerms}>
+          <input type="hidden" name="hireId" value={hireId} />
+          <button type="submit" className="btn btn-outline btn-sm">
+            Pin the terms now
+          </button>
+        </form>
+        <p className="tiny">
+          The terms are computed from the stored hire, not from this form - the same function the
+          ruling hashes them with. This is a retry, not a second chance to choose them.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="stack stack-8">
+      <div className="row" style={{ gap: '0.5rem', alignItems: 'center' }}>
+        <span className="badge badge-live">Terms pinned</span>
+        <span className="tiny">{pinned.registeredAt.toISOString()}</span>
+      </div>
+      <p className="tiny">
+        The mandate, envelope and policy this hire ran under are fixed on the arbiter by digest, so
+        neither side can restate them now. The action record is published at{' '}
+        <span className="mono break">{pinned.recordUrl}</span> - pinned at the same moment, which is
+        why a claimant cannot pick a flattering source afterwards.
+      </p>
+      <p className="tiny mono break" style={{ opacity: 0.6 }}>
+        sha256 {pinned.termsHash}
+      </p>
     </div>
   );
 }

@@ -24,7 +24,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { replayAgainstTerms } from '../../../packages/core/src/types/dispute.js';
+import { hireIdOf, hireKey, replayAgainstTerms } from '../../../packages/core/src/types/dispute.js';
 import type { DisputedAction } from '../../../packages/core/src/types/dispute.js';
 import type {
   BehaviouralEnvelope,
@@ -358,6 +358,28 @@ const cases = CASES.map((c) => {
   };
 });
 
+/**
+ * The hire key, which is access control rather than arithmetic.
+ *
+ * Small enough to look like it does not need a vector, and the one place where
+ * a silent divergence is worst: the two sides would not error, they would
+ * address different rows. Bench would write a hire the contract could not find
+ * and every dispute page would render "no dispute" over a hire that had one.
+ *
+ * Checksummed casing, a registrar that is already lower case, and an id
+ * carrying a slash of its own - the last because the contract splits on the
+ * first separator and a naive round trip would eat half the id.
+ */
+const KEY_CASES = [
+  { registrar: `0x${'AB'.repeat(20)}`, hire_id: 'h_01JQZ9' },
+  { registrar: `0x${'ab'.repeat(20)}`, hire_id: 'h_01JQZ9' },
+  { registrar: `0x${'12'.repeat(20)}`, hire_id: 'weird/id' },
+].map((c) => ({
+  ...c,
+  key: hireKey(c.registrar, c.hire_id),
+  round_trip: hireIdOf(hireKey(c.registrar, c.hire_id)),
+}));
+
 mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(
   OUT,
@@ -367,6 +389,7 @@ writeFileSync(
       generated_by: 'contracts/genlayer/tools/gen_vectors.mts',
       note: 'Do not hand-edit. Regenerate, and expect both test suites to move together.',
       cases,
+      keys: KEY_CASES,
     },
     null,
     2,
