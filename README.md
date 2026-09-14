@@ -98,6 +98,58 @@ a smart account rather than a plain EOA.
 
 The same measurement that produces the ranking also produces the constraint. That is the whole design.
 
+## When it goes wrong: the dispute layer
+
+**The escrow could always be marked disputed. Nothing ever ruled on it.**
+
+`disputed` has been an escrow status since the first week and
+`dispute(jobId, reason)` has been callable the whole time. Neither had an
+adjudicator: a disputed job sat disputed, the window closed, and ERC-8183's
+optimistic rule released to the agent anyway.
+
+The hole is the hard part, and the shape of it decides everything else. Whether
+an agent delivered is a **judgment**; a conventional chain cannot perform one,
+neither party can be trusted to perform one, and **Bench must not perform one
+either** - Bench lists the agent, ranks it, and takes a cut of the hire. A
+marketplace ruling on complaints about its own listings is marking its own
+homework.
+
+So the ruling runs on a [GenLayer](https://genlayer.com) Intelligent Contract,
+where each validator fetches the evidence and runs the judgment itself, and they
+compare structured rulings rather than bytes. **[`contracts/genlayer/`](contracts/genlayer/README.md)**.
+
+| | `BREACH` | `DELIVERY` |
+|---|---|---|
+| The claim | "it did something it was not allowed to do" | "it did not do the job" |
+| Settles by | replaying the signed terms over the recorded actions | one model call over evidence **both** sides pinned |
+| Cost | **zero model calls** | one model call |
+| Guarantee | arithmetic over a mandate the owner signed | a judgment, with a confidence floor under any finding against the agent |
+
+Four things about it worth more than the feature list:
+
+- **The replay is Bench's own signing gate, run backwards.** `checkMandate` and
+  `checkAgainstEnvelope` decide whether a transaction may be signed; the same two,
+  over the sequence that happened, decide whether one should have been. One
+  rulebook, so the chain and the marketplace cannot disagree about what the agent
+  was allowed to do.
+- **That rulebook exists twice, and is pinned against itself.** The ruling must
+  not be computed by us, so the rule runs again in Python on GenLayer. Fifteen
+  conformance vectors are generated from the TypeScript and asserted by both
+  suites, with CI regenerating and diffing the file. It caught two real
+  mismatches immediately - the action ceiling rounds up while the value ceiling
+  rounds down, and revocation is a moment rather than a flag.
+- **Evidence has an owner and the page says so.** `marketplace` is its own
+  category in the independence tally, not part of `independent`. Bench's API is
+  the most convenient evidence in any Bench dispute and the least disinterested.
+- **There is no local fallback, deliberately.** A deployment without an arbiter
+  reports itself unavailable and refuses every write. The obvious stub - one
+  returning a plausible verdict so the demo never blocks - would be exactly the
+  conflict of interest this layer removes, wearing the same interface.
+
+Agent-to-agent disputes need no second code path: `client` and `respondent` are
+addresses, and a wallet and another agent's session key are the same thing to the
+contract.
+
 ## Also shipping, because it costs nothing extra
 
 The indexer and prober that feed the catalog measure, continuously, what [arXiv 2606.26028](https://arxiv.org/abs/2606.26028) measured once through May 2026. Bench publishes that as a free public dashboard — the live share of BSC-registered agents that resolve, respond, and conform, recomputed daily against the study's baseline. **The paper measured the problem once; Bench measures it every day.**

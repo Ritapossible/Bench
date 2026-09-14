@@ -10,6 +10,8 @@ import { hireStore } from '@/lib/hire/runtime';
 import { currentOwnerReadOnly } from '@/lib/hire/owner';
 import { proposeAction } from '@/lib/hire/actions';
 import { RevokeHire } from '@/components/RevokeHire';
+import { DisputePanel } from '@/components/DisputePanel';
+import { arbiter } from '@/lib/dispute/runtime';
 
 export const metadata = { title: 'Hire - Bench' };
 export const dynamic = 'force-dynamic';
@@ -91,6 +93,18 @@ export default async function HireDetail({
   const left = remaining(hire.mandate, hire.mandateState);
   const tampered = verifyTrace(hire.trace);
   const live = isAuthorityLive(hire.state);
+
+  /**
+   * Disputes for this hire, read from the arbiter rather than from us.
+   *
+   * Every one of these reads is free and needs no key, and every one answers
+   * with absence when no arbiter is configured - so this costs an unconfigured
+   * deployment nothing and never turns a hire page into an error boundary.
+   */
+  const disputeIds = await arbiter.forHire(hire.id);
+  const disputes = (await Promise.all(disputeIds.map((i) => arbiter.get(i)))).filter(
+    (d): d is NonNullable<typeof d> => d !== null,
+  );
 
   return (
     <section className="wrap section">
@@ -294,6 +308,13 @@ export default async function HireDetail({
             above is recomputed on load, not stored.
           </p>
         </div>
+
+        <DisputePanel
+          available={arbiter.available}
+          locator={arbiter.locator}
+          disputes={disputes}
+          live={live}
+        />
 
         <div className="slab on-dark stack stack-16">
           <h2 className="h3">Revoke</h2>
