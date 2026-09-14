@@ -4,4 +4,7 @@ dist/
 contracts/out/
 contracts/cache/
 contracts/lib/
+# Generated from the TypeScript by tools/gen_vectors.mts and diffed in CI.
+# Prettier reformatting it would make that diff fail for no reason.
 *.md
+contracts/genlayer/tests/vectors.json

@@ -1,0 +1,927 @@
+{
+  "version": 1,
+  "generated_by": "contracts/genlayer/tools/gen_vectors.mts",
+  "note": "Do not hand-edit. Regenerate, and expect both test suites to move together.",
+  "cases": [
+    {
+      "name": "clean hire",
+      "why": "The baseline. Everything inside every bound, and no finding at all.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 2,
+          "at": 1767225720,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        }
+      ],
+      "expect": {
+        "findings": [],
+        "envelope_advisory": false,
+        "actions_considered": 2
+      }
+    },
+    {
+      "name": "payment to an address nobody authorised",
+      "why": "Caught twice over - by the allowlist the owner signed and by the behaviour the agent earned. Two independent bounds firing on one action is the design working, not a duplicate.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 2,
+          "at": 1767225720,
+          "to": "0x9999999999999999999999999999999999999999",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "contract-not-allowlisted",
+            "seq": 2
+          },
+          {
+            "rule": "unseen-recipient",
+            "seq": 2
+          }
+        ],
+        "envelope_advisory": false,
+        "actions_considered": 2
+      }
+    },
+    {
+      "name": "contract creation",
+      "why": "A null recipient is off the allowlist by definition, and the envelope check skips it rather than reporting an unseen recipient that does not exist.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": null,
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "contract-not-allowlisted",
+            "seq": 1
+          }
+        ],
+        "envelope_advisory": false,
+        "actions_considered": 1
+      }
+    },
+    {
+      "name": "cap blown cumulatively, never per transaction",
+      "why": "Each action is comfortably inside the per-tx cap. Only the running total catches it, which is the case a per-transaction limit alone would miss entirely.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "400000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 2,
+          "at": 1767225720,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "400000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 3,
+          "at": 1767225780,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "400000000000000000",
+          "data": "0x38ed1739"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "value-exceeds-observed",
+            "seq": 1
+          },
+          {
+            "rule": "value-exceeds-observed",
+            "seq": 2
+          },
+          {
+            "rule": "total-cap-exceeded",
+            "seq": 3
+          },
+          {
+            "rule": "value-exceeds-observed",
+            "seq": 3
+          },
+          {
+            "rule": "cumulative-value-exceeds-observed",
+            "seq": 3
+          }
+        ],
+        "envelope_advisory": false,
+        "actions_considered": 3
+      }
+    },
+    {
+      "name": "spend keeps counting after the first breach",
+      "why": "A replay that skipped the offending action would under-count the total and clear a hire that blew its cap on the transaction after the one that first went wrong.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x9999999999999999999999999999999999999999",
+          "value": "900000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 2,
+          "at": 1767225720,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "200000000000000000",
+          "data": "0x38ed1739"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "per-tx-cap-exceeded",
+            "seq": 1
+          },
+          {
+            "rule": "contract-not-allowlisted",
+            "seq": 1
+          },
+          {
+            "rule": "unseen-recipient",
+            "seq": 1
+          },
+          {
+            "rule": "value-exceeds-observed",
+            "seq": 1
+          },
+          {
+            "rule": "total-cap-exceeded",
+            "seq": 2
+          },
+          {
+            "rule": "cumulative-value-exceeds-observed",
+            "seq": 2
+          }
+        ],
+        "envelope_advisory": false,
+        "actions_considered": 2
+      }
+    },
+    {
+      "name": "expiry is judged by the clock at the time",
+      "why": "The second action lands after the mandate expired. The first does not, and a replay against the clock at adjudication would find a breach in every hire that ever completed.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 2,
+          "at": 1767232800,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "expired",
+            "seq": 2
+          }
+        ],
+        "envelope_advisory": false,
+        "actions_considered": 2
+      }
+    },
+    {
+      "name": "spending after the kill switch",
+      "why": "The breach a hirer is angriest about. Revocation is a moment, not a flag: the action before it was authorised and the one after it was not.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555",
+          "revoked_at": 1767225690
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 2,
+          "at": 1767225720,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "revoked",
+            "seq": 2
+          }
+        ],
+        "envelope_advisory": false,
+        "actions_considered": 2
+      }
+    },
+    {
+      "name": "a call the agent never made in audition",
+      "why": "The selector is the sharpest signal of a compromised or injected agent: it is doing something it has never done.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0xdeadbeef"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "unseen-call",
+            "seq": 1
+          }
+        ],
+        "envelope_advisory": false,
+        "actions_considered": 1
+      }
+    },
+    {
+      "name": "the wrong token entirely",
+      "why": "A mandate denominated in one token does not authorise spending another.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739",
+          "token": "0x6666666666666666666666666666666666666666"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "wrong-token",
+            "seq": 1
+          }
+        ],
+        "envelope_advisory": false,
+        "actions_considered": 1
+      }
+    },
+    {
+      "name": "action ceiling rounds up",
+      "why": "Three observed actions at 50% tolerance is a ceiling of five, because the TypeScript takes Math.ceil(4.5). Floor division would say four and a four-action hire would pass the gate and be found in breach by the chain. This case exists because that mismatch was real.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 99,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 5000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 2,
+          "at": 1767225720,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 3,
+          "at": 1767225780,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 4,
+          "at": 1767225840,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 5,
+          "at": 1767225900,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        }
+      ],
+      "expect": {
+        "findings": [],
+        "envelope_advisory": false,
+        "actions_considered": 5
+      }
+    },
+    {
+      "name": "value ceiling rounds down",
+      "why": "The paired half of the case above: value tolerance truncates, because the TypeScript computes it in BigInt. 3 wei at 50% is a ceiling of 4, not 5.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000",
+          "per_tx_cap": "1000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "3",
+          "max_cumulative_value": "1000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "4",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 2,
+          "at": 1767225720,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "5",
+          "data": "0x38ed1739"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "value-exceeds-observed",
+            "seq": 2
+          }
+        ],
+        "envelope_advisory": false,
+        "actions_considered": 2
+      }
+    },
+    {
+      "name": "thin envelope still reports, still cannot bind",
+      "why": "One audition is not a behavioural record. The envelope rules are reported and the audit says they are advisory; only the mandate the owner signed can settle a dispute.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 1
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x9999999999999999999999999999999999999999",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "contract-not-allowlisted",
+            "seq": 1
+          },
+          {
+            "rule": "unseen-recipient",
+            "seq": 1
+          }
+        ],
+        "envelope_advisory": true,
+        "actions_considered": 1
+      }
+    },
+    {
+      "name": "policy switched off",
+      "why": "With both behavioural checks disabled only the signed mandate speaks. Nothing should invent a rule the policy declined to apply.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": false,
+          "require_known_selector": false
+        }
+      },
+      "actions": [
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x9999999999999999999999999999999999999999",
+          "value": "100000000000000000",
+          "data": "0xdeadbeef"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "contract-not-allowlisted",
+            "seq": 1
+          }
+        ],
+        "envelope_advisory": false,
+        "actions_considered": 1
+      }
+    },
+    {
+      "name": "out of order arrives in order",
+      "why": "The record is read by sequence number, not by however it was handed over. Cumulative rules depend on order, so a shuffled record must not produce a different answer.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [
+        {
+          "seq": 3,
+          "at": 1767225780,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "400000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 1,
+          "at": 1767225660,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "100000000000000000",
+          "data": "0x38ed1739"
+        },
+        {
+          "seq": 2,
+          "at": 1767225720,
+          "to": "0x3333333333333333333333333333333333333333",
+          "value": "400000000000000000",
+          "data": "0x38ed1739"
+        }
+      ],
+      "expect": {
+        "findings": [
+          {
+            "rule": "value-exceeds-observed",
+            "seq": 2
+          },
+          {
+            "rule": "value-exceeds-observed",
+            "seq": 3
+          }
+        ],
+        "envelope_advisory": false,
+        "actions_considered": 3
+      }
+    },
+    {
+      "name": "empty record",
+      "why": "Nothing happened, so nothing was breached. The ruling this maps to is unresolved rather than dismissed, but that is the contract’s decision and not the replay’s.",
+      "terms": {
+        "mandate": {
+          "total_cap": "1000000000000000000",
+          "per_tx_cap": "500000000000000000",
+          "allowlist": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "expires_at": 1767229200,
+          "max_actions": 5,
+          "token": "0x5555555555555555555555555555555555555555"
+        },
+        "envelope": {
+          "recipients": [
+            "0x3333333333333333333333333333333333333333"
+          ],
+          "selectors": [
+            "0x38ed1739"
+          ],
+          "max_single_value": "200000000000000000",
+          "max_cumulative_value": "600000000000000000",
+          "max_action_count": 3,
+          "sample_size": 3
+        },
+        "policy": {
+          "value_tolerance_bps": 5000,
+          "action_tolerance_bps": 10000,
+          "require_known_recipient": true,
+          "require_known_selector": true
+        }
+      },
+      "actions": [],
+      "expect": {
+        "findings": [],
+        "envelope_advisory": false,
+        "actions_considered": 0
+      }
+    }
+  ]
+}

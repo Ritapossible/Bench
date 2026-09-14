@@ -11,6 +11,7 @@ export * from './types/hire.js';
 export * from './types/envelope.js';
 export * from './types/mandate.js';
 export * from './types/hire-flow.js';
+export * from './types/dispute.js';
 
 export * from './digest.js';
 export * from './redact.js';

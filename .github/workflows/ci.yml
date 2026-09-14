@@ -95,6 +95,35 @@ jobs:
         env:
           E2E_BASE_URL: http://127.0.0.1:3000
 
+  # The Arbiter reimplements Bench's mandate-and-envelope rulebook in Python,
+  # because the ruling must not be computed by Bench: Bench lists the agent,
+  # ranks it, and takes a cut of the hire. Two implementations of one rulebook
+  # drift unless something holds them together, so both are asserted against
+  # `contracts/genlayer/tests/vectors.json` - and the vectors are regenerated
+  # here and diffed, because a file both suites read is a file someone could
+  # edit to make both suites pass.
+  arbiter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: pip install pytest
+      - run: python -m pytest contracts/genlayer/tests -q
+      - name: the conformance vectors are what the TypeScript actually produces
+        run: |
+          npx tsx contracts/genlayer/tools/gen_vectors.mts
+          git diff --exit-code contracts/genlayer/tests/vectors.json || {
+            echo "vectors.json does not match the TypeScript that generated it."
+            echo "Regenerate it and expect both test suites to move together."
+            exit 1; }
+
   # The `contracts` job used to run `forge build` and `forge test` against a
   # directory holding nothing but foundry.toml. Both exit 0 on an empty project,
   # so it was permanently green and certified nothing - a signal that looks like
