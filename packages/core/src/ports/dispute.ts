@@ -155,7 +155,22 @@ export interface DisputeRecord {
   readonly hireId: string;
   readonly ground: DisputeGround;
   readonly state: DisputeState;
+  /**
+   * Who filed and posted the bond, which is who the bond returns to.
+   *
+   * Not necessarily the hire's client. Crediting a refund to a party that never
+   * paid would strand it on an address with no key behind it - precisely what a
+   * marketplace's per-browser client id is.
+   */
   readonly claimant: Address;
+  /**
+   * Whose dispute it is: the client named when the terms were pinned.
+   *
+   * Equal to `claimant` when the client filed for itself, different when the
+   * registrar filed on its behalf. Stored on the chain rather than inferred, so
+   * a reader never has to guess which of the two happened.
+   */
+  readonly onBehalfOf: Address;
   readonly respondent: Address;
   readonly criteria: readonly string[];
   readonly sources: readonly EvidenceSource[];

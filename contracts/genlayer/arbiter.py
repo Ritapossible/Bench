@@ -192,7 +192,7 @@ REASON_NOT_RESPONDENT = "only the respondent may answer"
 REASON_ANSWER_WINDOW_CLOSED = "answer window has closed"
 REASON_HIRE_NOT_FOUND = "hire not registered"
 REASON_HIRE_EXISTS = "hire already registered"
-REASON_NOT_CLIENT = "only the client may open a dispute"
+REASON_NOT_CLIENT = "only the client or the registrar may open a dispute"
 REASON_TERMS_MISMATCH = "terms do not match the digest recorded at hire time"
 REASON_NO_TERMS = "adjudicating a breach needs the terms it was hired under"
 REASON_BAD_HIRE_KEY = "hire_id must be prefixed with the registrant's own address"
@@ -644,10 +644,39 @@ def screen_registration(exists: bool, client: str, sender: str) -> Screen:
     return Screen(True)
 
 
-def screen_open(hire_exists: bool, client: str, sender: str) -> Screen:
+def screen_open(hire_exists: bool, client: str, sender: str, registrar: str = "") -> Screen:
+    """Who may file: the client, or whoever registered the hire on its behalf.
+
+    **The registrar is admitted because otherwise nobody can file at all.** A
+    marketplace hire is created by the marketplace, and the client it names is
+    whatever identity that marketplace holds for its user - on Bench today, a
+    per-browser id with no private key anywhere in the world. Requiring the
+    client's own signature makes the remedy unreachable for every hire made
+    through a front end that has not asked its user to connect a wallet, which
+    is to say: for every hire.
+
+    It is a real widening and it is bounded on purpose:
+
+      - The registrar is the address in the hire's own key, fixed when the terms
+        were pinned and before anyone knew there would be a dispute. It cannot
+        be chosen afterwards.
+      - Whoever files posts the bond. A marketplace filing frivolously spends
+        its own money, every time.
+      - `filed_by` is stored and returned, so a reader can always see whether
+        the client filed or the marketplace filed for them. The widening is
+        visible rather than implied.
+
+    What it deliberately does not touch is who *decides*. The ruling runs on
+    validators none of the three parties control, and a registrar that can file
+    still cannot influence the outcome by a single bit - which is the property
+    this whole layer exists to hold.
+    """
     if not hire_exists:
         return Screen(False, REASON_HIRE_NOT_FOUND)
-    if str(client).lower() != str(sender).lower():
+    allowed = {str(client).lower()}
+    if registrar:
+        allowed.add(str(registrar).lower())
+    if str(sender).lower() not in allowed:
         return Screen(False, REASON_NOT_CLIENT)
     return Screen(True)
 
@@ -1031,7 +1060,16 @@ class Dispute:
     # telling it whose case a document supports is exactly the lever the prompt
     # is built to withhold.
     source_party: gl.storage.DynArray[str]
+    # Who filed and posted the bond. **Not necessarily the hire's client**, and
+    # the refund follows this address rather than the client: crediting a party
+    # that never paid would strand the bond on an address with no key behind it,
+    # which is exactly what the marketplace's per-browser client ids are.
     claimant: gl.Address
+    # Whose dispute it is - the client named when the terms were pinned. Equal
+    # to `claimant` when the client filed for itself, different when the
+    # registrar filed on its behalf, and stored so a reader never has to guess
+    # which of the two happened.
+    on_behalf_of: gl.Address
     respondent: gl.Address
     bond: gl.u256
     state: str
@@ -1186,6 +1224,7 @@ class Arbiter(gl.contract.Contract):
             "source_class": [str(s) for s in d.source_class],
             "source_party": [str(s) for s in d.source_party],
             "claimant": d.claimant.as_hex,
+            "on_behalf_of": d.on_behalf_of.as_hex,
             "respondent": d.respondent.as_hex,
             "bond": int(d.bond),
             "state": str(d.state),
@@ -1359,10 +1398,13 @@ class Arbiter(gl.contract.Contract):
         """
         key = _require_text(hire_id, "hire_id", MAX_ID_LEN)
         terms = self.hires.get(key)
+        # The registrar is read off the hire's own key, so it was fixed when the
+        # terms were pinned and cannot be chosen once a dispute is in prospect.
         screen = screen_open(
             hire_exists=terms is not None,
             client="" if terms is None else terms.client.as_hex,
             sender=gl.message.sender_address.as_hex,
+            registrar=registrar_of(key),
         )
         if not screen.ok:
             raise gl.vm.UserError(f"{ERROR_EXPECTED} {screen.reason}")
@@ -1421,6 +1463,7 @@ class Arbiter(gl.contract.Contract):
             source_class=[classify_source(u, domains) for u in urls],
             source_party=["marketplace" if u == record_url else "claimant" for u in urls],
             claimant=gl.message.sender_address,
+            on_behalf_of=terms.client,
             respondent=terms.respondent,
             bond=gl.u256(bond),
             state=STATE_OPEN,

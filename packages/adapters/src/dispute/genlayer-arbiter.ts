@@ -572,6 +572,10 @@ export function decodeDispute(
     ground: GROUNDS[asString(field(raw, 'ground'))] ?? 'delivery',
     state: STATES[asString(field(raw, 'state'))] ?? 'open',
     claimant: asString(field(raw, 'claimant')) as Address,
+    // Falls back to the claimant for a dispute opened before the field existed,
+    // where "filed by the client themselves" is the only thing it could mean.
+    onBehalfOf: (asString(field(raw, 'on_behalf_of')) ||
+      asString(field(raw, 'claimant'))) as Address,
     respondent: asString(field(raw, 'respondent')) as Address,
     criteria: asList(field(raw, 'criteria')).map((c) => asString(c)),
     sources,

@@ -335,14 +335,15 @@ appearing there unnoticed is how an unintended write ships — and asserts that
 
 ## Deploying
 
-**Deployed at `0x21160e3eA4ce08c3f1234884241483aEc1c2c79a`** on **Studio Next** — chain
+**Deployed at `0xB608B27603965E8A61ab46cE59058d332FDa0566`** on **Studio Next** — chain
 `61997`, RPC `https://studio-next.genlayer.com/api`, explorer
 `https://explorer-studio-dev.genlayer.com/`.
 
-Verified live end to end from Bench's own adapter: a hire registered under its
-namespaced key, a dispute opened with the 0.01 GEN bond, both read back, and the
-evidence tally returning `marketplace 1, independent 1` — Bench's own action
-record classified as ours, a block explorer as neither party's.
+Verified live end to end from Bench's own adapter, along the path production
+actually takes: a hire registered under its namespaced key with a per-browser
+client id, a dispute filed against it by the registrar on that client's behalf,
+both read back, and the evidence tally classifying Bench's own action record as
+`marketplace` rather than `independent`.
 
 ```bash
 genlayer deploy --contract contracts/genlayer/arbiter.py \
@@ -404,6 +405,40 @@ breach dispute unresolvable.
 Without an RPC and an address the dispute layer reports itself unavailable,
 every write refuses, and the hire page says so in as many words. That is the
 intended behaviour of an unconfigured deployment, not a degraded one.
+
+### Who may file, and why it is not only the client
+
+`open_dispute` admits the hire's **client** or the **address that registered
+it**. The second is not a convenience.
+
+A marketplace hire is created by the marketplace, and the client it names is
+whatever identity that marketplace holds for its user. On Bench that is a
+per-browser id in a signed cookie — an address with no private key anywhere in
+the world. Requiring the client's own signature therefore makes the remedy
+unreachable for every hire made through a front end that has not asked its user
+to connect a wallet, which today is every hire. This was measured, not
+predicted: filing against a real hire on the deployed contract returned
+`only the client may open a dispute`, on a filing the client could not possibly
+have signed.
+
+The widening is bounded, and each bound is load-bearing:
+
+- **The registrar is read off the hire's own key**, fixed when the terms were
+  pinned and before anyone knew there would be a dispute. It cannot be chosen
+  afterwards.
+- **Whoever files posts the bond.** A marketplace filing frivolously spends its
+  own money, every time.
+- **`claimant` and `on_behalf_of` are both stored and both returned**, so a
+  reader can always see which of the two filed. The hire page says so in
+  words. The refund follows `claimant`, because crediting a party that never
+  paid would strand the bond on an address with no key behind it.
+
+What it does not touch is who *decides*. A registrar that can file still cannot
+move the ruling by one bit: that runs on validators none of the three parties
+control, which is the property this whole layer exists to hold.
+
+When a wallet is connected the client files for itself, `claimant` and
+`on_behalf_of` become the same address, and none of this code changes.
 
 ### A hire is keyed on the address that registered it
 

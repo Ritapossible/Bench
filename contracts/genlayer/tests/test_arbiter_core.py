@@ -28,6 +28,7 @@ from arbiter_core import (  # noqa: E402
     ORIGIN_UNCLASSIFIED,
     REASON_ANSWER_WINDOW_OPEN,
     REASON_BAD_HIRE_KEY,
+    REASON_HIRE_NOT_FOUND,
     REASON_NOT_CLIENT,
     REASON_NOT_RESPONDENT,
     REASON_SETTLED,
@@ -479,3 +480,40 @@ def test_revocation_may_arrive_with_the_record_rather_than_the_terms() -> None:
     pinned = dict(terms)
     pinned["mandate"] = {**terms["mandate"], "revoked_at": 500}
     assert {f["seq"] for f in replay_actions(actions, pinned, 2_000)["findings"]} == {1, 2}
+
+
+def test_the_registrar_may_file_for_the_client_it_registered() -> None:
+    """Otherwise nobody can file at all, which is not a theoretical concern.
+
+    A marketplace hire is created by the marketplace, and the client it names is
+    whatever identity that marketplace holds for its user. On Bench that is a
+    per-browser id with no private key anywhere in the world, so requiring the
+    client's own signature makes the remedy unreachable for every hire made
+    through a front end that has not asked its user to connect a wallet - which
+    today is every hire. The refusal was real and measured against the deployed
+    contract: `only the client may open a dispute`, on a filing the client could
+    not possibly have signed.
+    """
+    client, registrar, stranger = "0xc1", "0xreg", "0xbad"
+
+    # The client still files for itself.
+    assert screen_open(True, client, client, registrar).ok is True
+    # And the registrar files on its behalf.
+    assert screen_open(True, client, registrar, registrar).ok is True
+
+    # Nobody else, registrar named or not. The widening admits one more address,
+    # not anyone who asks.
+    assert screen_open(True, client, stranger, registrar).reason == REASON_NOT_CLIENT
+    assert screen_open(True, client, stranger).reason == REASON_NOT_CLIENT
+
+    # Case-insensitive on both, because an address that differs only in checksum
+    # casing is the same account.
+    assert screen_open(True, "0xC1", "0xREG", "0xreg").ok is True
+
+    # An empty registrar widens nothing. A hire whose key carries no prefix -
+    # one registered before the key was namespaced - must not admit the empty
+    # string as a caller.
+    assert screen_open(True, client, "", "").reason == REASON_NOT_CLIENT
+
+    # A hire nobody registered is still refused first, whoever is asking.
+    assert screen_open(False, client, registrar, registrar).reason == REASON_HIRE_NOT_FOUND

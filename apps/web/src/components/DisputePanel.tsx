@@ -242,6 +242,7 @@ export function DisputePanel({
 
                 <p className="small ink">{copy.line}</p>
                 <p className="tiny">{GROUND_COPY[d.ground]}</p>
+                <FiledBy claimant={d.claimant} onBehalfOf={d.onBehalfOf} />
 
                 {d.criteria.length === 0 ? null : (
                   <ol className="stack stack-4" style={{ paddingLeft: '1.1rem' }}>
@@ -356,6 +357,36 @@ function Pinned({
         sha256 {pinned.termsHash}
       </p>
     </div>
+  );
+}
+
+/**
+ * Who actually filed, when it was not the hirer.
+ *
+ * The contract lets the address that registered a hire file on behalf of the
+ * client it registered, because otherwise nobody can: the client on a
+ * marketplace hire is whatever identity the marketplace holds for its user, and
+ * on this deployment that is a per-browser id with no private key anywhere. The
+ * widening is real, so it is shown rather than implied - a reader should never
+ * have to guess whether the hirer raised this or we did.
+ *
+ * Silent when the two match, which is what a wallet-connected hirer filing for
+ * themselves looks like.
+ */
+function FiledBy({
+  claimant,
+  onBehalfOf,
+}: {
+  readonly claimant: string;
+  readonly onBehalfOf: string;
+}) {
+  if (claimant.toLowerCase() === onBehalfOf.toLowerCase()) return null;
+  return (
+    <p className="tiny">
+      Filed by Bench on the hirer&rsquo;s behalf, and the chain records both addresses. We posted
+      the bond, so a frivolous filing costs us rather than you - and we still do not decide it. The
+      ruling is the validators&rsquo;.
+    </p>
   );
 }
 
