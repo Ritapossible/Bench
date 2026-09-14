@@ -64,6 +64,21 @@ describe('A2AShadowAgent', () => {
       let raw = '';
       req.on('data', (c) => (raw += c));
       req.on('end', () => {
+        /**
+         * The driver GETs the endpoint first, to see whether it is an agent
+         * card naming a service somewhere else. That request has no body, and
+         * parsing it unconditionally threw inside the request handler - which
+         * escapes as an uncaught exception rather than a failing assertion, so
+         * every test in the file still reported green while vitest exited 1.
+         *
+         * Answering 405 is what a JSON-RPC endpoint that does not serve its
+         * card does, which is also what this fixture is.
+         */
+        if (req.method !== 'POST') {
+          res.writeHead(405);
+          res.end('method not allowed');
+          return;
+        }
         body = JSON.parse(raw) as Record<string, unknown>;
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { status: 'completed' } }));
