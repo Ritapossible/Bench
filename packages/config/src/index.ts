@@ -181,6 +181,28 @@ const schema = z.object({
    */
   GENLAYER_REGISTRAR_ADDRESS: hexAddress.optional(),
   /**
+   * The key that pays for arbiter writes. **Not `BENCH_SIGNER_PRIVATE_KEY`.**
+   *
+   * These two keys are asked to do incomparable jobs and must not be the same
+   * one. `BENCH_SIGNER_PRIVATE_KEY` signs on BSC mainnet: it holds real BNB,
+   * it is the wallet provider's admin key, and it anchors probe digests to the
+   * ERC-8004 Validation Registry - which makes it the key that can forge
+   * Bench's own integrity record, the most sensitive thing this system holds.
+   * This one pays gas on a faucet devnet.
+   *
+   * An identical secp256k1 key yields the same address on both chains, so
+   * sharing one means the GenLayer key *is* the mainnet key. A hackathon
+   * deployment's chain key gets handled casually - pasted into a chat, dropped
+   * in a config, shared to debug a deploy - and none of that should be able to
+   * reach an address holding BNB and signing Bench's anchors.
+   *
+   * Deliberately no fallback to `BENCH_SIGNER_PRIVATE_KEY`. A fallback is how
+   * the mainnet key ends up signing on a devnet without anyone choosing it:
+   * the arbiter would simply start working, and nothing would say which key it
+   * started working with. Absent, the arbiter reads only.
+   */
+  GENLAYER_SIGNER_PRIVATE_KEY: z.string().optional(),
+  /**
    * Bench's own host, handed to the arbiter so it can mark Bench's data as
    * `marketplace` rather than `independent` in the evidence tally.
    *

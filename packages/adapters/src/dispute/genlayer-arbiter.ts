@@ -231,7 +231,7 @@ export class GenLayerArbiter implements DisputeResolver {
       throw new BenchError(
         'INVALID_REQUEST',
         'a GenLayer arbiter needs an address to register hires under: set ' +
-          'BENCH_SIGNER_PRIVATE_KEY, or GENLAYER_REGISTRAR_ADDRESS for a deployment that only ' +
+          'GENLAYER_SIGNER_PRIVATE_KEY, or GENLAYER_REGISTRAR_ADDRESS for a deployment that only ' +
           'reads disputes. A hire is keyed on the address that registered it.',
       );
     }

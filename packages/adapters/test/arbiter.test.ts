@@ -246,6 +246,43 @@ describe('GenLayerArbiter construction', () => {
     ).toThrow(/needs an address to register hires under/);
   });
 
+  it('will not sign with Bench’s BSC key, however convenient that would be', () => {
+    /**
+     * `BENCH_SIGNER_PRIVATE_KEY` holds real BNB, is the wallet provider's admin
+     * key, and anchors probe digests to the ERC-8004 Validation Registry -
+     * which makes it the key that could forge Bench's own integrity record. The
+     * same secp256k1 key is the same address on GenLayer, so a fallback here
+     * would put that authority behind a faucet-devnet gas key without anyone
+     * choosing it: the arbiter would simply start working, and nothing would
+     * say which key it started working with.
+     *
+     * So a deployment with only the BSC key gets a read-only arbiter, and this
+     * test is the thing standing between "it works" and "it works because it
+     * quietly reached for the wrong key".
+     */
+    const resolver = buildArbiter({
+      GENLAYER_RPC_URL: 'https://studio-next.genlayer.com/api',
+      GENLAYER_ARBITER_ADDRESS: ARBITER,
+      GENLAYER_CHAIN: 'studio-next',
+      BENCH_SIGNER_PRIVATE_KEY: KEY,
+    } as unknown as BenchConfig);
+
+    // No registrar could be derived, because no GenLayer key was given - so the
+    // arbiter refuses to exist rather than signing with the one that was.
+    expect(resolver.available).toBe(false);
+  });
+
+  it('signs with its own key when given one', () => {
+    const resolver = buildArbiter({
+      GENLAYER_RPC_URL: 'https://studio-next.genlayer.com/api',
+      GENLAYER_ARBITER_ADDRESS: ARBITER,
+      GENLAYER_CHAIN: 'studio-next',
+      GENLAYER_SIGNER_PRIVATE_KEY: KEY,
+    } as unknown as BenchConfig);
+    expect(resolver.available).toBe(true);
+    expect(resolver.locator).toEqual({ chain: 'studio-next', address: ARBITER });
+  });
+
   it('turns that refusal into the unavailable state, not a 500', () => {
     // `arbiter` is constructed at module load inside a Server Component import
     // graph. A throw there costs the whole hire page; the unavailable state

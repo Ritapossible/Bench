@@ -30,9 +30,18 @@ export function buildArbiter(cfg: BenchConfig): DisputeResolver {
       rpcUrl,
       address,
       chain: cfg.GENLAYER_CHAIN,
-      ...(cfg.BENCH_SIGNER_PRIVATE_KEY === undefined
+      /**
+       * The arbiter's own key, never Bench's BSC signer.
+       *
+       * `BENCH_SIGNER_PRIVATE_KEY` holds real BNB and anchors probe digests to
+       * the ERC-8004 Validation Registry; the same secp256k1 key is the same
+       * address on GenLayer, so reusing it would put Bench's anchoring
+       * authority behind a devnet gas key. There is no fallback on purpose -
+       * see the config comment.
+       */
+      ...(cfg.GENLAYER_SIGNER_PRIVATE_KEY === undefined
         ? {}
-        : { privateKey: cfg.BENCH_SIGNER_PRIVATE_KEY }),
+        : { privateKey: cfg.GENLAYER_SIGNER_PRIVATE_KEY }),
       ...(cfg.GENLAYER_REGISTRAR_ADDRESS === undefined
         ? {}
         : { registrar: cfg.GENLAYER_REGISTRAR_ADDRESS }),

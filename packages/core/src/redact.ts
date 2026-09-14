@@ -124,6 +124,9 @@ const SECRET_ENV: readonly string[] = [
   'ALTLAYER_8004SCAN_API_KEY',
   'ALTANA_API_KEY',
   'BENCH_SIGNER_PRIVATE_KEY',
+  // Added with the variable itself, not after something leaked it. A private
+  // key that is not on this list is one an error message can print.
+  'GENLAYER_SIGNER_PRIVATE_KEY',
   'BENCH_COOKIE_SECRET',
   'BENCH_WORKER_HEALTH_TOKEN',
 ];

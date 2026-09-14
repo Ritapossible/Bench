@@ -371,9 +371,29 @@ Then set on Bench:
 GENLAYER_RPC_URL=https://studio-next.genlayer.com/api
 GENLAYER_CHAIN=studio-next
 GENLAYER_ARBITER_ADDRESS=0x…
+GENLAYER_SIGNER_PRIVATE_KEY=0x…          # needs GEN; NOT the BSC signer
 GENLAYER_MARKETPLACE_DOMAIN=bench-bnb.vercel.app
 BENCH_PUBLIC_WEB_URL=https://bench-bnb.vercel.app
 ```
+
+### Two keys, and they must not be one key
+
+`GENLAYER_SIGNER_PRIVATE_KEY` pays for arbiter writes.
+`BENCH_SIGNER_PRIVATE_KEY` signs on BSC mainnet — it holds real BNB, it is the
+wallet provider's admin key, and it anchors probe digests to the ERC-8004
+Validation Registry, which makes it the key that could forge Bench's own
+integrity record.
+
+The same secp256k1 key is the same address on both chains, so sharing one does
+not mean "one key for convenience", it means the faucet-devnet gas key **is**
+the mainnet key. A hackathon deployment's chain key gets handled casually —
+pasted into a chat, dropped in a config, shared to debug a deploy — and none of
+that should reach an address holding BNB and signing Bench's anchors.
+
+There is no fallback from one to the other, deliberately. A fallback is how the
+mainnet key ends up signing on a devnet without anyone choosing it: the arbiter
+would simply start working, and nothing would say which key it started working
+with. Without its own key the arbiter reads only, and the hire page says so.
 
 `GENLAYER_MARKETPLACE_DOMAIN` is a **disclosure about Bench's own interest**,
 which is why it is configured rather than derived from a request header a caller
