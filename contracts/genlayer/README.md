@@ -335,8 +335,14 @@ appearing there unnoticed is how an unintended write ships — and asserts that
 
 ## Deploying
 
-Deployed on **Studio Next** — chain `61997`, RPC `https://studio-next.genlayer.com/api`,
-explorer `https://explorer-studio-dev.genlayer.com/`.
+**Deployed at `0x21160e3eA4ce08c3f1234884241483aEc1c2c79a`** on **Studio Next** — chain
+`61997`, RPC `https://studio-next.genlayer.com/api`, explorer
+`https://explorer-studio-dev.genlayer.com/`.
+
+Verified live end to end from Bench's own adapter: a hire registered under its
+namespaced key, a dispute opened with the 0.01 GEN bond, both read back, and the
+evidence tally returning `marketplace 1, independent 1` — Bench's own action
+record classified as ours, a block explorer as neither party's.
 
 ```bash
 genlayer deploy --contract contracts/genlayer/arbiter.py \
@@ -402,9 +408,10 @@ with an empty list, which would render a live dispute as no dispute.
 
 ## What this does not claim
 
-- **It is not deployed by this repository.** The contract builds, lints as one
-  contract class, and passes 91 tests; an address on a live network is a
-  separate act and this document does not pretend to one.
+- **The deployment is on a Studio devnet, not a value-bearing chain.** The
+  address above is real and the reads above are real; GEN on Studio Next is
+  faucet-funded, so nothing here proves economic security, only that the
+  contract runs and settles as specified.
 - **`register_hire` is called by Bench**, because Bench is the party holding both
   halves at hire time. `registered_by` is a public view for exactly that reason,
   and a hire registered by neither party nor the marketplace is worth a second

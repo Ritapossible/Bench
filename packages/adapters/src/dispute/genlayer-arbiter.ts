@@ -278,11 +278,25 @@ export class GenLayerArbiter implements DisputeResolver {
   }
 
   async #write(functionName: string, args: unknown[], value = 0n): Promise<void> {
+    /**
+     * Consensus v0.6 charges for execution, and a write with no fee attached is
+     * rejected outright - `FeeValueMustBeNonZero`, before the contract runs.
+     *
+     * Estimated per call rather than pinned to a constant. The quote covers
+     * validator time units, storage and receipt gas at current network prices,
+     * and the two grounds cost wildly different amounts: a breach replay is
+     * arithmetic over a fetched document, a delivery ruling is a model call.
+     * One hardcoded number would be too small for the second or waste GEN on
+     * the first, and too small means the transaction is refused rather than
+     * slow.
+     */
+    const fees = await this.#client.estimateTransactionFees();
     const hash = await this.#client.writeContract({
       address: this.#address,
       functionName,
       args: args as never,
       value,
+      fees,
     });
     /**
      * Waited on, not fired and forgotten.
