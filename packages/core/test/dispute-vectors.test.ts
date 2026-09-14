@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,6 +60,7 @@ interface Vector {
     readonly data: string;
     readonly token?: string;
   }[];
+  readonly terms_hash: string;
   readonly expect: {
     readonly findings: readonly { readonly rule: string; readonly seq: number }[];
     readonly envelope_advisory: boolean;
@@ -128,10 +130,36 @@ const actionsOf = (v: Vector): DisputedAction[] =>
     ...(a.token === undefined ? {} : { token: a.token as Address }),
   }));
 
+/** Matches `canonical_json` in the contract and `canonicalJson` in the adapter. */
+const canonicalJson = (value: unknown): string => {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
+};
+
 describe('dispute conformance vectors', () => {
   it('has a vector file in the format both readers expect', () => {
     expect(file.version).toBe(1);
     expect(file.cases.length).toBeGreaterThan(10);
+  });
+
+  it('agrees with the contract on how terms are digested', () => {
+    /**
+     * `adjudicate` refuses unless the terms it is handed hash to what was
+     * pinned at hire time. Two encoders that disagree make every adjudication
+     * fail as "terms do not match the digest recorded at hire time" - which
+     * reads as a party rewriting the deal and is really a codec disagreeing
+     * with itself across a language boundary.
+     */
+    for (const v of file.cases) {
+      expect(
+        createHash('sha256').update(canonicalJson(v.terms), 'utf8').digest('hex'),
+        v.name,
+      ).toBe(v.terms_hash);
+    }
   });
 
   for (const v of file.cases) {

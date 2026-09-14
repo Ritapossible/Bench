@@ -21,6 +21,7 @@
  * moment in time rather than a flag.
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { replayAgainstTerms } from '../../../packages/core/src/types/dispute.js';
@@ -313,6 +314,24 @@ const toActions = (c: Case): DisputedAction[] =>
     ...(a.token === undefined ? {} : { token: a.token as Address }),
   }));
 
+/**
+ * Canonical JSON, matching `canonical_json` in the contract exactly.
+ *
+ * Duplicated here rather than imported from the adapter because this generator
+ * must not depend on the package it is validating - and because the value it
+ * produces, `terms_hash`, is the one thing that makes a dispute adjudicable at
+ * all. A digest computed differently on either side reads on-chain as someone
+ * restating the terms after the hire went wrong, and the contract refuses.
+ */
+const canonicalJson = (value: unknown): string => {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
+};
+
 const cases = CASES.map((c) => {
   const audit = replayAgainstTerms(
     toActions(c),
@@ -321,10 +340,15 @@ const cases = CASES.map((c) => {
     toPolicy(c),
     c.mandate.revoked_at === undefined ? null : new Date(c.mandate.revoked_at * 1000),
   );
+  const terms = { mandate: c.mandate, envelope: c.envelope, policy: c.policy };
   return {
     name: c.name,
     why: c.why,
-    terms: { mandate: c.mandate, envelope: c.envelope, policy: c.policy },
+    terms,
+    // Asserted by both suites. If these ever differ, no dispute on either side
+    // can be adjudicated, and the failure surfaces as "terms do not match the
+    // digest recorded at hire time" - which sounds like fraud and is a codec.
+    terms_hash: createHash('sha256').update(canonicalJson(terms), 'utf8').digest('hex'),
     actions: c.actions,
     expect: {
       findings: audit.findings.map((f) => ({ rule: f.rule, seq: f.seq })),

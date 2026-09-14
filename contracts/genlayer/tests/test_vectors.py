@@ -35,6 +35,7 @@ from arbiter_core import (  # noqa: E402
     binding_findings,
     replay_actions,
     ruling_from_replay,
+    terms_digest,
     RULING_DISMISSED,
     RULING_UNRESOLVED,
     RULING_UPHELD,
@@ -86,6 +87,23 @@ def test_replay_matches_typescript(case: dict) -> None:
     assert got == want, case["why"]
     assert audit["envelope_advisory"] == case["expect"]["envelope_advisory"]
     assert audit["actions_considered"] == case["expect"]["actions_considered"]
+
+
+@pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+def test_terms_digest_matches_typescript(case: dict) -> None:
+    """The value that decides whether a dispute can be adjudicated at all.
+
+    `adjudicate` refuses unless the terms it is handed hash to what was pinned
+    at hire time. Two implementations that encode the same terms differently
+    would make every adjudication fail as "terms do not match the digest
+    recorded at hire time" - which reads as one party rewriting the deal and is
+    actually a codec disagreeing with itself across a language boundary.
+
+    Note the terms here are the raw JSON from the vector file, with integers
+    still spelled as strings. That is deliberate: it is the shape that crosses
+    the wire, so it is the shape whose digest has to agree.
+    """
+    assert terms_digest(case["terms"]) == case["terms_hash"]
 
 
 @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])

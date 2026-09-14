@@ -95,6 +95,17 @@ export {
   type PositionReaderOptions,
 } from './chain/position-reader.js';
 export { A2AShadowAgent, type A2AShadowAgentOptions } from './agent/a2a-shadow-agent.js';
+export {
+  GenLayerArbiter,
+  canonicalJson,
+  termsDigest,
+  decodeDispute,
+  decodeVerdict,
+  type GenLayerArbiterOptions,
+  type GenLayerChainName,
+} from './dispute/genlayer-arbiter.js';
+export { UnconfiguredArbiter } from './dispute/unconfigured-arbiter.js';
+export { buildArbiter } from './dispute/build.js';
 export { FallbackShadowAgent } from './agent/fallback-shadow-agent.js';
 export {
   looksLikeAgentCard,

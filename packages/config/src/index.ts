@@ -138,6 +138,29 @@ const schema = z.object({
   BENCH_PUBLIC_RPC_BASE_URL: z.string().url().optional(),
 
   ALTLAYER_8004SCAN_API_KEY: z.string().optional(),
+
+  /**
+   * The GenLayer Arbiter: where a dispute about a Bench hire gets ruled on.
+   *
+   * All three are optional and all three are required together. Without them
+   * the dispute layer reports itself unavailable and every call refuses - there
+   * is deliberately no in-process fallback, because a fallback would be Bench
+   * ruling on disputes about its own listings, which is the one thing this
+   * layer exists to prevent. A switched-off adjudicator is a limitation a
+   * reader can see; a helpful one would be a conflict of interest nobody
+   * would.
+   */
+  GENLAYER_RPC_URL: z.string().url().optional(),
+  GENLAYER_ARBITER_ADDRESS: hexAddress.optional(),
+  /**
+   * Bench's own host, handed to the arbiter so it can mark Bench's data as
+   * `marketplace` rather than `independent` in the evidence tally.
+   *
+   * Configured rather than derived, because the value is a disclosure about
+   * Bench's own interest and the last place it should come from is a request
+   * header a caller controls.
+   */
+  GENLAYER_MARKETPLACE_DOMAIN: z.string().optional(),
 });
 
 /**
