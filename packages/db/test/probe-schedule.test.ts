@@ -115,16 +115,47 @@ describeDb('dueForProbe scheduling', () => {
     expect(ids(due)).toEqual([1n, 2n, 3n]);
   });
 
-  it('does not let a settled endpoint jump the unprobed queue', async () => {
-    // Rank 2: three probes is a verdict, so it waits its hourly turn behind
-    // every endpoint nobody has asked yet.
+  it('refreshes a verdict that is about to expire before starting new ones', async () => {
+    /**
+     * "Verified live" means probed inside six hours. The catalog grew from
+     * 32,000 agents to 196,749 in a night, every new endpoint sorted ahead of
+     * an established one, and the verified count fell from 44 to 23 while all
+     * of them were still answering - Bench's own reference agent read uptime
+     * 100.0%, reachable yes, speaks its protocol yes, last probed eleven hours
+     * ago. That is a measurement of the queue, not of the ecosystem.
+     */
     const twoHoursAgo = Date.now() - 2 * HOUR;
     for (let i = 0; i < 3; i += 1) {
       await catalog.recordProbe(probeAt(2n, new Date(twoHoursAgo + i * 1_000)));
     }
 
     const due = await catalog.dueForProbe(10, HOUR, BOOTSTRAP);
-    expect(due.map((t) => t.agent.tokenId).at(-1)).toBe(2n);
+    expect(due[0]?.agent.tokenId).toBe(2n);
+    // Discovery is not starved by it - the unprobed follow immediately.
+    expect(ids(due)).toEqual([1n, 2n, 3n]);
+  });
+
+  it('does not let an endpoint that only ever returned 200 jump the queue', async () => {
+    // Reachable is not conformant. A web server answering everything holds no
+    // verdict, so it has none to refresh and waits its turn.
+    const twoHoursAgo = new Date(Date.now() - 2 * HOUR);
+    await catalog.recordProbe({ ...probeAt(2n, twoHoursAgo), conformant: false });
+
+    const due = await catalog.dueForProbe(10, HOUR, BOOTSTRAP);
+    // Still ahead of the unprobed, but on the part-way-to-a-verdict rule
+    // rather than the refresh one - one probe is short of the three a verdict
+    // needs either way.
+    expect(due[0]?.agent.tokenId).toBe(2n);
+
+    // With a full verdict of non-conformance it sorts last instead.
+    for (let i = 1; i < 3; i += 1) {
+      await catalog.recordProbe({
+        ...probeAt(2n, new Date(twoHoursAgo.getTime() + i * 1_000)),
+        conformant: false,
+      });
+    }
+    const after = await catalog.dueForProbe(10, HOUR, BOOTSTRAP);
+    expect(after.map((t) => t.agent.tokenId).at(-1)).toBe(2n);
   });
 
   it('does not re-offer one probed within the bootstrap window', async () => {
@@ -157,8 +188,16 @@ describeDb('dueForProbe scheduling', () => {
     // A probe that completes a verdict is worth more than the nth probe of one
     // already decided, so a batch smaller than the catalog must spend itself
     // on the undecided.
+    //
+    // Decided *against*, deliberately. An endpoint that has conformed holds a
+    // verdict that expires at six hours and is refreshed ahead of discovery;
+    // one that has answered three times without ever speaking its protocol has
+    // nothing to keep fresh, and is the case this rule is about.
     for (let i = 0; i < VERIFIED_LIVE.minProbeCount; i++) {
-      await catalog.recordProbe(probeAt(1n, new Date(Date.now() - (90 + i) * 60 * 1000)));
+      await catalog.recordProbe({
+        ...probeAt(1n, new Date(Date.now() - (90 + i) * 60 * 1000)),
+        conformant: false,
+      });
     }
     await catalog.recordProbe(probeAt(2n, new Date(Date.now() - 10 * 60 * 1000)));
 

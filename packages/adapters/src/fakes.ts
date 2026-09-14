@@ -177,7 +177,8 @@ export class InMemoryCatalogRepository implements CatalogRepository {
     bootstrap?: { readonly afterMs: number; readonly untilProbeCount: number },
   ): Promise<readonly ProbeTarget[]> {
     const now = Date.now();
-    const targets: (ProbeTarget & { readonly seen: number })[] = [];
+    const targets: (ProbeTarget & { readonly seen: number; readonly everConformant: boolean })[] =
+      [];
 
     for (const record of this.#agents.values()) {
       // No card means no declared endpoint to probe. Those agents are still
@@ -195,7 +196,13 @@ export class InMemoryCatalogRepository implements CatalogRepository {
           forEndpoint.length < bootstrap.untilProbeCount &&
           age >= bootstrap.afterMs;
         if (age < staleAfterMs && !stillBootstrapping) continue;
-        targets.push({ agent: record.id, endpoint, lastProbedAt, seen: forEndpoint.length });
+        targets.push({
+          agent: record.id,
+          endpoint,
+          lastProbedAt,
+          seen: forEndpoint.length,
+          everConformant: forEndpoint.some((p) => p.conformant),
+        });
       }
     }
 
@@ -207,16 +214,26 @@ export class InMemoryCatalogRepository implements CatalogRepository {
      * indexer adding thousands of unprobed endpoints a day nothing ever
      * reached the three probes a verdict needs.
      */
-    const rank = ({ seen }: { readonly seen: number }): number => {
-      if (seen === 0) return 1;
-      if (bootstrap !== undefined && seen < bootstrap.untilProbeCount) return 0;
-      return 2;
+    const rank = ({
+      seen,
+      everConformant,
+    }: {
+      readonly seen: number;
+      readonly everConformant: boolean;
+    }): number => {
+      if (seen > 0 && bootstrap !== undefined && seen < bootstrap.untilProbeCount) return 0;
+      // A verdict already reached, before one not yet started: "verified live"
+      // means probed inside six hours, and an endpoint that has answered is
+      // the only kind whose verdict can expire.
+      if (everConformant) return 1;
+      if (seen === 0) return 2;
+      return 3;
     };
     targets.sort(
       (a, b) =>
         rank(a) - rank(b) || (a.lastProbedAt?.getTime() ?? -1) - (b.lastProbedAt?.getTime() ?? -1),
     );
-    return targets.slice(0, limit).map(({ seen: _seen, ...t }) => t);
+    return targets.slice(0, limit).map(({ seen: _seen, everConformant: _conformant, ...t }) => t);
   }
 
   async unanchoredProbes(limit: number): Promise<readonly ProbeResult[]> {

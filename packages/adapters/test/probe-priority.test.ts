@@ -73,6 +73,41 @@ describe('dueForProbe priority', () => {
     expect(due.map((d) => d.agent.tokenId)).toEqual([2n]);
   });
 
+  it('gives no refresh priority to an endpoint that never spoke its protocol', async () => {
+    const dead = record(1n, 'https://dead.example/a2a');
+    const fresh = record(2n, 'https://fresh.example/a2a');
+    const repo = new InMemoryCatalogRepository([dead, fresh]);
+    const old = Date.now() - 2 * 60 * 60 * 1000;
+    for (let i = 0; i < 3; i += 1) {
+      await repo.recordProbe({
+        ...probe(1n, 'https://dead.example/a2a', new Date(old + i)),
+        conformant: false,
+      });
+    }
+
+    const due = await repo.dueForProbe(5, 60 * 60 * 1000, BOOTSTRAP);
+    // Reachable is not conformant, and only a verdict of "live" can expire.
+    expect(due.map((d) => d.agent.tokenId)).toEqual([2n, 1n]);
+  });
+
+  it('refreshes a verdict that expires before starting a new one', async () => {
+    // Mirrors the SQL. "Verified live" means probed inside six hours, so an
+    // endpoint that has conformed holds something that can go stale; tens of
+    // thousands of never-probed ones in front of it is how the verified count
+    // fell from 44 to 23 overnight while every one of them was still up.
+    const settled = record(1n, 'https://settled.example/a2a');
+    const fresh = record(2n, 'https://fresh.example/a2a');
+    const repo = new InMemoryCatalogRepository([settled, fresh]);
+    const old = Date.now() - 2 * 60 * 60 * 1000;
+    for (let i = 0; i < 3; i += 1) {
+      await repo.recordProbe(probe(1n, 'https://settled.example/a2a', new Date(old + i)));
+    }
+
+    const due = await repo.dueForProbe(5, 60 * 60 * 1000, BOOTSTRAP);
+    expect(due[0]?.agent.tokenId).toBe(1n);
+    expect(due.map((d) => d.agent.tokenId)).toEqual([1n, 2n]);
+  });
+
   it('does not hold back an endpoint probed inside the bootstrap window', async () => {
     const justProbed = record(1n, 'https://just.example/a2a');
     const repo = new InMemoryCatalogRepository([justProbed]);

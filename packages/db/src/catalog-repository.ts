@@ -351,6 +351,15 @@ export class PgCatalogRepository implements CatalogRepository {
      */
     const coldCutoff = coldAfterMs === undefined ? null : new Date(Date.now() - coldAfterMs);
     const everReachable = sql`bool_or(${schema.probeResults.reachable})`;
+    /**
+     * Has this endpoint ever spoken its own protocol?
+     *
+     * Distinct from `everReachable`: a web server that answers 200 to
+     * everything is reachable and never conformant, and only a conformant
+     * endpoint can hold a verdict that expires. One more aggregate over a
+     * group the query already forms.
+     */
+    const everConformant = sql`bool_or(${schema.probeResults.conformant})`;
     const lastAt = sql`max(${schema.probeResults.at})`;
     const seen = sql`count(${schema.probeResults.id})`;
     /**
@@ -408,12 +417,32 @@ export class PgCatalogRepository implements CatalogRepository {
        * cannot starve discovery: a part-way endpoint needs at most two more
        * probes and then leaves the class, and the bootstrap cadence keeps it
        * out of the batch for two minutes between them.
+       *
+       * **And a verdict already reached outranks one not yet started.** The
+       * same starvation returned one level up as soon as the catalog grew.
+       * `isVerifiedLive` requires a probe inside six hours, an endpoint that
+       * has answered before sorts as an ordinary stale re-check, and the
+       * indexer had taken the catalog from 32,000 agents to 196,749 overnight
+       * - so tens of thousands of never-probed endpoints stood in front of
+       * every established verdict and they expired unrefreshed. Verified live
+       * fell from 44 to 23 while every one of them was still answering:
+       * Bench's own reference agent read uptime 100.0%, p95 878ms, reachable
+       * yes, speaks its protocol yes - last probed eleven hours ago.
+       *
+       * That is not a measurement of the ecosystem, it is a measurement of the
+       * queue. The six-hour rule exists to make "live" mean *now*; if the
+       * prober cannot return inside it, the number says how far the queue got
+       * rather than which agents are up. Refreshing costs nothing next to
+       * discovery - a few dozen endpoints against a batch of six hundred - and
+       * without it the figure decays toward zero purely as the catalog grows,
+       * which is the opposite of what indexing more of the registry should do.
        */
       .orderBy(
         sql`case
-              when ${seen} = 0 then 1
-              when ${seen} < ${bootstrap?.untilProbeCount ?? 0} then 0
-              else 2
+              when ${seen} > 0 and ${seen} < ${bootstrap?.untilProbeCount ?? 0} then 0
+              when ${everConformant} then 1
+              when ${seen} = 0 then 2
+              else 3
             end asc,
             ${lastAt} asc nulls first`,
       )
