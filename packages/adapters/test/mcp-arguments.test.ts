@@ -28,7 +28,7 @@ const ctx = (params: Record<string, string | number | bigint> = {}): ShadowAgent
     seed: 's',
   },
   position: {
-    kind: 'spot',
+    kind: 'spot-balance',
     label: '10,000 USDT and 50 BNB',
     params,
     capital: { token: TOKEN, symbol: 'USDT', decimals: 18, amount: 10_000n * 10n ** 18n },
