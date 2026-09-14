@@ -162,7 +162,14 @@ const schema = z.object({
    * where the Arbiter is deployed.
    */
   GENLAYER_CHAIN: z
-    .enum(['localnet', 'studionet', 'studio-next', 'testnet-bradbury', 'testnet-asimov'])
+    .enum([
+      'localnet',
+      'studionet',
+      'studio-next',
+      'studio-devnet',
+      'testnet-bradbury',
+      'testnet-asimov',
+    ])
     .default('studio-next'),
   /**
    * The address hires are registered under on the arbiter.

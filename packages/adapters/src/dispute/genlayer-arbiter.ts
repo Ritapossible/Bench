@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto';
 import { createAccount, createClient } from 'genlayer-js';
-import { localnet, studionet, testnetAsimov, testnetBradbury } from 'genlayer-js/chains';
+import {
+  localnet,
+  studioDevnet,
+  studionet,
+  testnetAsimov,
+  testnetBradbury,
+} from 'genlayer-js/chains';
 import { TransactionStatus } from 'genlayer-js/types';
 import { BenchError, classifyEvidence, hireIdOf, hireKey } from '@bench/core';
 import type {
@@ -59,32 +65,23 @@ import type { Address } from '@bench/core';
  * guarantee at runtime.
  */
 /**
- * Studio Next, which `genlayer-js@1.1.8` does not ship a constant for.
+ * Studio Next is the SDK's `studioDevnet`: chain 61997, one network under two
+ * names.
  *
- * Derived from `studionet` rather than written out, because the part that is
- * genuinely different is three fields - the chain id, the RPC and the explorer -
- * and the part that is not is a consensus ABI several thousand lines long.
- * Copying that by hand is how a chain definition silently goes stale one
- * release later; spreading it means an SDK upgrade carries the fix.
- *
- * The `isStudio` flag is the load-bearing one: the SDK branches on it in nine
- * places to speak the Studio JSON-RPC dialect rather than driving the consensus
- * contract directly, and Studio Next is a Studio.
+ * Worth stating because the two names point at different hosts - the RPC
+ * announced for the hackathon is `studio-next.genlayer.com/api` and the SDK's
+ * constant carries `studio-dev.genlayer.com/api` - and the explorer both share,
+ * `explorer-studio-dev.genlayer.com`, is what settles that they are the same
+ * chain. The endpoint is supplied from config either way, so the constant is
+ * here for its id and its `isStudio` flag: the SDK branches on the latter in
+ * nine places to speak the Studio JSON-RPC dialect rather than driving the
+ * consensus contract directly.
  */
-const studioNext = {
-  ...studionet,
-  id: 61_997,
-  name: 'GenLayer Studio Next',
-  rpcUrls: { default: { http: ['https://studio-next.genlayer.com/api'] } },
-  blockExplorers: {
-    default: { name: 'GenLayer Explorer', url: 'https://explorer-studio-dev.genlayer.com' },
-  },
-} as const;
-
 const CHAINS: Readonly<Record<string, unknown>> = {
   localnet,
   studionet,
-  'studio-next': studioNext,
+  'studio-next': studioDevnet,
+  'studio-devnet': studioDevnet,
   'testnet-bradbury': testnetBradbury,
   'testnet-asimov': testnetAsimov,
 };
@@ -95,6 +92,7 @@ export type GenLayerChainName =
   | 'localnet'
   | 'studionet'
   | 'studio-next'
+  | 'studio-devnet'
   | 'testnet-bradbury'
   | 'testnet-asimov';
 
