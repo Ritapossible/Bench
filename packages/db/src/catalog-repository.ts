@@ -784,19 +784,33 @@ const agentMatches = (id: AgentId) =>
  * these, edit the other — there is no test holding them together yet.
  */
 /**
- * Enough probes, recent enough, to have a current verdict either way.
+ * Agents Bench has actually tested: enough probes to have reached a verdict,
+ * ever.
  *
- * `verifiedLiveSql` with the three conditions that decide the *outcome*
- * removed, leaving only the two that decide whether an outcome exists. Kept
- * next to it so the pair cannot drift: if the freshness rule changes in one it
- * has to change in the other, and they are four lines apart.
+ * **Freshness is deliberately not required here, and the first version of this
+ * got that wrong.** It asked for a verdict inside six hours - symmetric with
+ * `verifiedLiveSql`, which reads as the careful choice - and that quietly
+ * inflated the headline. The prober refreshes endpoints that have conformed
+ * ahead of everything else, because otherwise a live verdict expires before
+ * anyone asks again. The consequence is that live verdicts stay fresh and dead
+ * ones do not: a dead endpoint falls to the back of the queue, its verdict
+ * ages past six hours, and it leaves the denominator while the live agents
+ * stay in it. The published share went to 0.9% against 0.17% measured by
+ * sampling the same band - a fivefold overstatement produced entirely by the
+ * scheduling rule, not by the registry.
+ *
+ * So an agent counts as tested once it has been tested. Nothing leaves this
+ * set, so no scheduling decision can move the denominator.
+ *
+ * That leaves the numerator asking for recency and the denominator not, which
+ * is asymmetric on purpose: "live" has to mean now, "tested" does not have to
+ * mean recently. It understates - an agent that is up but overdue for a probe
+ * sits in the denominator and not the numerator - and understating is the
+ * right direction for a number whose entire value is that nobody has to take
+ * it on trust.
  */
 function verdictReachedSql() {
-  const cutoff = new Date(Date.now() - VERIFIED_LIVE.maxProbeAgeMs);
-  return and(
-    gte(schema.agentLiveness.probeCount, VERIFIED_LIVE.minProbeCount),
-    gte(schema.agentLiveness.lastProbedAt, cutoff),
-  );
+  return gte(schema.agentLiveness.probeCount, VERIFIED_LIVE.minProbeCount);
 }
 
 function verifiedLiveSql() {

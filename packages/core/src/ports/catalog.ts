@@ -97,21 +97,22 @@ export interface CatalogRepository {
    */
   highestTokenId(chain: ChainName): Promise<bigint | null>;
   /**
-   * Agents Bench currently holds a verdict on: probed enough times, recently
-   * enough, to be called live or not live right now.
+   * Agents Bench has tested: probed enough times to have reached a verdict.
    *
    * The denominator for the live share, and not the same thing as the number
-   * indexed. `isVerifiedLive` needs three probes inside six hours, the prober
-   * reaches six hundred endpoints a tick, and the indexer had taken the
-   * catalog to 196,749 agents - so the front page divided 23 by 196,749 and
-   * published "0.0% of what is indexed", which reads as a finding about the
-   * registry and was a statement about how far a queue had got. Sampling the
-   * same band directly measured 0.17%.
+   * indexed. A verdict needs three probes inside six hours, the prober reaches
+   * six hundred endpoints a tick, and the indexer had taken the catalog to
+   * 196,749 agents - so the front page divided 23 by 196,749 and published
+   * "0.0% of what is indexed", which reads as a finding about the registry and
+   * was a statement about how far a queue had got.
    *
-   * Deliberately excludes an agent whose verdict has expired. "Live" means
-   * live now; an endpoint last heard from eleven hours ago is not evidence
-   * either way, and counting it in the denominator would drag the share down
-   * for exactly the reason the number is supposed to exclude.
+   * Ever tested, not recently tested, and that distinction is the whole
+   * correctness of the number. Requiring recency here hands the denominator to
+   * the prober's scheduling: it refreshes endpoints that have conformed ahead
+   * of everything else, so live verdicts stay current while dead ones age out
+   * and leave the set. Measured, that overstated the share fivefold - 0.9%
+   * published against 0.17% from sampling the same band. Nothing leaves this
+   * set, so no ordering decision can move it.
    */
   verdictCount(chain: ChainName): Promise<number>;
   /** Probes not yet covered by an onchain anchor, oldest first. */

@@ -126,14 +126,14 @@ export class InMemoryCatalogRepository implements CatalogRepository {
   }
 
   async verdictCount(chain: ChainName): Promise<number> {
-    const now = Date.now();
     let n = 0;
     for (const record of this.#agents.values()) {
       if (record.id.chain !== chain) continue;
       const summary = summarizeProbes(record.id, this.#probes.get(agentKey(record.id)) ?? []);
-      if (summary.lastProbedAt === null) continue;
+      // Tested, not tested recently. See verdictReachedSql: requiring recency
+      // here lets the prober's own priorities decide the denominator, and the
+      // prober keeps live endpoints fresh and lets dead ones go stale.
       if (summary.probeCount < VERIFIED_LIVE.minProbeCount) continue;
-      if (now - summary.lastProbedAt.getTime() > VERIFIED_LIVE.maxProbeAgeMs) continue;
       n += 1;
     }
     return n;

@@ -129,7 +129,7 @@ export default async function Home() {
             <div className="statnum">{stats.verifiedLive.toLocaleString()}</div>
             <div className="statlabel">
               <Link href="/registry" style={{ color: 'inherit' }}>
-                Verified live - {pct(live)} of the {tested.toLocaleString()} tested so far →
+                Verified live - {pct(live)} of the {tested.toLocaleString()} tested →
               </Link>
             </div>
           </div>
@@ -137,9 +137,10 @@ export default async function Home() {
         <p className="tiny" style={{ marginTop: '0.85rem' }}>
           Bench’s own measurement, recomputed every tick - not a figure quoted from a paper. The
           registry is walked newest first, so the indexed slice is the live end of it. An agent
-          counts as tested once it has answered, or failed to, three times inside six hours.
-          Indexing outruns probing, so the share above is of the tested set rather than of
-          everything indexed.
+          counts as tested once it has answered, or failed to, three times; it counts as live only
+          on evidence from the last six hours. Indexing outruns probing, so the share above is of
+          the tested set rather than of everything indexed, and it understates: an agent that is up
+          but overdue for a probe is in the denominator and not the numerator.
         </p>
       </section>
 
