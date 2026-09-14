@@ -177,6 +177,10 @@ export function createPgData(connectionString: string): BenchData {
       return top === null ? null : Number(top);
     },
 
+    async verdictCount(): Promise<number> {
+      return catalog.verdictCount(CHAIN);
+    },
+
     async catalogHistory(): Promise<readonly CatalogStats[]> {
       const history = await audition.statsHistory(CHAIN);
       // Before the indexer has run twice there is no trend to draw. Return

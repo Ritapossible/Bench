@@ -1,5 +1,6 @@
-import Link from 'next/link';
 import { liveShareBps } from '@bench/core';
+import Link from 'next/link';
+
 import { data } from '@/lib/data/index';
 import { pct } from '@/lib/format';
 
@@ -52,8 +53,21 @@ const STEPS = [
 ];
 
 export default async function Home() {
-  const [stats, head] = await Promise.all([data.catalogStats(), data.registryHead()]);
-  const live = liveShareBps(stats);
+  const [stats, head, tested] = await Promise.all([
+    data.catalogStats(),
+    data.registryHead(),
+    data.verdictCount(),
+  ]);
+  /**
+   * The share is of what Bench has tested, not of what it has indexed.
+   *
+   * A verdict needs three probes inside six hours; indexing needs one read. So
+   * the two counts diverge as fast as the indexer runs, and dividing by the
+   * larger one published "0.0%" about a registry this same project had
+   * measured at 0.17% by sampling. That number read as a finding about BNB
+   * Chain and was a statement about how far a queue had got.
+   */
+  const live = liveShareBps(stats.verifiedLive, tested);
 
   return (
     <>
@@ -115,15 +129,17 @@ export default async function Home() {
             <div className="statnum">{stats.verifiedLive.toLocaleString()}</div>
             <div className="statlabel">
               <Link href="/registry" style={{ color: 'inherit' }}>
-                Verified live - {pct(live)} of what is indexed →
+                Verified live - {pct(live)} of the {tested.toLocaleString()} tested so far →
               </Link>
             </div>
           </div>
         </div>
         <p className="tiny" style={{ marginTop: '0.85rem' }}>
-          Bench’s own measurement, recomputed every tick against what it has indexed - not a figure
-          quoted from a paper. The registry is walked newest first, so the indexed slice is the live
-          end of it.
+          Bench’s own measurement, recomputed every tick - not a figure quoted from a paper. The
+          registry is walked newest first, so the indexed slice is the live end of it. An agent
+          counts as tested once it has answered, or failed to, three times inside six hours.
+          Indexing outruns probing, so the share above is of the tested set rather than of
+          everything indexed.
         </p>
       </section>
 

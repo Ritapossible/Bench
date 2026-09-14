@@ -42,6 +42,17 @@ export interface BenchData {
    * registry holding 346,444 of them.
    */
   registryHead(): Promise<number | null>;
+  /**
+   * How many agents Bench currently holds a verdict on - the denominator for
+   * the live share.
+   *
+   * Not the indexed count. A verdict needs three probes inside six hours and
+   * the prober reaches six hundred endpoints a tick, so with 196,749 agents
+   * indexed the front page was dividing 23 by all of them and publishing
+   * "0.0% of what is indexed". That reads as a finding about the registry and
+   * was a statement about how far a queue had got.
+   */
+  verdictCount(): Promise<number>;
   /** Same measurement over time, for the public registry health dashboard. */
   catalogHistory(): Promise<readonly CatalogStats[]>;
   /**

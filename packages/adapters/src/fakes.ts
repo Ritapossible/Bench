@@ -4,6 +4,7 @@ import {
   AGENT_CATEGORIES,
   type AgentCategory,
   summarizeProbes,
+  VERIFIED_LIVE,
   type AgentCard,
   type AgentId,
   type AgentRecord,
@@ -122,6 +123,20 @@ export class InMemoryCatalogRepository implements CatalogRepository {
 
   async sizeBytes(): Promise<number> {
     return this.fakeSizeBytes;
+  }
+
+  async verdictCount(chain: ChainName): Promise<number> {
+    const now = Date.now();
+    let n = 0;
+    for (const record of this.#agents.values()) {
+      if (record.id.chain !== chain) continue;
+      const summary = summarizeProbes(record.id, this.#probes.get(agentKey(record.id)) ?? []);
+      if (summary.lastProbedAt === null) continue;
+      if (summary.probeCount < VERIFIED_LIVE.minProbeCount) continue;
+      if (now - summary.lastProbedAt.getTime() > VERIFIED_LIVE.maxProbeAgeMs) continue;
+      n += 1;
+    }
+    return n;
   }
 
   async highestTokenId(chain: ChainName): Promise<bigint | null> {

@@ -96,6 +96,24 @@ export interface CatalogRepository {
    * exists to measure, and is simply false.
    */
   highestTokenId(chain: ChainName): Promise<bigint | null>;
+  /**
+   * Agents Bench currently holds a verdict on: probed enough times, recently
+   * enough, to be called live or not live right now.
+   *
+   * The denominator for the live share, and not the same thing as the number
+   * indexed. `isVerifiedLive` needs three probes inside six hours, the prober
+   * reaches six hundred endpoints a tick, and the indexer had taken the
+   * catalog to 196,749 agents - so the front page divided 23 by 196,749 and
+   * published "0.0% of what is indexed", which reads as a finding about the
+   * registry and was a statement about how far a queue had got. Sampling the
+   * same band directly measured 0.17%.
+   *
+   * Deliberately excludes an agent whose verdict has expired. "Live" means
+   * live now; an endpoint last heard from eleven hours ago is not evidence
+   * either way, and counting it in the denominator would drag the share down
+   * for exactly the reason the number is supposed to exclude.
+   */
+  verdictCount(chain: ChainName): Promise<number>;
   /** Probes not yet covered by an onchain anchor, oldest first. */
   unanchoredProbes(limit: number): Promise<readonly ProbeResult[]>;
   markProbesAnchored(upTo: Date, digest: Hex, txHash: Hex): Promise<number>;

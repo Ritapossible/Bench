@@ -485,6 +485,15 @@ export class PgCatalogRepository implements CatalogRepository {
     return top === null ? null : BigInt(top);
   }
 
+  async verdictCount(chain: ChainName): Promise<number> {
+    const [row] = await this.db
+      .select({ n: count() })
+      .from(schema.agents)
+      .leftJoin(schema.agentLiveness, eq(schema.agentLiveness.agentId, schema.agents.id))
+      .where(and(eq(schema.agents.chain, chain), verdictReachedSql()));
+    return row?.n ?? 0;
+  }
+
   async unanchoredProbes(limit: number): Promise<readonly ProbeResult[]> {
     const rows = await this.db
       .select({
@@ -774,6 +783,22 @@ const agentMatches = (id: AgentId) =>
  * numbers cannot diverge; the *structure* is duplicated. If you edit one of
  * these, edit the other — there is no test holding them together yet.
  */
+/**
+ * Enough probes, recent enough, to have a current verdict either way.
+ *
+ * `verifiedLiveSql` with the three conditions that decide the *outcome*
+ * removed, leaving only the two that decide whether an outcome exists. Kept
+ * next to it so the pair cannot drift: if the freshness rule changes in one it
+ * has to change in the other, and they are four lines apart.
+ */
+function verdictReachedSql() {
+  const cutoff = new Date(Date.now() - VERIFIED_LIVE.maxProbeAgeMs);
+  return and(
+    gte(schema.agentLiveness.probeCount, VERIFIED_LIVE.minProbeCount),
+    gte(schema.agentLiveness.lastProbedAt, cutoff),
+  );
+}
+
 function verifiedLiveSql() {
   const cutoff = new Date(Date.now() - VERIFIED_LIVE.maxProbeAgeMs);
   return and(

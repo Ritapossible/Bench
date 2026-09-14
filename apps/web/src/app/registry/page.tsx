@@ -1,5 +1,6 @@
-import Link from 'next/link';
 import { liveShareBps } from '@bench/core';
+import Link from 'next/link';
+
 import { data, isLiveData } from '@/lib/data/index';
 import { pct } from '@/lib/format';
 
@@ -28,7 +29,7 @@ export const metadata = {
 };
 
 export default async function RegistryPage() {
-  const [latest, history, agreement, provenance] = await Promise.all([
+  const [latest, history, agreement, provenance, tested] = await Promise.all([
     // The headline is a live count, not the newest history row. History is
     // written on a throttle, so reading the headline from it showed an
     // hour-old number as current - and after a run that appended rows for a
@@ -37,9 +38,14 @@ export default async function RegistryPage() {
     data.catalogHistory(),
     data.crossReference(),
     data.catalogProvenance(),
+    data.verdictCount(),
   ]);
   const indexed = provenance === 'indexed';
-  const live = liveShareBps(latest);
+  // Of what has been tested, not of what has been indexed. See the landing
+  // page and CatalogRepository.verdictCount: a verdict needs three probes
+  // inside six hours and indexing needs one read, so the two counts diverge as
+  // fast as the indexer runs.
+  const live = liveShareBps(latest.verifiedLive, tested);
 
   // The chart ends at the same measurement the headline states, so the two can
   // never disagree on screen.
@@ -120,7 +126,7 @@ export default async function RegistryPage() {
           </div>
           <div className="statcell">
             <div className="statnum">{pct(live)}</div>
-            <div className="statlabel">Live share of the registry</div>
+            <div className="statlabel">Live share of the {tested.toLocaleString()} tested</div>
           </div>
         </div>
 

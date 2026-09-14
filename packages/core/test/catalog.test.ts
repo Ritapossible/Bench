@@ -130,25 +130,23 @@ describe('summarizeProbes', () => {
 
 describe('liveShareBps', () => {
   it('measures catalog density instead of asserting the headline number', () => {
-    const stats = {
-      chain: 'bsc-testnet' as const,
-      registered: 1000,
-      withResolvableCard: 120,
-      verifiedLive: 40,
-      computedAt: now,
-    };
-    expect(liveShareBps(stats)).toBe(400); // 4%
+    expect(liveShareBps(40, 1000)).toBe(400); // 4%
   });
 
   it('does not divide by zero on an empty catalog', () => {
-    expect(
-      liveShareBps({
-        chain: 'bsc-testnet',
-        registered: 0,
-        withResolvableCard: 0,
-        verifiedLive: 0,
-        computedAt: now,
-      }),
-    ).toBe(0);
+    expect(liveShareBps(0, 0)).toBe(0);
+  });
+
+  /**
+   * The denominator is the tested set, not the indexed one.
+   *
+   * Indexing an agent takes one read; a verdict takes three probes inside six
+   * hours. Dividing by everything indexed turned 23 live agents out of a few
+   * thousand tested into "0.0%" of 196,749 - which reads as a finding about
+   * BNB Chain and is a statement about a queue.
+   */
+  it('is not dragged down by agents nobody has probed yet', () => {
+    expect(liveShareBps(23, 13_000)).toBe(18); // 0.18%
+    expect(liveShareBps(23, 196_749)).toBe(1); // 0.01% - the same agents
   });
 });

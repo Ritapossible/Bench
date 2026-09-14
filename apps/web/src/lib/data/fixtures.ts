@@ -470,6 +470,10 @@ export const fixtureData: BenchData = {
     return 346_444;
   },
 
+  async verdictCount() {
+    return statsAt(0).withResolvableCard;
+  },
+
   async catalogHistory() {
     return Array.from({ length: 21 }, (_, i) => statsAt(20 - i));
   },

@@ -184,5 +184,20 @@ export interface CatalogStats {
   readonly computedAt: Date;
 }
 
-export const liveShareBps = (s: CatalogStats): Bps =>
-  s.registered === 0 ? 0 : Math.round((s.verifiedLive / s.registered) * 10_000);
+/**
+ * The live share, over a denominator the caller has to name.
+ *
+ * It used to take a `CatalogStats` and divide by `registered`, which reads as
+ * the obvious thing and is wrong as soon as probing falls behind indexing. A
+ * verdict needs three probes inside six hours; indexing an agent needs one
+ * read. With 196,749 agents indexed and a few thousand tested, the front page
+ * divided 23 by everything and published "0.0% of what is indexed" - a
+ * sentence about the registry that was really about how far a queue had got,
+ * and one this same project contradicted by sampling the same band at 0.17%.
+ *
+ * Two numbers rather than a record, so no call site can pick the wrong field
+ * of a struct by accident: the denominator has to be written down at the point
+ * the claim is made.
+ */
+export const liveShareBps = (verifiedLive: number, tested: number): Bps =>
+  tested === 0 ? 0 : Math.round((verifiedLive / tested) * 10_000);
