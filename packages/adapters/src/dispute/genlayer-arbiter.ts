@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { createAccount, createClient } from 'genlayer-js';
+import { createAccount, createClient, isSuccessful } from 'genlayer-js';
 import {
   localnet,
   studioDevnet,
@@ -306,12 +306,37 @@ export class GenLayerArbiter implements DisputeResolver {
      * reject. GenLayer's consensus takes real time - validators fetch evidence
      * and run a model - so the budget is minutes, not seconds.
      */
-    await this.#client.waitForTransactionReceipt({
+    const receipt = await this.#client.waitForTransactionReceipt({
       hash,
       status: TransactionStatus.ACCEPTED,
       retries: this.#retries,
       interval: this.#interval,
     });
+
+    /**
+     * **ACCEPTED is about consensus, not about execution.**
+     *
+     * A call the contract refuses - wrong sender, bond below the floor, a hire
+     * nobody registered - still reaches ACCEPTED: the validators agree that it
+     * failed, which is a successful consensus about a failed call. Waiting only
+     * for the status therefore treats every `gl.vm.UserError` as a success.
+     *
+     * That is how it read before this check: `register_hire` reported a
+     * registration the chain had rejected, and a refused `open_dispute`
+     * surfaced two calls later as "the dispute did not appear after opening" -
+     * a sentence that describes the symptom and hides both the cause and the
+     * contract's own perfectly good explanation of it.
+     *
+     * The reason is worth recovering rather than flattening, because the
+     * contract's refusals are the ones a caller can act on: `screen_*` returns
+     * stable strings for exactly that.
+     */
+    if (!isSuccessful(receipt as Parameters<typeof isSuccessful>[0])) {
+      throw new BenchError(
+        'INVALID_REQUEST',
+        `the arbiter refused ${functionName}: ${refusalReason(receipt)}`,
+      );
+    }
   }
 
   async limits(): Promise<DisputeLimits> {
@@ -451,6 +476,35 @@ export class GenLayerArbiter implements DisputeResolver {
       return EMPTY_TALLY;
     }
   }
+}
+
+/**
+ * What the contract said when it refused, read off the leader's receipt.
+ *
+ * The contract raises `[EXPECTED] only the client may open a dispute` and
+ * friends - stable strings, chosen so a caller can tell "not yet due" from
+ * "already settled" without matching on prose. The SDK decodes that into
+ * `result.payload`, so the work here is finding the leader rather than parsing
+ * anything: `leader_receipt` is an array on this network and a bare object on
+ * others, and a rotated leader appears more than once.
+ *
+ * Falls back to naming the execution result rather than inventing a reason. A
+ * refusal whose cause cannot be read is still a refusal, and saying so plainly
+ * beats a confident guess about which rule fired.
+ */
+export function refusalReason(receipt: unknown): string {
+  const consensus = field(receipt, 'consensus_data');
+  const leader = field(consensus, 'leader_receipt') ?? field(receipt, 'leader_receipt');
+  for (const entry of Array.isArray(leader) ? leader : [leader]) {
+    const payload = field(field(entry, 'result'), 'payload');
+    // The class prefix is for the validators comparing failures, not for a
+    // person reading why their filing bounced.
+    if (typeof payload === 'string' && payload !== '') {
+      return payload.replace(/^\[[A-Z_]+\]\s*/, '');
+    }
+  }
+  const named = field(receipt, 'txExecutionResultName') ?? field(receipt, 'status');
+  return named === undefined ? 'no reason given' : String(named);
 }
 
 /**

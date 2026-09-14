@@ -3,6 +3,7 @@ import { UnconfiguredArbiter } from '../src/dispute/unconfigured-arbiter.js';
 import {
   GenLayerArbiter,
   canonicalJson,
+  refusalReason,
   decodeDispute,
   decodeVerdict,
   termsDigest,
@@ -318,5 +319,67 @@ describe('the hire key the adapter addresses with', () => {
     // silently truncate a real id.
     const d = decodeDispute(3, { ...RAW_DISPUTE, hire_id: 'h-legacy' }, undefined);
     expect(d.hireId).toBe('h-legacy');
+  });
+});
+
+describe('refusalReason', () => {
+  /**
+   * **ACCEPTED is about consensus, not about execution.**
+   *
+   * A call the contract refuses still reaches ACCEPTED - the validators agree
+   * that it failed, which is a successful consensus about a failed call. Before
+   * this was read, every `gl.vm.UserError` looked like a success: a refused
+   * registration reported as registered, and a refused filing surfaced two
+   * calls later as "the dispute did not appear after opening", which describes
+   * the symptom and hides the contract's own perfectly good explanation.
+   */
+  it('reads the contract’s own words off the leader receipt', () => {
+    expect(
+      refusalReason({
+        consensus_data: {
+          leader_receipt: [
+            {
+              execution_result: 'ERROR',
+              result: {
+                status: 'rollback',
+                payload: '[EXPECTED] only the client may open a dispute',
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe('only the client may open a dispute');
+  });
+
+  it('strips the class prefix, which is for validators and not for people', () => {
+    // The prefix tells the validators how to compare a failure. Someone reading
+    // why their filing bounced does not need it.
+    expect(
+      refusalReason({ leader_receipt: { result: { payload: '[EXTERNAL] source refused' } } }),
+    ).toBe('source refused');
+  });
+
+  it('looks past a leader that carried no payload', () => {
+    // `leader_receipt` is an array on this network and a bare object on others,
+    // and a rotated leader appears more than once.
+    expect(
+      refusalReason({
+        consensus_data: {
+          leader_receipt: [
+            { result: { status: 'rollback' } },
+            { result: { payload: '[EXPECTED] already settled' } },
+          ],
+        },
+      }),
+    ).toBe('already settled');
+  });
+
+  it('names the result rather than inventing a reason', () => {
+    // A refusal whose cause cannot be read is still a refusal, and saying so
+    // plainly beats a confident guess about which rule fired.
+    expect(refusalReason({ txExecutionResultName: 'FINISHED_WITH_ERROR' })).toBe(
+      'FINISHED_WITH_ERROR',
+    );
+    expect(refusalReason({})).toBe('no reason given');
   });
 });
