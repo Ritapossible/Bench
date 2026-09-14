@@ -1,4 +1,4 @@
-import { AGENT_CATEGORIES, isThin, type AgentCategory } from '@bench/core';
+import { AGENT_CATEGORIES, endpointHost, isThin, type AgentCategory } from '@bench/core';
 import { data, isLiveData } from '@/lib/data/index';
 import { showLiveOnly } from '@/lib/catalog-view';
 import { CatalogFilter, type AgentRow } from '@/components/CatalogFilter';
@@ -50,14 +50,24 @@ export default async function AgentsPage({
    * category is a property of the registry, and how much of it is alive is
    * the measurement this catalog exists to make.
    */
-  const [initial, initialCounts, registered] = await Promise.all([
+  const [initial, initialCounts, registered, hosts] = await Promise.all([
     data.listAgents({
       verifiedLiveOnly: liveOnly,
       ...(category === 'all' ? {} : { category }),
     }),
     data.categoryCounts({ verifiedLiveOnly: liveOnly }),
     data.categoryCounts({ verifiedLiveOnly: false }),
+    /**
+     * How many verified-live agents sit behind each host.
+     *
+     * Counted over the whole live set, not over the page. A badge that said
+     * "2 agents here" because two happened to load together would be a
+     * statement about pagination - the same mistake the category chips made
+     * before they were counted in SQL.
+     */
+    data.hostConcentration(),
   ]);
+  const sharing = new Map(hosts.map((h) => [h.host, h.agents]));
   let agents = initial;
   let counts = initialCounts;
 
@@ -76,6 +86,7 @@ export default async function AgentsPage({
 
   const rows: AgentRow[] = agents.map((a) => {
     const { record, liveness, verifiedLive } = a.entry;
+    const host = endpointHost(record.card?.endpoints[0]?.url);
     return {
       href: agentHref(record.id.chain, record.id.tokenId),
       tokenId: record.id.tokenId.toString(),
@@ -87,6 +98,16 @@ export default async function AgentsPage({
         (e) => e.protocol === 'a2a' || e.protocol === 'mcp',
       ),
       verifiedLive,
+      /**
+       * The host this agent answers on, and how many live agents share it.
+       *
+       * Taken from the first declared endpoint, which is the one the prober
+       * reaches and therefore the one "verified live" is a claim about. An
+       * agent declaring several hosts is rare and the first is the one that
+       * earned the badge.
+       */
+      host,
+      hostAgents: host === null ? 0 : (sharing.get(host) ?? 0),
       conformant: liveness.conformant,
       uptimeBps: liveness.uptimeBps,
       p95LatencyMs: liveness.p95LatencyMs,

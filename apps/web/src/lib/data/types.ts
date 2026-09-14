@@ -1,4 +1,5 @@
 import type {
+  HostConcentration,
   AuditionOutcomeCounts,
   AgentCategory,
   AgreementSummary,
@@ -99,6 +100,16 @@ export interface BenchData {
   categoryCounts(opts?: {
     readonly verifiedLiveOnly?: boolean;
   }): Promise<Readonly<Record<AgentCategory, number>>>;
+
+  /**
+   * How many verified-live agents answer on each host, most concentrated first.
+   *
+   * The qualifier on the live count. A catalog reporting N live agents where
+   * many of them are one platform's hosted runtime - different identity NFTs,
+   * different owners, one endpoint - has counted one probe N times, and a
+   * reader takes the number to mean N independent things responded.
+   */
+  hostConcentration(): Promise<readonly HostConcentration[]>;
 
   getAgent(chain: string, tokenId: string): Promise<AgentDetail | null>;
 

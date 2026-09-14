@@ -1,4 +1,5 @@
 import {
+  endpointHost,
   summarizeProbes,
   isVerifiedLive,
   AGENT_CATEGORIES,
@@ -517,6 +518,27 @@ export const fixtureData: BenchData = {
       out[c] = (out[c] ?? 0) + 1;
     }
     return out as Readonly<Record<AgentCategory, number>>;
+  },
+
+  async hostConcentration() {
+    // Counted the same way the database counts it: distinct agents per host
+    // over the verified-live set only, so a fixture deployment and a real one
+    // disagree about the numbers and never about what they mean.
+    const tally = new Map<string, Set<string>>();
+    for (const a of ALL) {
+      if (!a.entry.verifiedLive) continue;
+      const id = a.entry.record.id.tokenId.toString();
+      for (const e of a.entry.record.card?.endpoints ?? []) {
+        const host = endpointHost(e.url);
+        if (host === null) continue;
+        const seen = tally.get(host) ?? new Set<string>();
+        seen.add(id);
+        tally.set(host, seen);
+      }
+    }
+    return [...tally.entries()]
+      .map(([host, ids]) => ({ host, agents: ids.size }))
+      .sort((a, b) => b.agents - a.agents);
   },
 
   async getAgent(chain, tokenId): Promise<AgentDetail | null> {

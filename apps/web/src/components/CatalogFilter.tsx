@@ -16,6 +16,23 @@ export interface AgentRow {
   readonly description: string;
   readonly category: string;
   readonly verifiedLive: boolean;
+  /**
+   * The host this agent answers on, and how many verified-live agents share it.
+   *
+   * **The qualifier on the live badge.** A large share of this catalog's live
+   * agents are one platform's hosted runtime: separate identity NFTs, separate
+   * owners, sequential platform ids, a single endpoint. Every probe that says
+   * those are up is the same probe against the same machine, so "verified live"
+   * counts responses rather than independent things responding - and a reader
+   * has no way to tell from the row.
+   *
+   * Shown rather than corrected. Bench's whole claim is that its numbers are
+   * measured and checkable, and the honest move when a measurement means less
+   * than it looks like is to say what it measured, not to quietly drop the
+   * rows.
+   */
+  readonly host: string | null;
+  readonly hostAgents: number;
   readonly conformant: boolean;
   readonly uptimeBps: number;
   readonly p95LatencyMs: number | null;
@@ -78,6 +95,27 @@ const CATEGORIES = [
  * category still shows its zero: that is a fact about the registry, and hiding
  * it is the one thing this catalog is built not to do.
  */
+/**
+ * "This is not the only agent on this box."
+ *
+ * Rendered beside the live badge rather than lower down, because it changes
+ * what that badge means and a qualifier further away than the claim is a
+ * qualifier nobody reads. Silent for an agent alone on its host - which is the
+ * ordinary case and needs no explanation - and silent for one with no host at
+ * all, where there is nothing to say.
+ */
+function SharedHost({ host, agents }: { readonly host: string | null; readonly agents: number }) {
+  if (host === null || agents < 2) return null;
+  return (
+    <span
+      className="badge badge-thin"
+      title={`${agents} verified-live agents in this catalog answer on ${host}. They were probed separately and answered from the same place, so the live count is a count of responses rather than of independent services.`}
+    >
+      {agents} live on {host}
+    </span>
+  );
+}
+
 export function CatalogFilter({
   rows,
   counts,
@@ -184,6 +222,7 @@ export function CatalogFilter({
                   </span>
                 )}
                 {r.thin ? <span className="badge badge-thin">Thin sample</span> : null}
+                <SharedHost host={r.host} agents={r.hostAgents} />
               </div>
 
               <div className="sumcard-score">

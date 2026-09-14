@@ -18,6 +18,7 @@ import {
   type ChainName,
   type EndpointProtocol,
   type Hex,
+  type HostConcentration,
   type IndexerCheckpoint,
   type LivenessSummary,
   type ProbeResult,
@@ -27,6 +28,8 @@ import {
   and,
   asc,
   count,
+  countDistinct,
+  desc,
   eq,
   gte,
   inArray,
@@ -713,6 +716,51 @@ export class PgCatalogRepository implements CatalogRepository {
       if (r.category in out) out[r.category] = r.n;
     }
     return out as Readonly<Record<AgentCategory, number>>;
+  }
+
+  /**
+   * How many verified-live agents answer on each host, most concentrated first.
+   *
+   * **This is the measurement that qualifies "verified live".** The catalog was
+   * reporting N live agents where a large share of them are one platform's
+   * hosted runtime: different identity NFTs, different owners, sequential
+   * platform ids, one endpoint. Every probe that says those are up is the same
+   * probe, so the count answers "how many agents responded" when a reader takes
+   * it to mean "how many independent things responded".
+   *
+   * Scoped to the verified-live population on purpose. Across the whole
+   * registry this would be a grouped scan of every endpoint Bench has ever
+   * indexed, and it would answer a question nobody asked: hosts that never
+   * respond concentrate too, and nothing rests on it. The claim being qualified
+   * is the live one.
+   *
+   * The host is taken in SQL rather than by reading rows out and parsing them,
+   * because the parse is over a column with an index on it and the alternative
+   * is paging the whole live set into memory to count strings. `split_part`
+   * twice drops the scheme and the path; the third drops a port, so
+   * `example.com` and `example.com:443` count as the one host they are.
+   */
+  async hostConcentration(
+    chain: ChainName,
+    opts: { readonly minAgents?: number } = {},
+  ): Promise<readonly HostConcentration[]> {
+    const host = sql<string>`lower(split_part(split_part(split_part(${schema.agentEndpoints.url}, '://', 2), '/', 1), ':', 1))`;
+    const rows = await this.db
+      .select({ host, agents: countDistinct(schema.agents.id) })
+      .from(schema.agentEndpoints)
+      .innerJoin(schema.agents, eq(schema.agents.id, schema.agentEndpoints.agentId))
+      .leftJoin(schema.agentLiveness, eq(schema.agentLiveness.agentId, schema.agents.id))
+      .where(and(eq(schema.agents.chain, chain), verifiedLiveSql()))
+      .groupBy(host)
+      .having(gte(countDistinct(schema.agents.id), opts.minAgents ?? 1))
+      .orderBy(desc(countDistinct(schema.agents.id)));
+
+    // `countDistinct`, not `count`: an agent declaring both an A2A and an MCP
+    // endpoint on one host is one agent on that host, and counting rows would
+    // report it twice - inflating exactly the number this exists to deflate.
+    return rows
+      .filter((r) => r.host !== null && r.host !== '')
+      .map((r) => ({ host: r.host, agents: Number(r.agents) }));
   }
 
   async checkpoint(chain: ChainName): Promise<IndexerCheckpoint | null> {

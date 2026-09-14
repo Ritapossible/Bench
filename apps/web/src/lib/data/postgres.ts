@@ -269,6 +269,10 @@ export function createPgData(connectionString: string): BenchData {
       });
     },
 
+    async hostConcentration() {
+      return catalog.hostConcentration(CHAIN);
+    },
+
     async advantage() {
       return buildAdvantageReport(audition, CHAIN, 10);
     },

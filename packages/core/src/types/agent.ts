@@ -113,3 +113,38 @@ export interface ProbeResult {
   readonly conformant: boolean;
   readonly error?: string;
 }
+
+/**
+ * The host an endpoint lives on, lower-cased, port dropped.
+ *
+ * One parse, shared by the SQL that counts hosts, the page that badges them and
+ * the dispute layer that decides whether evidence published somewhere belongs
+ * to the agent. Two implementations of "which host is this" would disagree on
+ * exactly the URLs that matter - a stray port, an uppercase host - and the
+ * disagreement would look like a data problem rather than a parsing one.
+ *
+ * Null for anything this cannot attribute, which is the honest answer: a
+ * malformed URL has no host, and guessing one from a string shape is how an
+ * agent gets credited to somebody else's infrastructure.
+ */
+export function endpointHost(url: string | null | undefined): string | null {
+  if (url === null || url === undefined || url === '') return null;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === '' ? null : host;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How many indexed agents answer on one host.
+ *
+ * A count rather than a flag, because the interesting cases differ by an order
+ * of magnitude: two agents behind one gateway is a detail, forty is the whole
+ * story about what "verified live" measured.
+ */
+export interface HostConcentration {
+  readonly host: string;
+  readonly agents: number;
+}
