@@ -21,7 +21,7 @@
  * a demo refreshes liveness, while re-running twice in a minute does not
  * inflate the probe count into a track record nobody measured.
  */
-import { VERIFIED_LIVE, isVerifiedLive } from '@bench/core';
+import { VERIFIED_LIVE, isVerifiedLive, type CatalogPage } from '@bench/core';
 import {
   PgAuditionStore,
   PgCatalogRepository,
@@ -76,19 +76,44 @@ async function main(): Promise<void> {
   const stats = await catalog.stats(CHAIN);
   await audition.recordStats(stats);
 
-  // Report the verified-live count the way the catalog page computes it, not
-  // the way the seed intended it. If the two disagree, the seed is wrong about
-  // its own data and it is better to find that out here than on the front page.
+  /**
+   * Recompute the verified-live count the way the catalog page does, over the
+   * same population the stats query counted.
+   *
+   * **Over every agent on the chain, not over `SEEDS`.** The first version
+   * walked the seed's own eighteen and compared the total to
+   * `stats(CHAIN).verifiedLive`, which counts everything in the database. That
+   * is only a like-for-like comparison on a database holding nothing but the
+   * seed, and CI runs the test suite against this same database first. The
+   * moment a test left a verified-live agent behind, the check fired and
+   * reported "the catalog stats query and isVerifiedLive disagree" - which was
+   * not what had happened, and sent a reader looking for a drift between SQL
+   * and TypeScript that did not exist.
+   *
+   * A check that can fail for a reason it does not name is worse than no check.
+   * This one now asks exactly the question it claims to: given the same agents,
+   * do the SQL predicate and `isVerifiedLive` reach the same answer?
+   */
   let live = 0;
-  for (const seed of SEEDS) {
-    if (isVerifiedLive(await catalog.liveness({ chain: CHAIN, tokenId: BigInt(seed.tokenId) })))
-      live += 1;
-  }
+  let counted = 0;
+  let cursor: string | null = null;
+  do {
+    const page: CatalogPage = await catalog.query({
+      chain: CHAIN,
+      limit: 200,
+      ...(cursor === null ? {} : { cursor }),
+    });
+    for (const entry of page.entries) {
+      counted += 1;
+      if (isVerifiedLive(entry.liveness)) live += 1;
+    }
+    cursor = page.nextCursor;
+  } while (cursor !== null);
 
   console.log(
     `[seed] registered=${stats.registered} cards=${stats.withResolvableCard} verified-live=${stats.verifiedLive}`,
   );
-  console.log(`[seed] verified-live recomputed per agent: ${live}`);
+  console.log(`[seed] verified-live recomputed over ${counted} indexed agents: ${live}`);
   if (live !== stats.verifiedLive) {
     console.error('[seed] MISMATCH: the catalog stats query and isVerifiedLive disagree.');
     process.exitCode = 1;

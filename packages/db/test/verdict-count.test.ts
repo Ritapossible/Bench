@@ -55,6 +55,21 @@ describeDb('verdictCount', () => {
   });
 
   afterAll(async () => {
+    /**
+     * Clean up, because this database is shared with more than these tests.
+     *
+     * CI runs `npm test` and then `npm run db:seed` against the same Postgres,
+     * and the seed's self-check measures every agent on the chain. Rows left
+     * here - deliberately including one fresh, conformant, verified-live agent
+     * - turned up in that count and failed the seed with a message about SQL
+     * disagreeing with TypeScript, which was not what had happened.
+     *
+     * `beforeEach` was never enough on its own: it clears the table before each
+     * case, so whatever the *last* case wrote survives the file.
+     */
+    await db.delete(schema.probeResults);
+    await db.delete(schema.agentEndpoints);
+    await db.delete(schema.agents);
     await db.$client.end();
   });
 
