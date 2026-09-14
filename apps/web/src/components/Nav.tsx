@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Wordmark } from '@/components/Logo';
+import { ConnectWallet } from '@/components/ConnectWallet';
 
 const LINKS = [
   ['Catalog', '/agents'],
@@ -55,6 +56,16 @@ export function Nav() {
           </nav>
 
           <div className="spacer" />
+
+          {/*
+            Beside the primary action rather than buried in a menu: it is how a
+            visitor keeps the hires they are about to make, and a control that
+            only matters after you have lost something should be visible before
+            you do.
+          */}
+          <div className="nav-cta">
+            <ConnectWallet />
+          </div>
 
           <Link href="/report" className="btn btn-primary btn-sm nav-cta">
             Read your report
@@ -117,6 +128,9 @@ export function Nav() {
             </nav>
 
             <div className="spacer" />
+            <div style={{ marginBottom: '0.85rem' }}>
+              <ConnectWallet />
+            </div>
             <Link href="/report" className="btn btn-primary" style={{ width: '100%' }}>
               Read your report
             </Link>

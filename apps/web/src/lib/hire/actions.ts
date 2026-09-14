@@ -92,7 +92,31 @@ function formObject(form: FormData): Record<string, string> {
  * confirmation got the same hire as one who read all five.
  */
 export async function createHire(form: FormData): Promise<void> {
-  const owner = await currentOwner();
+  /**
+   * A deployment misconfiguration has to reach the page, not the error digest.
+   *
+   * `currentOwner` refuses in production when `BENCH_COOKIE_SECRET` is unset,
+   * because signing ownership with a key that dies at the next restart loses
+   * every hire silently. That refusal is correct and it was unreachable: it is
+   * thrown before any of the handling below, so it left the action as an
+   * unhandled exception - which Next, in production, renders as an opaque
+   * digest with no hint of the one-line fix.
+   *
+   * The hire page has carried the right sentence for this the whole time. This
+   * is what lets it be shown.
+   */
+  let owner;
+  try {
+    owner = await currentOwner();
+  } catch (err) {
+    if (err instanceof BenchError && err.code === 'MISCONFIGURED') {
+      const chain = String(form.get('chain') ?? '');
+      const tokenId = String(form.get('tokenId') ?? '');
+      if (chain === '' || tokenId === '') redirect('/agents');
+      redirect(`/agents/${chain}/${tokenId}/hire?error=MISCONFIGURED`);
+    }
+    throw err;
+  }
 
   const parsed = hireForm.safeParse(formObject(form));
   if (!parsed.success) {

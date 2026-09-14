@@ -321,6 +321,16 @@ export class PgHireStore implements HireStore {
     }
   }
 
+  async reassign(from: Address, to: Address): Promise<number> {
+    if (from.toLowerCase() === to.toLowerCase()) return 0;
+    const moved = await this.db
+      .update(schema.hires)
+      .set({ userAddress: to.toLowerCase(), updatedAt: new Date() })
+      .where(eq(sql`lower(${schema.hires.userAddress})`, from.toLowerCase()))
+      .returning({ id: schema.hires.id });
+    return moved.length;
+  }
+
   async listByOwner(owner: Address): Promise<readonly HireRecord[]> {
     const rows = await this.db
       .select()

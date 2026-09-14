@@ -84,4 +84,17 @@ export interface HireStore {
   /** Update an already-claimed hire. Never creates: a hire exists only via `claim`. */
   put(record: HireRecord): Promise<void>;
   listByOwner(owner: Address): Promise<readonly HireRecord[]>;
+  /**
+   * Move every hire from one owner to another. Returns how many moved.
+   *
+   * Exists for exactly one moment: a visitor who hired anonymously and then
+   * connected a wallet. Without it, connecting looks like losing everything -
+   * the hires are still there, under an id the session has just stopped using -
+   * which is a worse first impression than never offering the wallet at all.
+   *
+   * Deliberately not a general-purpose transfer. The caller has proved control
+   * of `to` with a signature and holds `from` in its own signed cookie, so it
+   * is moving hires between two identities the same person demonstrably has.
+   */
+  reassign(from: Address, to: Address): Promise<number>;
 }

@@ -499,4 +499,15 @@ export class InMemoryHireStore implements HireStore {
   async listByOwner(owner: Address): Promise<readonly HireRecord[]> {
     return [...this.#byId.values()].filter((r) => r.owner.toLowerCase() === owner.toLowerCase());
   }
+
+  async reassign(from: Address, to: Address): Promise<number> {
+    if (from.toLowerCase() === to.toLowerCase()) return 0;
+    let moved = 0;
+    for (const [id, record] of this.#byId) {
+      if (record.owner.toLowerCase() !== from.toLowerCase()) continue;
+      this.#byId.set(id, { ...record, owner: to });
+      moved += 1;
+    }
+    return moved;
+  }
 }

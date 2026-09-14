@@ -104,14 +104,54 @@ function valid(value: string, mac: string): boolean {
   return expected.length === given.length && timingSafeEqual(expected, given);
 }
 
-/** `<owner>.<mac>`, or null if it was not minted here. */
-function parse(raw: string | undefined): Address | null {
-  if (raw === undefined) return null;
-  const [value, mac] = raw.split('.');
-  if (value === undefined || mac === undefined) return null;
-  if (!/^0x[0-9a-f]{40}$/.test(value)) return null;
-  return valid(value, mac) ? (value as Address) : null;
+/**
+ * How this browser came by its identity.
+ *
+ * `wallet` means a signature over a server-issued nonce proved control of the
+ * address; `session` means it is a random id this server minted. The
+ * difference is not cosmetic - a session id exists only in one cookie, so
+ * clearing the browser destroys it and no one can ever prove it was theirs,
+ * while a wallet address is recoverable by connecting again from anywhere.
+ */
+export type OwnerKind = 'session' | 'wallet';
+
+export interface Owner {
+  readonly address: Address;
+  readonly kind: OwnerKind;
 }
+
+/**
+ * `<owner>.<kind>.<mac>`, or null if it was not minted here.
+ *
+ * The kind is inside the signed value rather than beside it, so a cookie
+ * cannot be edited from `session` to `wallet` to claim an address the holder
+ * never proved. A two-part cookie is read as `session`: those were minted
+ * before wallets existed and are exactly what they claim to be.
+ */
+function parse(raw: string | undefined): Owner | null {
+  if (raw === undefined) return null;
+  const parts = raw.split('.');
+  const [value, second, third] = parts;
+  if (value === undefined || second === undefined) return null;
+  if (!/^0x[0-9a-f]{40}$/.test(value)) return null;
+
+  if (third === undefined) {
+    return valid(value, second) ? { address: value as Address, kind: 'session' } : null;
+  }
+  if (second !== 'session' && second !== 'wallet') return null;
+  return valid(`${value}.${second}`, third) ? { address: value as Address, kind: second } : null;
+}
+
+const encode = (address: Address, kind: OwnerKind): string =>
+  `${address}.${kind}.${sign(`${address}.${kind}`)}`;
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: process.env['NODE_ENV'] === 'production',
+  path: '/',
+  maxAge: MAX_AGE_SEC,
+} as const;
 
 /**
  * The current owner, minting one if this browser has none.
@@ -120,19 +160,36 @@ function parse(raw: string | undefined): Address | null {
  * Handler. Read paths use `currentOwnerReadOnly`, which never writes.
  */
 export async function currentOwner(): Promise<Address> {
+  return (await currentOwnerFull()).address;
+}
+
+/** The owner and how it was established, for a UI that has to say which. */
+export async function currentOwnerFull(): Promise<Owner> {
   const jar = await cookies();
   const existing = parse(jar.get(COOKIE)?.value);
   if (existing !== null) return existing;
 
   const owner = mint();
-  jar.set(COOKIE, `${owner}.${sign(owner)}`, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env['NODE_ENV'] === 'production',
-    path: '/',
-    maxAge: MAX_AGE_SEC,
-  });
-  return owner;
+  jar.set(COOKIE, encode(owner, 'session'), COOKIE_OPTIONS);
+  return { address: owner, kind: 'session' };
+}
+
+/**
+ * Bind this browser to an address whose control has just been proved.
+ *
+ * The signature check happens in the action that calls this; by here the
+ * address is established and the only job is to write it down. Marked `wallet`
+ * inside the signed value, so the cookie cannot later be edited to claim the
+ * proof happened.
+ */
+export async function bindWallet(address: Address): Promise<void> {
+  const jar = await cookies();
+  jar.set(COOKIE, encode(address.toLowerCase() as Address, 'wallet'), COOKIE_OPTIONS);
+}
+
+/** Forget the wallet, keeping nothing. The next hire mints a fresh session id. */
+export async function disconnectWallet(): Promise<void> {
+  (await cookies()).delete(COOKIE);
 }
 
 /**
@@ -142,5 +199,9 @@ export async function currentOwner(): Promise<Address> {
  * null and the page shows an empty list - which is true - rather than throwing.
  */
 export async function currentOwnerReadOnly(): Promise<Address | null> {
+  return (await currentOwnerReadOnlyFull())?.address ?? null;
+}
+
+export async function currentOwnerReadOnlyFull(): Promise<Owner | null> {
   return parse((await cookies()).get(COOKIE)?.value);
 }
