@@ -288,7 +288,21 @@ export class GenLayerArbiter implements DisputeResolver {
      * chain finishes with it whether or not anyone is still looking. This is
      * only the caller's patience, and some callers do not have any to spare.
      */
-    budget: { readonly retries: number; readonly interval: number } = {
+    budget: {
+      readonly retries: number;
+      readonly interval: number;
+      /**
+       * Whether running out of patience counts as a failure.
+       *
+       * For a caller that reads the result back off the chain afterwards it
+       * does not: the transaction was submitted and consensus finishes with it
+       * either way, so reporting a failure would be reporting the wrong thing
+       * about a call that is going to succeed - and then offering a retry the
+       * contract refuses, because by the time anyone clicks it the first one
+       * has landed.
+       */
+      readonly tolerateTimeout?: boolean;
+    } = {
       retries: this.#retries,
       interval: this.#interval,
     },
@@ -321,12 +335,21 @@ export class GenLayerArbiter implements DisputeResolver {
      * reject. GenLayer's consensus takes real time - validators fetch evidence
      * and run a model - so the budget is minutes, not seconds.
      */
-    const receipt = await this.#client.waitForTransactionReceipt({
-      hash,
-      status: TransactionStatus.ACCEPTED,
-      retries: budget.retries,
-      interval: budget.interval,
-    });
+    let receipt: unknown;
+    try {
+      receipt = await this.#client.waitForTransactionReceipt({
+        hash,
+        status: TransactionStatus.ACCEPTED,
+        retries: budget.retries,
+        interval: budget.interval,
+      });
+    } catch (err) {
+      // Distinguished from a refusal on purpose. Not waiting long enough to see
+      // the answer is not the same as being told no, and only the caller knows
+      // whether it has another way to find out.
+      if (budget.tolerateTimeout === true) return;
+      throw err;
+    }
 
     /**
      * **ACCEPTED is about consensus, not about execution.**
@@ -400,7 +423,7 @@ export class GenLayerArbiter implements DisputeResolver {
         reg.marketplaceDomain ?? this.#marketplaceDomain ?? '',
       ],
       0n,
-      { retries: 2, interval: 1_500 },
+      { retries: 2, interval: 1_500, tolerateTimeout: true },
     );
     return { termsHash };
   }
