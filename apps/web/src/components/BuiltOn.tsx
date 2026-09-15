@@ -48,9 +48,15 @@ const STACK = [
 /**
  * The BNB mark, drawn rather than fetched.
  *
- * Five rotated squares, which is what the mark is - so it stays crisp at any
- * size, needs no network request, and cannot rot into a 404 the way a hotlinked
- * asset does.
+ * **Two chevrons and three diamonds**, which is what the mark actually is - a
+ * first attempt drew five diamonds, which is the shape people remember rather
+ * than the shape Binance uses, and it read as wrong immediately. The top and
+ * bottom are angled bars; only the left, centre and right are diamonds.
+ *
+ * Drawn rather than hotlinked so it stays crisp at any size, costs no request,
+ * and cannot rot into a 404. The arms sit at 45 degrees, so each chevron is its
+ * outer polyline offset along the perpendicular - which is why the numbers
+ * below are the awkward ones rather than round.
  */
 function BnbMark() {
   const diamond = (cx: number, cy: number, r: number): string =>
@@ -58,11 +64,11 @@ function BnbMark() {
   return (
     <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
       <g fill="#f0b90b">
-        <polygon points={diamond(16, 16, 6.2)} />
-        <polygon points={diamond(16, 4.5, 4.5)} />
-        <polygon points={diamond(27.5, 16, 4.5)} />
-        <polygon points={diamond(16, 27.5, 4.5)} />
-        <polygon points={diamond(4.5, 16, 4.5)} />
+        <polygon points="16,2.5 23.5,10 20.32,13.18 16,8.86 11.68,13.18 8.5,10" />
+        <polygon points="16,29.5 23.5,22 20.32,18.82 16,23.14 11.68,18.82 8.5,22" />
+        <polygon points={diamond(16, 16, 3.6)} />
+        <polygon points={diamond(4.6, 16, 3.2)} />
+        <polygon points={diamond(27.4, 16, 3.2)} />
       </g>
     </svg>
   );

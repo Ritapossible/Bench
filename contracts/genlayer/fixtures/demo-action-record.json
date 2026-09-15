@@ -1,0 +1,23 @@
+{
+  "_comment": "A published action record, as GET /api/hires/<id>/actions serves one. Checked in so the arbiter has a stable, publicly fetchable record to replay during an end-to-end demonstration: GenLayer validators each fetch this URL independently and compare what they parsed. Action 2 pays an address the mandate never allowlisted, which is a breach any reader can recompute from the terms.",
+  "hire_id": "h_demo_breach",
+  "actions": [
+    {
+      "seq": 1,
+      "at": 1767225660,
+      "to": "0x3333333333333333333333333333333333333333",
+      "value": "100000000000000000",
+      "data": "0x38ed1739",
+      "token": "0x5555555555555555555555555555555555555555"
+    },
+    {
+      "seq": 2,
+      "at": 1767225720,
+      "to": "0x9999999999999999999999999999999999999999",
+      "value": "100000000000000000",
+      "data": "0x38ed1739",
+      "token": "0x5555555555555555555555555555555555555555"
+    }
+  ],
+  "revoked_at": null
+}
