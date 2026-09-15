@@ -509,14 +509,25 @@ table.t tr:last-child td {
 }
 .nav-links {
   display: none;
-  gap: 1.75rem;
-  margin-left: 2.5rem;
+  gap: 1.35rem;
+  margin-left: 1.75rem;
+  /* The row is a row. Without this the links are flex items that shrink below
+     their own text, and every two-word label breaks across two lines. */
+  flex-wrap: nowrap;
 }
 .nav-links a {
   text-decoration: none;
   font-size: 0.92rem;
   font-weight: 500;
   color: var(--muted);
+  /*
+   * The bug this fixes was visible at every desktop width, not just narrow ones.
+   * A flex item may shrink past its content, so "Registry health" and "Advantage
+   * report" wrapped to two lines and pushed the header to 72px - it read as a
+   * broken header rather than a tight one.
+   */
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 .nav-links a:hover,
 .nav-links a[data-active='true'] {
@@ -524,6 +535,17 @@ table.t tr:last-child td {
 }
 .nav-cta {
   display: none;
+}
+/*
+ * The header's buttons are labels, not paragraphs.
+ *
+ * Same shrink-below-content problem as the links: "Connect wallet" and "Read
+ * your report" each broke across two lines, which is what made the header look
+ * like it had collapsed rather than like it was full.
+ */
+.nav-inner .btn {
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 .burger {
   display: inline-flex;

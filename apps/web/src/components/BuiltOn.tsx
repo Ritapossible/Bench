@@ -14,35 +14,47 @@
  * correct for them.
  */
 
-const CHAINS = [
+const RUNS = [
   {
     name: 'BNB Smart Chain',
     role: 'The registry, the hires, the escrow',
     href: 'https://www.bnbchain.org',
+    mark: 'bnb',
   },
   {
     name: 'GenLayer',
     role: 'Rules on disputes, so Bench does not',
     href: 'https://genlayer.com',
+    mark: 'genlayer',
   },
 ] as const;
 
-/**
- * Ordered by how load-bearing each one is, not alphabetically.
- *
- * ERC-8004 is where every agent in the catalog comes from; Foundry is how the
- * auditions run at all. A reader skimming the first two should come away with
- * the right idea of what this is.
- */
-const STACK = [
+/** Read or executed on every tick. Nothing here is a stub. */
+const ALSO_RUNS = [
   { name: 'ERC-8004', role: 'Identity registry the catalog reads' },
-  { name: 'Foundry', role: 'Forked-mainnet auditions' },
+  { name: '8004scan', role: 'Cross-checked against the registry' },
+  { name: 'Foundry / anvil', role: 'Forked-mainnet auditions' },
   { name: 'A2A', role: 'Driving agents that speak it' },
   { name: 'MCP', role: 'Driving agents that speak it instead' },
+] as const;
+
+/**
+ * Interfaces Bench is built against, with stub adapters behind them.
+ *
+ * **Kept separate, and that separation is the whole point of this component.**
+ * A single strip would say Bench integrates these the same way it integrates
+ * the registry it reads every thirty seconds, and a reader cannot tell the two
+ * apart from a row of chips. An earlier version of this file did exactly that -
+ * it listed PancakeSwap and Venus as "positions read and rebalanced" when what
+ * exists is the interface and a stub - which is the cheapest kind of dishonesty
+ * in a demo and precisely what this catalog exists to catch other people doing.
+ */
+const DESIGNED_FOR = [
   { name: 'ERC-8183', role: 'Optimistic escrow on a hire' },
-  { name: 'x402', role: 'Payment for a hire' },
-  { name: 'PancakeSwap V3', role: 'Positions read and rebalanced' },
-  { name: 'Venus', role: 'Lending positions read' },
+  { name: 'Binance x402', role: 'Payment for a hire' },
+  { name: 'Altana', role: 'Wallet provider' },
+  { name: 'PancakeSwap', role: 'Position type' },
+  { name: 'Venus', role: 'Position type' },
 ] as const;
 
 /**
@@ -93,7 +105,7 @@ export function BuiltOn() {
         <span className="eyebrow">Built on</span>
 
         <div className="builton-row">
-          {CHAINS.map((c) => (
+          {RUNS.map((c) => (
             <a
               key={c.name}
               href={c.href}
@@ -101,7 +113,7 @@ export function BuiltOn() {
               rel="noreferrer noopener"
               className="builton-brand"
             >
-              {c.name === 'GenLayer' ? <GenLayerMark /> : <BnbMark />}
+              {c.mark === 'genlayer' ? <GenLayerMark /> : <BnbMark />}
               <span className="stack stack-4">
                 <span className="small ink">{c.name}</span>
                 <span className="tiny">{c.role}</span>
@@ -111,13 +123,37 @@ export function BuiltOn() {
         </div>
 
         <div className="builton-chips">
-          {STACK.map((s) => (
-            <span key={s.name} className="builton-chip" title={s.role}>
-              <span className="mono">{s.name}</span>
-              <span className="tiny">{s.role}</span>
+          {ALSO_RUNS.map((s2) => (
+            <span key={s2.name} className="builton-chip" title={s2.role}>
+              <span className="mono">{s2.name}</span>
+              <span className="tiny">{s2.role}</span>
             </span>
           ))}
         </div>
+
+        <p className="small">
+          Everything above runs. The registry is read every tick and cross-checked against 8004scan,
+          auditions replay on a fork, and a dispute is ruled on GenLayer by validators none of the
+          parties control.
+        </p>
+
+        {/*
+          Dimmed and labelled, not mixed in. The distinction between what runs
+          and what there is an interface for is the one a row of chips destroys.
+        */}
+        <div className="builton-chips" style={{ opacity: 0.62 }}>
+          {DESIGNED_FOR.map((s2) => (
+            <span key={s2.name} className="builton-chip" title={s2.role}>
+              <span className="mono">{s2.name}</span>
+              <span className="tiny">{s2.role}</span>
+            </span>
+          ))}
+        </div>
+
+        <p className="small">
+          Behind stub adapters: payment, escrow, the wallet provider and the two position types that
+          need them. The rows above are what runs; this is what it is shaped for.
+        </p>
       </div>
     </section>
   );

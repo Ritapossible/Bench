@@ -23,18 +23,6 @@ import { BuiltOn } from '@/components/BuiltOn';
  */
 export const dynamic = 'force-dynamic';
 
-/**
- * Split, because a single strip of logos is a claim.
- *
- * Listing ERC-8183, x402 and Altana beside ERC-8004 and 8004scan implied Bench
- * integrates all of them equally. Two of those it reads from every thirty
- * seconds; three are interfaces it is built against with stub adapters behind
- * them. A reader cannot tell those apart from a row of chips, and a logo strip
- * that quietly overstates is the cheapest kind of dishonesty in a demo.
- */
-const INTEGRATED = ['BNB Smart Chain', 'ERC-8004', '8004scan', 'Foundry / anvil'];
-const DESIGNED_FOR = ['ERC-8183', 'Binance x402', 'Altana', 'PancakeSwap', 'Venus'];
-
 const STEPS = [
   {
     n: '01',
@@ -254,33 +242,6 @@ export default async function Home() {
             and it is derived from measured evidence rather than guessed at in a checkout form.
           </p>
         </div>
-      </section>
-
-      {/* ---------- chain strip ---------- */}
-      <section className="wrap section-tight">
-        <div className="strip">
-          {INTEGRATED.map((c) => (
-            <span key={c} className="chip">
-              {c}
-            </span>
-          ))}
-        </div>
-        <p className="small" style={{ textAlign: 'center', marginTop: '1.25rem' }}>
-          Read live every tick: the ERC-8004 registry on BNB Smart Chain, cross-referenced against
-          8004scan, replayed on a fork.
-        </p>
-
-        <div className="strip" style={{ marginTop: '2rem', opacity: 0.62 }}>
-          {DESIGNED_FOR.map((c) => (
-            <span key={c} className="chip">
-              {c}
-            </span>
-          ))}
-        </div>
-        <p className="small" style={{ textAlign: 'center', marginTop: '1.25rem' }}>
-          Behind stub adapters: payment, escrow and the two position types that need them. The row
-          above is what runs; this is what it is shaped for.
-        </p>
       </section>
 
       {/* ---------- cta ---------- */}
