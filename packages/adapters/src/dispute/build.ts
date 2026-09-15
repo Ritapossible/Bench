@@ -4,6 +4,29 @@ import type { DisputeResolver } from '@bench/core';
 import type { BenchConfig } from '@bench/config';
 
 /**
+ * Only what an arbiter actually needs.
+ *
+ * **Not the whole `BenchConfig`, and that distinction turned out to matter.**
+ * `loadConfig` validates the entire environment, so building the arbiter
+ * through it made the dispute layer depend on variables it never reads -
+ * `REDIS_URL`, the BSC RPC, the identity registry - all of which belong to the
+ * worker. On a split deployment the web app has no reason to hold any of them,
+ * so the arbiter went dark in production and reported three missing worker
+ * variables as the cause. They were missing. They were also irrelevant.
+ *
+ * A component should fail for its own reasons. This is the set of them.
+ */
+export type ArbiterEnv = Pick<
+  BenchConfig,
+  | 'GENLAYER_RPC_URL'
+  | 'GENLAYER_ARBITER_ADDRESS'
+  | 'GENLAYER_CHAIN'
+  | 'GENLAYER_SIGNER_PRIVATE_KEY'
+  | 'GENLAYER_REGISTRAR_ADDRESS'
+  | 'GENLAYER_MARKETPLACE_DOMAIN'
+>;
+
+/**
  * Pick an arbiter, and be honest when there is none.
  *
  * The two branches are not a fallback pair. One rules on a chain nobody in the
@@ -17,7 +40,7 @@ import type { BenchConfig } from '@bench/config';
  * unavailable state too, and it says so rather than answering every `forHire`
  * with an empty list - which would render a live dispute as no dispute.
  */
-export function buildArbiter(cfg: BenchConfig): DisputeResolver {
+export function buildArbiter(cfg: ArbiterEnv): DisputeResolver {
   const rpcUrl = cfg.GENLAYER_RPC_URL;
   const address = cfg.GENLAYER_ARBITER_ADDRESS;
   if (rpcUrl === undefined || address === undefined) {

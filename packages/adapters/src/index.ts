@@ -105,7 +105,7 @@ export {
   type GenLayerChainName,
 } from './dispute/genlayer-arbiter.js';
 export { UnconfiguredArbiter } from './dispute/unconfigured-arbiter.js';
-export { buildArbiter } from './dispute/build.js';
+export { buildArbiter, type ArbiterEnv } from './dispute/build.js';
 export { FallbackShadowAgent } from './agent/fallback-shadow-agent.js';
 export {
   looksLikeAgentCard,
