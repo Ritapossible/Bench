@@ -322,6 +322,7 @@ export default async function HireDetail({
         <DisputePanel
           available={arbiter.available}
           locator={arbiter.locator}
+          unavailableReason={arbiter.unavailableReason}
           pinned={pinned}
           disputes={disputes}
           hireId={hire.id}

@@ -118,6 +118,7 @@ const OUTCOME: Record<string, { readonly tone: string; readonly text: string }> 
 export function DisputePanel({
   available,
   locator,
+  unavailableReason,
   disputes,
   hireId,
   pinned,
@@ -127,6 +128,8 @@ export function DisputePanel({
 }: {
   readonly available: boolean;
   readonly locator: { readonly chain: string; readonly address: string } | null;
+  /** Why it is off, when it is off. Shown verbatim - see the panel below. */
+  readonly unavailableReason?: string | undefined;
   readonly disputes: readonly DisputeRecord[];
   /**
    * Not gated on whether the hire is still live, deliberately.
@@ -168,9 +171,23 @@ export function DisputePanel({
           <span className="mono">contracts/genlayer/arbiter.py</span> in the repository - and it is
           switched off here rather than replaced with something local. Bench lists this agent, ranks
           it, and takes a cut of this hire; a ruling computed by us would be a marketplace deciding
-          a complaint about its own listing. Set <span className="mono">GENLAYER_RPC_URL</span> and{' '}
-          <span className="mono">GENLAYER_ARBITER_ADDRESS</span> to turn it on.
+          a complaint about its own listing.
         </p>
+        {/*
+          The actual reason, not a guess at it.
+
+          This used to end with "set GENLAYER_RPC_URL and GENLAYER_ARBITER_ADDRESS"
+          whatever had gone wrong. When both were already set - and the real
+          cause was an unrelated variable failing config validation, which takes
+          the whole arbiter down with it - that sentence sent its reader to look
+          in exactly the wrong place, and kept them there.
+        */}
+        {unavailableReason === undefined ? null : (
+          <p className="tiny break" style={{ opacity: 0.8 }}>
+            <strong className="ink">Why: </strong>
+            <span className="mono">{unavailableReason}</span>
+          </p>
+        )}
       </div>
     );
   }

@@ -1,7 +1,7 @@
 import 'server-only';
-import { buildArbiter } from '@bench/adapters';
+import { buildArbiter, UnconfiguredArbiter } from '@bench/adapters';
 import { loadConfig } from '@bench/config';
-import type { DisputeResolver } from '@bench/core';
+import { redactSecrets, type DisputeResolver } from '@bench/core';
 
 /**
  * The arbiter this deployment rules with, or an honest absence.
@@ -21,11 +21,25 @@ import type { DisputeResolver } from '@bench/core';
 function build(): DisputeResolver {
   try {
     return buildArbiter(loadConfig(process.env));
-  } catch {
-    // A malformed config should cost the dispute panel, not the whole app. The
-    // hire page has plenty to render without it, and the panel's unavailable
-    // state is already a thing this UI knows how to say.
-    return buildArbiter({} as ReturnType<typeof loadConfig>);
+  } catch (err) {
+    /**
+     * A malformed config costs the dispute panel, not the whole app - but it
+     * must not cost the explanation too.
+     *
+     * `loadConfig` validates the *entire* environment, so a missing variable
+     * with nothing to do with disputes takes the arbiter down with it. This
+     * used to fall through to `buildArbiter({})`, whose refusal reads "set
+     * GENLAYER_RPC_URL and GENLAYER_ARBITER_ADDRESS" - and when those are
+     * already set, that sentence sends whoever reads it to look in precisely
+     * the wrong place. It cost an afternoon to find from the outside.
+     *
+     * Redacted on the way through: the message names variables rather than
+     * values, and a config error is exactly the kind of thing that ends up
+     * quoting one.
+     */
+    return new UnconfiguredArbiter(
+      redactSecrets(err instanceof Error ? err.message : String(err), 400),
+    );
   }
 }
 

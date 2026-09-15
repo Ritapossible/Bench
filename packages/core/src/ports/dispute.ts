@@ -243,6 +243,16 @@ export interface DisputeResolver {
   readonly available: boolean;
   /** Where the arbiter lives, for a UI that has to say so. */
   readonly locator: { readonly chain: string; readonly address: string } | null;
+  /**
+   * Why it is off, when it is off.
+   *
+   * An arbiter that is switched off is a fact a reader can weigh; an arbiter
+   * that is switched off *for an unstated reason* sends its operator to check
+   * the two variables the copy happens to name, which is where this went wrong
+   * in practice - both were set, and something else entirely had failed. The
+   * absence is honest only if it says what it is an absence of.
+   */
+  readonly unavailableReason?: string;
 
   /**
    * The bounds the contract was deployed with.

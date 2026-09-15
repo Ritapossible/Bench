@@ -34,7 +34,11 @@ export class UnconfiguredArbiter implements DisputeResolver {
   readonly available = false;
   readonly locator = null;
 
-  constructor(private readonly why: string = 'no GenLayer arbiter is configured') {}
+  readonly unavailableReason: string;
+
+  constructor(private readonly why: string = 'no GenLayer arbiter is configured') {
+    this.unavailableReason = why;
+  }
 
   #refuse(): never {
     throw new BenchError(

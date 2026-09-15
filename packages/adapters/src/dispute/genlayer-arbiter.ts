@@ -277,7 +277,22 @@ export class GenLayerArbiter implements DisputeResolver {
     });
   }
 
-  async #write(functionName: string, args: unknown[], value = 0n): Promise<void> {
+  async #write(
+    functionName: string,
+    args: unknown[],
+    value = 0n,
+    /**
+     * How long to wait for consensus before giving up on *watching* it.
+     *
+     * Not how long the transaction has: it is submitted either way, and the
+     * chain finishes with it whether or not anyone is still looking. This is
+     * only the caller's patience, and some callers do not have any to spare.
+     */
+    budget: { readonly retries: number; readonly interval: number } = {
+      retries: this.#retries,
+      interval: this.#interval,
+    },
+  ): Promise<void> {
     /**
      * Consensus v0.6 charges for execution, and a write with no fee attached is
      * rejected outright - `FeeValueMustBeNonZero`, before the contract runs.
@@ -309,8 +324,8 @@ export class GenLayerArbiter implements DisputeResolver {
     const receipt = await this.#client.waitForTransactionReceipt({
       hash,
       status: TransactionStatus.ACCEPTED,
-      retries: this.#retries,
-      interval: this.#interval,
+      retries: budget.retries,
+      interval: budget.interval,
     });
 
     /**
@@ -354,17 +369,39 @@ export class GenLayerArbiter implements DisputeResolver {
   async registerHire(reg: HireRegistration): Promise<{ readonly termsHash: string }> {
     this.#requireSigner('registering a hire');
     const termsHash = termsDigest(reg.terms);
-    await this.#write('register_hire', [
-      this.#key(reg.hireId),
-      `${reg.agent.chain}:${reg.agent.tokenId.toString()}`,
-      reg.client,
-      reg.respondent,
-      termsHash,
-      reg.recordUrl,
-      reg.claimantDomain ?? '',
-      reg.respondentDomain ?? '',
-      reg.marketplaceDomain ?? this.#marketplaceDomain ?? '',
-    ]);
+    /**
+     * Submitted, then barely waited on - because the caller is a web request.
+     *
+     * Registration happens inside `createHire`, and a serverless function is
+     * killed at its platform's limit; the deployment this ships to allows ten
+     * seconds. Waiting for GenLayer consensus there does not make the hire
+     * safer, it makes the hire *fail* - and fail after the escrow and the
+     * session key already exist, which is the worst possible moment.
+     *
+     * Nothing is lost by not watching. The transaction is submitted and the
+     * chain finishes with it regardless, and the hire page reads
+     * `registration()` from the contract rather than trusting anything this
+     * call returned - so the pinned state it shows is the chain's own answer,
+     * a few seconds later. A pin that genuinely did not land shows as unpinned
+     * with a retry beside it, which is the same state and the same button as
+     * any other failure.
+     */
+    await this.#write(
+      'register_hire',
+      [
+        this.#key(reg.hireId),
+        `${reg.agent.chain}:${reg.agent.tokenId.toString()}`,
+        reg.client,
+        reg.respondent,
+        termsHash,
+        reg.recordUrl,
+        reg.claimantDomain ?? '',
+        reg.respondentDomain ?? '',
+        reg.marketplaceDomain ?? this.#marketplaceDomain ?? '',
+      ],
+      0n,
+      { retries: 2, interval: 1_500 },
+    );
     return { termsHash };
   }
 
