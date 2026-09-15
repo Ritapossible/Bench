@@ -123,6 +123,8 @@ export function CatalogFilter({
   category,
   liveOnly,
   totalIndexed,
+  page,
+  perPage,
 }: {
   readonly rows: readonly AgentRow[];
   readonly counts: Readonly<Record<string, number>>;
@@ -131,6 +133,9 @@ export function CatalogFilter({
   readonly category: string;
   readonly liveOnly: boolean;
   readonly totalIndexed: number;
+  /** 1-based, already clamped by the page. */
+  readonly page: number;
+  readonly perPage: number;
 }) {
   /**
    * Every link says which view it leads to, including the default one.
@@ -142,16 +147,26 @@ export function CatalogFilter({
    * click, land on `/agents`, fall back to off, box still empty. Saying it
    * both ways costs a query parameter and makes the toggle mean something.
    */
-  const href = (next: { category?: string; live?: boolean }): string => {
+  const href = (next: { category?: string; live?: boolean; page?: number }): string => {
     const c = next.category ?? category;
     const l = next.live ?? liveOnly;
     const params = new URLSearchParams();
     if (c !== 'all') params.set('category', c);
     params.set('live', l ? 'true' : 'false');
+    /**
+     * Changing a filter goes back to page one, and only an explicit page stays.
+     *
+     * Keeping the page across a filter change lands a reader on page 14 of a
+     * list that now has three entries - an empty screen that looks like the
+     * filter broke rather than like the page number went stale.
+     */
+    if (next.page !== undefined && next.page > 1) params.set('page', String(next.page));
     return `/agents?${params.toString()}`;
   };
 
-  const shown = rows;
+  const pages = Math.max(1, Math.ceil(rows.length / perPage));
+  const start = (page - 1) * perPage;
+  const shown = rows.slice(start, start + perPage);
 
   return (
     <div className="stack stack-24">
@@ -190,11 +205,14 @@ export function CatalogFilter({
       </div>
 
       <p className="small">
-        Showing <strong className="ink">{shown.length}</strong> of{' '}
-        {category === 'all' ? totalIndexed : (counts[category] ?? 0)}{' '}
+        Showing{' '}
+        <strong className="ink">
+          {rows.length === 0 ? 0 : start + 1}-{start + shown.length}
+        </strong>{' '}
+        of {category === 'all' ? totalIndexed : (counts[category] ?? 0)}{' '}
         {category === 'all' ? 'indexed' : `${CATEGORY_LABEL[category] ?? category} agents`}
-        {shown.length < (category === 'all' ? totalIndexed : (counts[category] ?? 0))
-          ? ' (first page)'
+        {rows.length < (category === 'all' ? totalIndexed : (counts[category] ?? 0))
+          ? `, ${rows.length} loaded`
           : ''}
         .{' '}
         {liveOnly
@@ -229,7 +247,7 @@ export function CatalogFilter({
                 {r.deltaUsd === null && r.failedAuditions > 0 ? (
                   <>
                     <span className="small ink">Could not be driven</span>
-                    <span className="tiny">
+                    <span className="tiny break">
                       {r.failedAuditions} audition{r.failedAuditions === 1 ? '' : 's'} attempted,
                       none completed
                       {r.failureReason === null ? '' : ` - ${r.failureReason}`}
@@ -265,7 +283,14 @@ export function CatalogFilter({
               </div>
 
               <div className="sumcard-body">
-                <p className="body">{r.description || 'Agent card did not resolve.'}</p>
+                {/*
+                  `break`, because this is not always prose. When a card fails
+                  to resolve the description is the failure - `HTTP 429 for
+                  ipfs://QmWLUqud...` - and a CID has no spaces in it, so the
+                  line refuses to wrap and runs off the side of the card on a
+                  phone. The text that explains a problem should not create one.
+                */}
+                <p className="body break">{r.description || 'Agent card did not resolve.'}</p>
                 <p className="tiny mono">
                   #{r.tokenId} · {CATEGORY_LABEL[r.category] ?? r.category} · uptime{' '}
                   {pct(r.uptimeBps)} · p95 {ms(r.p95LatencyMs)} · {r.probeCount} probes
@@ -322,6 +347,86 @@ export function CatalogFilter({
           </div>
         ) : null}
       </div>
+
+      <Pager page={page} pages={pages} href={(n) => href({ page: n })} />
     </div>
+  );
+}
+
+/**
+ * Pages, as links.
+ *
+ * Links rather than buttons, and a query parameter rather than client state,
+ * for the same reason the category and live filters are: a page you can send
+ * someone, that survives a refresh, and that works with scripting off. The list
+ * is the one screen a judge will spend real time in, and two hundred cards of
+ * infinite scroll is how they never reach the bottom of it.
+ *
+ * The window is bounded so the control itself does not become the thing you
+ * scroll past: first and last are always reachable, the current page sits in a
+ * run of its neighbours, and the gaps are marked rather than silently skipped.
+ */
+function Pager({
+  page,
+  pages,
+  href,
+}: {
+  readonly page: number;
+  readonly pages: number;
+  readonly href: (page: number) => string;
+}) {
+  if (pages <= 1) return null;
+
+  const window = new Set<number>([1, pages, page]);
+  for (const n of [page - 2, page - 1, page + 1, page + 2]) {
+    if (n >= 1 && n <= pages) window.add(n);
+  }
+  const numbers = [...window].sort((a, b) => a - b);
+
+  return (
+    <nav className="pager" aria-label="Catalog pages">
+      {page > 1 ? (
+        <Link href={href(page - 1)} className="btn btn-outline btn-sm" rel="prev">
+          &larr; Previous
+        </Link>
+      ) : (
+        // Rendered disabled rather than removed, so the row does not shift
+        // sideways as you move between pages.
+        <span className="btn btn-outline btn-sm" aria-disabled="true" style={{ opacity: 0.4 }}>
+          &larr; Previous
+        </span>
+      )}
+
+      <span className="pager-numbers">
+        {numbers.map((n, i) => (
+          <span key={n} className="row" style={{ gap: '0.35rem', alignItems: 'center' }}>
+            {i > 0 && n - (numbers[i - 1] ?? 0) > 1 ? (
+              <span className="tiny" aria-hidden="true">
+                &hellip;
+              </span>
+            ) : null}
+            {n === page ? (
+              <span className="btn btn-primary btn-sm" aria-current="page">
+                {n}
+              </span>
+            ) : (
+              <Link href={href(n)} className="btn btn-ghost btn-sm">
+                {n}
+              </Link>
+            )}
+          </span>
+        ))}
+      </span>
+
+      {page < pages ? (
+        <Link href={href(page + 1)} className="btn btn-outline btn-sm" rel="next">
+          Next &rarr;
+        </Link>
+      ) : (
+        <span className="btn btn-outline btn-sm" aria-disabled="true" style={{ opacity: 0.4 }}>
+          Next &rarr;
+        </span>
+      )}
+    </nav>
   );
 }

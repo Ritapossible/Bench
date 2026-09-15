@@ -3,7 +3,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { verifyMessage } from 'viem';
+import { toHex, verifyMessage } from 'viem';
 import type { Address } from '@bench/core';
 import {
   bindWallet,
@@ -89,6 +89,66 @@ export async function walletChallenge(): Promise<{ readonly message: string }> {
   };
 }
 
+/**
+ * Did this address sign this message? Tolerant of two long-standing wallet
+ * quirks, and of nothing else.
+ *
+ * The strict check is one line, and it rejected a real signature from a real
+ * wallet on a real phone. Two incompatibilities are old enough to be part of
+ * the landscape rather than bugs to wait out:
+ *
+ *   **A `v` byte of 0 or 1.** EIP-155 settled on 27/28 and a number of wallets
+ *   and hardware devices still return the raw parity. Recovery against the
+ *   wrong `v` does not fail loudly - it recovers a different address, which
+ *   reads exactly like signing with the wrong account.
+ *
+ *   **`personal_sign` taking hex.** The method is specified over hex data, so
+ *   some wallets sign the hex text literally rather than the string handed to
+ *   them. The bytes differ, the recovery is clean, and the address comes back
+ *   wrong.
+ *
+ * Both are tried, and every attempt still has to recover to the address the
+ * caller claimed - this widens what a valid signature looks like, never who
+ * counts as having signed. Anything still failing here is most likely a
+ * contract wallet, which needs an on-chain EIP-1271 check against a chain this
+ * server has not been told about, so it is named in the error instead of
+ * guessed at.
+ */
+async function signedBy(address: Address, message: string, signature: string): Promise<boolean> {
+  const sigs = [signature, flipParity(signature)];
+  // What the wallet may actually have put through the hash.
+  const messages = [message, toHex(message)];
+
+  for (const candidate of messages) {
+    for (const sig of sigs) {
+      if (sig === null) continue;
+      try {
+        if (
+          await verifyMessage({
+            address,
+            message: candidate,
+            signature: sig as `0x${string}`,
+          })
+        ) {
+          return true;
+        }
+      } catch {
+        // A malformed candidate is not an answer about the signer. Try the next.
+      }
+    }
+  }
+  return false;
+}
+
+/** 65-byte signature with `v` of 0/1 rewritten to 27/28, or null if it is neither. */
+function flipParity(signature: string): string | null {
+  const body = signature.startsWith('0x') ? signature.slice(2) : signature;
+  if (body.length !== 130) return null;
+  const v = Number.parseInt(body.slice(128), 16);
+  if (v !== 0 && v !== 1) return null;
+  return `0x${body.slice(0, 128)}${(v + 27).toString(16).padStart(2, '0')}`;
+}
+
 export type ConnectResult =
   | { readonly ok: true; readonly address: Address; readonly moved: number }
   | { readonly ok: false; readonly error: string };
@@ -120,17 +180,14 @@ export async function connectWallet(form: FormData): Promise<ConnectResult> {
     return { ok: false, error: 'That signature was for a different request.' };
   }
 
-  let recovered = false;
-  try {
-    recovered = await verifyMessage({
-      address: address as Address,
-      message,
-      signature: signature as `0x${string}`,
-    });
-  } catch {
-    recovered = false;
+  if (!(await signedBy(address as Address, message, signature))) {
+    return {
+      ok: false,
+      error:
+        'That signature does not match the address. Smart-contract wallets are not supported ' +
+        'yet - a regular wallet works, and your hires still work here without connecting.',
+    };
   }
-  if (!recovered) return { ok: false, error: 'That signature does not match the address.' };
 
   // One use only. Without this, a signature observed once could be replayed for
   // as long as the nonce cookie lived.

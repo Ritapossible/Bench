@@ -27,7 +27,11 @@ export const metadata = { title: 'Catalog - Bench' };
 export default async function AgentsPage({
   searchParams,
 }: {
-  readonly searchParams: Promise<{ readonly category?: string; readonly live?: string }>;
+  readonly searchParams: Promise<{
+    readonly category?: string;
+    readonly live?: string;
+    readonly page?: string;
+  }>;
 }) {
   const params = await searchParams;
 
@@ -83,6 +87,19 @@ export default async function AgentsPage({
   }
 
   const totalIndexed = Object.values(counts).reduce((a, b) => a + b, 0);
+
+  /**
+   * Ten to a page, clamped into range here rather than trusted from the URL.
+   *
+   * `?page=0`, `?page=-3` and `?page=abc` are all things a URL can say and none
+   * of them are a page. Clamped rather than refused: a stale or hand-edited
+   * number should land on the nearest real page, not on an error, because the
+   * most common source of one is a link shared after the catalog changed size.
+   */
+  const PER_PAGE = 10;
+  const pageCount = Math.max(1, Math.ceil(agents.length / PER_PAGE));
+  const requested = Number.parseInt(params.page ?? '1', 10);
+  const page = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), pageCount) : 1;
 
   const rows: AgentRow[] = agents.map((a) => {
     const { record, liveness, verifiedLive } = a.entry;
@@ -148,6 +165,8 @@ export default async function AgentsPage({
           category={category}
           liveOnly={liveOnly}
           totalIndexed={totalIndexed}
+          page={page}
+          perPage={PER_PAGE}
         />
       </div>
     </section>

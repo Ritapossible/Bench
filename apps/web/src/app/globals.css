@@ -1063,3 +1063,28 @@ summary.btn {
 summary.btn::-webkit-details-marker {
   display: none;
 }
+
+/*
+ * The catalog pager.
+ *
+ * Wraps on a phone rather than scrolling sideways: the numbers are the part
+ * that grows, so they get their own wrapping row while previous and next stay
+ * put at the ends where a thumb expects them.
+ */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-block: 0.5rem;
+}
+
+.pager-numbers {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  flex: 1 1 auto;
+}
