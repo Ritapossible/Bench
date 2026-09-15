@@ -1088,3 +1088,89 @@ summary.btn::-webkit-details-marker {
   justify-content: center;
   flex: 1 1 auto;
 }
+
+/* ---------- built on ---------- */
+
+.builton-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/*
+ * The two brands, as cards rather than bare logos.
+ *
+ * A logo on its own asserts a relationship without naming one. The role line
+ * beside it is the part worth reading, so it gets the room: the mark
+ * identifies, the sentence explains.
+ */
+.builton-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  text-decoration: none;
+  color: inherit;
+  background: var(--surface, transparent);
+  flex: 1 1 15rem;
+  min-width: 0;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.builton-brand:hover,
+.builton-brand:focus-visible {
+  border-color: var(--ink);
+  transform: translateY(-1px);
+}
+
+/*
+ * Shape from the file, colour from the stylesheet.
+ *
+ * The supplied mark is solid black and would disappear on the dark theme.
+ * Masking keeps one asset correct in both, instead of a second inverted copy
+ * that someone eventually forgets to update.
+ */
+.logomark {
+  display: block;
+  inline-size: 28px;
+  block-size: 28px;
+  flex: 0 0 auto;
+  background-color: currentColor;
+  -webkit-mask: url('/logos/genlayer.png') no-repeat center / contain;
+  mask: url('/logos/genlayer.png') no-repeat center / contain;
+}
+
+/*
+ * A grid, not a wrapping flex row.
+ *
+ * Sized to its content, eight chips stack one per line on a phone and turn a
+ * short strip into a screen and a half of scrolling. A grid that fits as many
+ * columns as the width allows gives two on a phone and four on a desktop, so
+ * the roles stay readable without the section becoming something to scroll
+ * past.
+ */
+.builton-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.4rem;
+}
+
+.builton-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  min-width: 0;
+}
+
+/* The names are set in mono and some are long; let them wrap inside the chip
+   rather than widening every column to fit the longest one. */
+.builton-chip .mono {
+  overflow-wrap: anywhere;
+}

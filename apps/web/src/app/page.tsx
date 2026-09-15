@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { data } from '@/lib/data/index';
 import { pct } from '@/lib/format';
+import { BuiltOn } from '@/components/BuiltOn';
 
 /**
  * Rendered per request, not prerendered at build time.
@@ -99,6 +100,12 @@ export default async function Home() {
           <p className="small">No wallet needed. Paste any BSC address.</p>
         </div>
       </section>
+
+      {/*
+        Directly under the hero, because the first question a stranger has
+        about a marketplace of agents is what it actually runs on.
+      */}
+      <BuiltOn />
 
       {/* ---------- measured, not asserted ---------- */}
       <section className="wrap section-tight">
