@@ -1093,6 +1093,25 @@ summary.btn::-webkit-details-marker {
  * that grows, so they get their own wrapping row while previous and next stay
  * put at the ends where a thumb expects them.
  */
+/*
+  One dispute, as a block rather than a section.
+
+  Several disputes on one hire used to render as several stacked essays; the
+  facts that did not change per dispute now live once above the list, and what
+  is left per dispute is a badge row, the criteria, and one line about what
+  happens next. The hairline is what separates them - a heading per dispute
+  would put the weight back.
+*/
+.dispute-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.dispute-row + .dispute-row {
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
 .pager {
   display: flex;
   align-items: center;

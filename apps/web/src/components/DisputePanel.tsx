@@ -39,43 +39,63 @@ const STATE_COPY: Record<
   },
 };
 
+/*
+  The ground, as a tooltip on the word rather than a paragraph under it.
+
+  How each ground is decided is the same for every dispute on the page, so the
+  full version is said once above the list. What has to stay per dispute is
+  which of the two this one is - and a reader who does not already know what
+  "breach" means here should be able to find out without scrolling.
+*/
 const GROUND_COPY: Record<DisputeRecord['ground'], string> = {
   breach:
-    'Breach - replayed against the mandate this hire was signed under. No model runs; the ruling is arithmetic anyone can recompute.',
+    'Replayed against the mandate this hire was signed under. No model runs; the ruling is arithmetic anyone can recompute.',
   delivery:
-    'Delivery - judged by one model call over evidence both sides pinned, with a confidence floor under any finding against the agent.',
+    'Judged by one model call over evidence both sides pinned, with a confidence floor under any finding against the agent.',
 };
 
-function Independence({ tally }: { readonly tally: EvidenceIndependence }) {
-  const total =
-    tally.independent + tally.claimant + tally.respondent + tally.marketplace + tally.unclassified;
-  if (total === 0) return null;
+/**
+ * Where the evidence came from, in one line of chips.
+ *
+ * This used to be a heading, five rows and a paragraph under every dispute. The
+ * attribution is the point - it is the difference between a ruling read from
+ * independent sources and one read from our own logs - but repeating the
+ * explanation per dispute buried it. The chips carry the counts; the sentence
+ * behind them is said once, above the list.
+ */
+function Tally({ tally }: { readonly tally: EvidenceIndependence }) {
   const rows: readonly (readonly [string, number, string])[] = [
-    ['Independent', tally.independent, 'Neither party, and not Bench.'],
-    ['Hirer', tally.claimant, 'Chosen by the side that complained.'],
-    ['Agent', tally.respondent, 'Chosen by the side answering.'],
+    ['independent', tally.independent, 'Neither party, and not Bench.'],
+    ['hirer', tally.claimant, 'Chosen by the side that complained.'],
+    ['agent', tally.respondent, 'Chosen by the side answering.'],
     ['Bench', tally.marketplace, 'Ours. We list this agent and take a cut of the hire.'],
-    ['Unclassified', tally.unclassified, 'Not an https URL this could attribute.'],
+    ['unclassified', tally.unclassified, 'Not an https URL this could attribute.'],
   ];
+  const shown = rows.filter(([, n]) => n > 0);
+  if (shown.length === 0) return null;
 
   return (
-    <div className="stack stack-8">
-      <h3 className="h4">What the ruling was read from</h3>
-      <div className="row" style={{ gap: '0.4rem', flexWrap: 'wrap' }}>
-        {rows
-          .filter(([, n]) => n > 0)
-          .map(([label, n, why]) => (
-            <span key={label} className="badge badge-plain" title={why}>
-              {label} {n}
-            </span>
-          ))}
-      </div>
-      <p className="tiny">
-        {tally.independent > 0
-          ? 'At least one source belongs to neither party and to neither of us.'
-          : 'No independent source. Every document behind this ruling was chosen by someone with an interest in the outcome - including us. Weigh it accordingly.'}
-      </p>
-    </div>
+    <span className="row" style={{ gap: '0.3rem', flexWrap: 'wrap' }}>
+      {shown.map(([label, n, why]) => (
+        <span key={label} className="badge badge-plain tiny" title={why}>
+          {label} {n}
+        </span>
+      ))}
+      {/*
+        Kept, compressed. An all-interested evidence set is the one thing a
+        reader most needs from this row and the one a marketplace has the most
+        reason to leave out, so it stays visible - as a chip rather than the
+        paragraph it used to be.
+      */}
+      {tally.independent === 0 ? (
+        <span
+          className="badge badge-thin tiny"
+          title="Every document behind this ruling was chosen by someone with an interest in the outcome, including us."
+        >
+          none independent
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -230,6 +250,43 @@ export function DisputePanel({
 
       <Pinned hireId={hireId} pinned={pinned} />
 
+      {/*
+        Said once, above the list, rather than under every dispute.
+        With several disputes on one hire the same three paragraphs repeated
+        three times and the page became something to scroll past rather than
+        read. The facts did not change per dispute, so they do not belong per
+        dispute.
+      */}
+      {disputes.length === 0 ? null : (
+        <details className="stack stack-8">
+          <summary className="small ink" style={{ cursor: 'pointer' }}>
+            How a dispute here is decided
+          </summary>
+          <p className="tiny">
+            <strong className="ink">Breach</strong> is replayed against the mandate this hire was
+            signed under: no model runs, and the ruling is arithmetic anyone can recompute.{' '}
+            <strong className="ink">Delivery</strong> is judged by one model call over evidence both
+            sides pinned, with a confidence floor under any finding against the agent.
+          </p>
+          <p className="tiny">
+            Bench files on the hirer&rsquo;s behalf and posts the bond, so a frivolous filing costs
+            us rather than you, and the chain records both addresses. We still do not decide it: the
+            ruling is reached by validators none of the three parties control.
+          </p>
+          <p className="tiny">
+            Terms are pinned when the hire is created, before anyone knows there will be a dispute.
+            That is what makes them a fact about the past rather than a position taken in the
+            present, and it is why a claimant cannot pick a flattering source afterwards.
+          </p>
+          <p className="tiny">
+            Evidence is attributed rather than pooled. <span className="mono">independent</span>{' '}
+            belongs to neither party and not to us; <span className="mono">Bench</span> is our own
+            action record, which is the most convenient evidence in any Bench dispute and the least
+            disinterested.
+          </p>
+        </details>
+      )}
+
       {disputes.length === 0 ? (
         <div className="stack stack-12">
           <p className="small">
@@ -245,30 +302,33 @@ export function DisputePanel({
           {disputes.map((d) => {
             const copy = STATE_COPY[d.state];
             const tally = d.verdict?.evidence ?? countOrigins(d);
+            const waiting = Date.now() < d.answerEndsAt.getTime();
             return (
-              <div key={d.disputeId} className="stack stack-8">
-                <div className="row" style={{ gap: '0.5rem', alignItems: 'center' }}>
+              <div key={d.disputeId} className="dispute-row">
+                <div
+                  className="row"
+                  style={{ gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}
+                >
                   <span className={`badge ${copy.tone}`}>{copy.badge}</span>
                   <span className="mono tiny">#{d.disputeId}</span>
+                  <span className="tiny" title={GROUND_COPY[d.ground]}>
+                    {d.ground}
+                  </span>
                   {d.verdict === null ? null : (
                     <span className="badge badge-plain tiny">
                       {d.verdict.resolvedBy === 'replay' ? 'no model used' : 'one model call'}
                     </span>
                   )}
                   {d.extensions > 0 ? (
-                    <span className="badge badge-thin tiny">
-                      extended {d.extensions}
-                      {d.extensions === 1 ? ' time' : ' times'}
-                    </span>
+                    <span className="badge badge-thin tiny">extended {d.extensions}</span>
                   ) : null}
+                  <FiledBy claimant={d.claimant} onBehalfOf={d.onBehalfOf} />
+                  <span className="spacer" />
+                  <Tally tally={tally} />
                 </div>
 
-                <p className="small ink">{copy.line}</p>
-                <p className="tiny">{GROUND_COPY[d.ground]}</p>
-                <FiledBy claimant={d.claimant} onBehalfOf={d.onBehalfOf} />
-
                 {d.criteria.length === 0 ? null : (
-                  <ol className="stack stack-4" style={{ paddingLeft: '1.1rem' }}>
+                  <ol className="stack stack-4" style={{ paddingLeft: '1.1rem', margin: 0 }}>
                     {d.criteria.map((c, i) => {
                       const reading = d.verdict?.criteria.find((r) => r.id === i + 1);
                       return (
@@ -288,31 +348,36 @@ export function DisputePanel({
                   </ol>
                 )}
 
-                <Independence tally={tally} />
+                {/*
+                  One line about what happens next, not a paragraph. The state
+                  badge above already says where this dispute is; this says only
+                  the thing the badge cannot - when, and what unblocks it.
+                */}
+                {d.state === 'open' ? null : <p className="tiny">{copy.line}</p>}
 
                 {d.state === 'open' ? (
-                  <div className="stack stack-8">
+                  waiting ? (
                     <p className="tiny">
-                      {Date.now() < d.answerEndsAt.getTime()
-                        ? `The agent has until ${d.answerEndsAt.toISOString()} to file its own evidence. Nobody can rule before then - a verdict taken on one side's documents is one side's verdict.`
-                        : `Open for adjudication. Anyone may call it, and the window closes ${d.windowEndsAt.toISOString()}.`}
+                      Answer window closes{' '}
+                      {d.answerEndsAt.toISOString().replace('T', ' ').slice(0, 16)}. Nobody may rule
+                      before then.
                     </p>
-                    {Date.now() < d.answerEndsAt.getTime() ? null : (
-                      <form action={adjudicateDispute}>
-                        <input type="hidden" name="hireId" value={hireId} />
-                        <input type="hidden" name="disputeId" value={d.disputeId} />
-                        <button type="submit" className="btn btn-primary btn-sm">
-                          Ask the arbiter to rule
-                        </button>
-                        <p className="tiny" style={{ marginTop: '0.5rem' }}>
-                          Anyone may press this, and it is the only call in the dispute that costs
-                          anything. Restricting it to you would let the agent pay privately for the
-                          window to lapse. Consensus takes minutes: validators fetch the evidence
-                          and each reach a ruling of their own before the answers are compared.
-                        </p>
-                      </form>
-                    )}
-                  </div>
+                  ) : (
+                    <form
+                      action={adjudicateDispute}
+                      className="row"
+                      style={{ gap: '0.6rem', alignItems: 'center' }}
+                    >
+                      <input type="hidden" name="hireId" value={hireId} />
+                      <input type="hidden" name="disputeId" value={d.disputeId} />
+                      <button type="submit" className="btn btn-primary btn-sm">
+                        Ask the arbiter to rule
+                      </button>
+                      <span className="tiny">
+                        Anyone may press this. It is the only call that costs anything.
+                      </span>
+                    </form>
+                  )
                 ) : null}
               </div>
             );
@@ -370,13 +435,20 @@ function Pinned({
         <span className="badge badge-live">Terms pinned</span>
         <span className="tiny">{pinned.registeredAt.toISOString()}</span>
       </div>
+      {/*
+        One sentence and the two facts it is about.
+
+        The longer version - why pinning before a dispute exists is what makes
+        the terms a fact about the past - is the same on every hire, so it is
+        said once in the explainer above rather than under each of them.
+      */}
       <p className="tiny">
-        The mandate, envelope and policy this hire ran under are fixed on the arbiter by digest, so
-        neither side can restate them now. The action record is published at{' '}
-        <span className="mono break">{pinned.recordUrl}</span> - pinned at the same moment, which is
-        why a claimant cannot pick a flattering source afterwards.
+        The mandate, envelope and policy this hire ran under are fixed on the arbiter by digest,
+        along with the action record, so neither side can restate them now.
       </p>
       <p className="tiny mono break" style={{ opacity: 0.6 }}>
+        {pinned.recordUrl}
+        <br />
         sha256 {pinned.termsHash}
       </p>
     </div>
@@ -391,7 +463,8 @@ function Pinned({
  * marketplace hire is whatever identity the marketplace holds for its user, and
  * on this deployment that is a per-browser id with no private key anywhere. The
  * widening is real, so it is shown rather than implied - a reader should never
- * have to guess whether the hirer raised this or we did.
+ * have to guess whether the hirer raised this or we did. What that means for
+ * the bond is said once above the list; here it is only the fact.
  *
  * Silent when the two match, which is what a wallet-connected hirer filing for
  * themselves looks like.
@@ -405,11 +478,17 @@ function FiledBy({
 }) {
   if (claimant.toLowerCase() === onBehalfOf.toLowerCase()) return null;
   return (
-    <p className="tiny">
-      Filed by Bench on the hirer&rsquo;s behalf, and the chain records both addresses. We posted
-      the bond, so a frivolous filing costs us rather than you - and we still do not decide it. The
-      ruling is the validators&rsquo;.
-    </p>
+    /*
+      Muted, not amber. This is context on an otherwise ordinary filing, and
+      styling it as a warning made it louder than the state badge next to it -
+      which is the one thing in the row a reader is actually looking for.
+    */
+    <span
+      className="badge badge-plain tiny"
+      title="Bench filed on the hirer's behalf and posted the bond. The chain records both addresses."
+    >
+      filed by Bench
+    </span>
   );
 }
 
