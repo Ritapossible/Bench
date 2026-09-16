@@ -83,7 +83,17 @@ function Independence({ tally }: { readonly tally: EvidenceIndependence }) {
 const OUTCOME: Record<string, { readonly tone: string; readonly text: string }> = {
   filed: {
     tone: 'badge-live',
-    text: 'Filed. The agent now has its answer window, and nobody can rule until it closes.',
+    /*
+      Says what is happening rather than implying it is done. The transaction is
+      submitted; GenLayer is reaching consensus, which takes a minute or two,
+      and the dispute appears below once it has. Claiming completion here would
+      be claiming something this page cannot see yet.
+    */
+    text: 'Filed. GenLayer validators are reaching consensus on it now, which takes a minute or two - refresh and it will appear below. The agent then has its answer window, and nobody can rule until that closes.',
+  },
+  ruled: {
+    tone: 'badge-live',
+    text: 'Sent to the arbiter. Validators are each fetching the evidence and reaching a ruling of their own; refresh in a minute or two to see what they agreed.',
   },
   refused: {
     tone: 'badge-blocked',
@@ -104,10 +114,6 @@ const OUTCOME: Record<string, { readonly tone: string; readonly text: string }> 
   'pin-failed': {
     tone: 'badge-blocked',
     text: 'The terms did not reach the arbiter. Usually a GenLayer key with no balance, or the chain not answering - the hire itself is unaffected, and this can be retried.',
-  },
-  ruled: {
-    tone: 'badge-live',
-    text: 'Adjudicated. The ruling below is the validators’ own, reached independently and compared.',
   },
   'not-ruled': {
     tone: 'badge-blocked',

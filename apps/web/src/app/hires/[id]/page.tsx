@@ -16,6 +16,18 @@ import { arbiter } from '@/lib/dispute/runtime';
 export const metadata = { title: 'Hire - Bench' };
 export const dynamic = 'force-dynamic';
 
+/**
+ * Room for a dispute to be submitted, not for one to be ruled.
+ *
+ * The actions on this page put transactions on GenLayer. Submitting is quick;
+ * confirming is a consensus round, a minute or two, which no serverless
+ * function will wait for - so the adapter stops watching and this page reads
+ * the result back off the contract instead. Sixty seconds covers the
+ * submission and the redirect. Without it the platform default cut the filing
+ * off mid-flight and the button looked like it did nothing.
+ */
+export const maxDuration = 60;
+
 // The symbol comes from the hire's own mandate, so a record settled in $U does
 // not render as USDT because a constant said so.
 /**

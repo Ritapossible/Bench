@@ -129,20 +129,52 @@ cannot offer an amount the chain would refuse.
 
 Then press **File it**.
 
-The button submits a payable transaction to GenLayer and waits for consensus, so
-it sits for a minute or two. That pause is the integration working, and it is
-worth saying so rather than cutting it: the page is waiting on validators, not
-on a spinner.
+It returns in about five seconds with *"Filed. GenLayer validators are reaching
+consensus on it now."* **Wait a minute and refresh the page**, and the dispute
+appears below with its state, the answer window, and the evidence tally.
 
-When it returns, the panel shows the dispute **Open**, the answer window, and the
-evidence tally split by who each source belongs to.
+Those five seconds are the submission. The minute is consensus. The page cannot
+wait for the second one - a serverless function is killed long before a ruling
+round finishes - so it submits, says so, and reads the result back off the
+contract when you reload. Measured against the deployed arbiter: filed in 4.7s,
+visible on chain 11s later.
+
+### You will not be asked to sign, and you will not pay gas
+
+Worth knowing before you narrate it, because it is the opposite of what a web3
+demo usually shows.
+
+**Bench files on the hirer's behalf and pays the GEN.** The hire's client is a
+per-browser identity - there is no private key for it anywhere in the world - so
+requiring the client's own signature would make the remedy unreachable for every
+hire made through a front end that has not asked its user to connect a wallet.
+The contract admits the client *or* the address that registered the hire, and
+records both: `claimant` is who posted the bond, `on_behalf_of` is the hire's
+client.
+
+Connecting a wallet in the header is **identity only**: it signs one message so
+your hires survive clearing the browser. It sends no transaction and needs no
+balance.
+
+If you would rather the hirer signed and paid themselves, that is the GenLayer
+Transaction Kit path and it is a real piece of work, not a setting. It would
+also mean anyone testing the demo needs GEN in their browser wallet on a faucet
+devnet, which is a worse first experience for a judge than the current one. The
+honest sentence for the video is: *"Bench files for you and posts the bond, and
+the chain records that it was Bench who filed - but Bench cannot influence the
+ruling by a single bit, because that runs on validators none of us control."*
 
 ---
 
 ## 3.1 Prove the front end really called GenLayer
 
-This is the part that settles the question, and it takes one command. Run it
-**before** you file and again **after**, on camera.
+**Optional.** Filing works without any of this - the panel showing your dispute,
+read back from the contract on reload, is already the front end talking to
+GenLayer. This is for the moment in the video where someone might reasonably ask
+*"is that really on chain, or is it just your database?"*
+
+One command, read-only, and the viewer can run it themselves. Run it **before**
+you file and again **after**.
 
 ```bash
 node contracts/genlayer/tools/verify_dispute.mjs 0xB608B27603965E8A61ab46cE59058d332FDa0566

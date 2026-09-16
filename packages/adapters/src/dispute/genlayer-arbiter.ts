@@ -451,7 +451,22 @@ export class GenLayerArbiter implements DisputeResolver {
     };
   }
 
-  async openDispute(filing: DisputeFiling): Promise<DisputeRecord> {
+  /**
+   * File, without waiting for consensus to finish.
+   *
+   * **A web request cannot wait for a GenLayer ruling round.** This is called
+   * from a Server Action, and a serverless function is killed at its platform's
+   * limit - ten seconds where this deploys - while filing takes a minute or two
+   * of consensus. Waiting therefore did not make the filing safer, it made the
+   * button do nothing: the transaction went out, the function was killed, and
+   * the page came back as though nothing had happened.
+   *
+   * So the bond is submitted, the wait is short, and `null` means "submitted,
+   * not yet visible". The caller does not have to trust that: every dispute is
+   * read back from the contract by the hire page, so what a reader sees is the
+   * chain's own answer a minute later rather than anything this call returned.
+   */
+  async openDispute(filing: DisputeFiling): Promise<DisputeRecord | null> {
     this.#requireSigner('opening a dispute');
     await this.#write(
       'open_dispute',
@@ -463,20 +478,20 @@ export class GenLayerArbiter implements DisputeResolver {
         [...filing.evidenceUrls],
       ],
       filing.bond,
+      { retries: 2, interval: 1_500, tolerateTimeout: true },
     );
-    // The write returns the new id through consensus data whose shape varies by
-    // network, so the id is read back from the contract instead. One extra free
-    // call against a value that is authoritative either way.
+    /**
+     * One free look, in case consensus was quick. Absence is not a failure.
+     *
+     * The id is read back rather than taken from the write, because the write
+     * returns it through consensus data whose shape varies by network. If it is
+     * not there yet, the dispute is still on its way and the page will show it
+     * on the next load - reporting an error here would be reporting a failure
+     * that has not happened.
+     */
     const ids = await this.forHire(filing.hireId);
     const latest = ids.at(-1);
-    if (latest === undefined) {
-      throw new BenchError('UPSTREAM_UNAVAILABLE', 'the dispute did not appear after opening');
-    }
-    const record = await this.get(latest);
-    if (record === null) {
-      throw new BenchError('UPSTREAM_UNAVAILABLE', 'the dispute did not appear after opening');
-    }
-    return record;
+    return latest === undefined ? null : await this.get(latest);
   }
 
   async answer(disputeId: number, evidenceUrls: readonly string[]): Promise<DisputeRecord> {
@@ -485,13 +500,21 @@ export class GenLayerArbiter implements DisputeResolver {
     return this.#must(disputeId);
   }
 
-  async adjudicate(disputeId: number, terms: DisputeTerms): Promise<DisputeRecord> {
+  async adjudicate(disputeId: number, terms: DisputeTerms): Promise<DisputeRecord | null> {
     this.#requireSigner('adjudicating');
     // Canonical JSON, because the contract re-encodes what it is given and
     // compares the digest: two encoders disagreeing about key order would look
     // exactly like someone restating the terms after the fact.
-    await this.#write('adjudicate', [disputeId, canonicalJson(terms)]);
-    return this.#must(disputeId);
+    //
+    // Bounded like the filing above, and for the same reason: adjudication runs
+    // validators over fetched evidence, which is a minute or two, and the
+    // button that starts it lives in a web page.
+    await this.#write('adjudicate', [disputeId, canonicalJson(terms)], 0n, {
+      retries: 2,
+      interval: 1_500,
+      tolerateTimeout: true,
+    });
+    return this.get(disputeId);
   }
 
   async #must(disputeId: number): Promise<DisputeRecord> {

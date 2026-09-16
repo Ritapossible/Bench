@@ -68,7 +68,7 @@ export class UnconfiguredArbiter implements DisputeResolver {
     this.#refuse();
   }
 
-  async openDispute(_filing: DisputeFiling): Promise<DisputeRecord> {
+  async openDispute(_filing: DisputeFiling): Promise<DisputeRecord | null> {
     this.#refuse();
   }
 
@@ -76,7 +76,7 @@ export class UnconfiguredArbiter implements DisputeResolver {
     this.#refuse();
   }
 
-  async adjudicate(_disputeId: number, _terms: DisputeTerms): Promise<DisputeRecord> {
+  async adjudicate(_disputeId: number, _terms: DisputeTerms): Promise<DisputeRecord | null> {
     this.#refuse();
   }
 

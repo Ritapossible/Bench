@@ -273,11 +273,18 @@ export interface DisputeResolver {
    * that out through a refused payable transaction is the wrong moment.
    */
   registration(hireId: string): Promise<PinnedHire | null>;
-  openDispute(filing: DisputeFiling): Promise<DisputeRecord>;
+  /**
+   * File a dispute. `null` means submitted but not yet visible on chain.
+   *
+   * Not a failure: consensus takes a minute or two and a web request cannot
+   * wait for it, so the caller reads the dispute back rather than trusting what
+   * this returned.
+   */
+  openDispute(filing: DisputeFiling): Promise<DisputeRecord | null>;
   /** The respondent's filing. Adjudication refuses until its window closes. */
   answer(disputeId: number, evidenceUrls: readonly string[]): Promise<DisputeRecord>;
   /** Rule. Permissionless, and the only call that costs anything. */
-  adjudicate(disputeId: number, terms: DisputeTerms): Promise<DisputeRecord>;
+  adjudicate(disputeId: number, terms: DisputeTerms): Promise<DisputeRecord | null>;
   get(disputeId: number): Promise<DisputeRecord | null>;
   forHire(hireId: string): Promise<readonly number[]>;
   /** Free, and the number a reader should see beside any ruling. */
