@@ -74,44 +74,134 @@ knew there would be a dispute, so neither side can restate the rules afterwards.
 
 ## 3. File the dispute
 
-Open **Raise a dispute**. Leave the ground on the first option - *It did
-something it was not allowed to do* - which is the breach ground: replayed
-arithmetic, no model call, recomputable by anyone.
+Click **Raise a dispute** on the hire page. Five fields, in order.
 
-**What you hired it to do**
+### Field 1 - What went wrong
+
+Leave it on the **first** radio: *It did something it was not allowed to do*.
+
+That is the `breach` ground. It settles by replaying the mandate you signed over
+the recorded actions: no model call, no confidence score, arithmetic anyone can
+recompute. The second option, *It did not do the job*, costs a model call and
+returns a judgment instead of a proof.
+
+### Field 2 - What you hired it to do
+
+Paste this. **Change the date to the day you record**, so that when you read it
+back off the chain in section 3.1 nobody can claim it was written earlier:
 
 ```
-Rebalance my BNB/USDT position toward 50/50, touching only the pool I allowlisted.
+Rebalance my BNB/USDT position toward 50/50, touching only the pool I allowlisted. Recorded 16 September 2026.
 ```
 
-**What should have happened, one per line**
+### Field 3 - What should have happened, one per line
+
+Each line is ruled on separately, and one line going against the agent is enough
+to uphold. Up to eight lines; two is plenty on camera.
 
 ```
-No funds left the allowlisted contract.
+No funds left the contract I allowlisted.
 The position was rebalanced to within 5% of 50/50.
 ```
 
-**Evidence, one https URL per line** - optional. The hire's own action record is
-always included automatically and is classified `marketplace`, not
-`independent`, because it is ours. To show an independent source in the tally,
-add:
+### Field 4 - Evidence, one https URL per line
+
+**Optional, and use at most two.** The hire's own action record is added
+automatically, and the claimant's half of the evidence budget is three sources
+in total - supply three yourself and the contract refuses with *leave room for
+the hire's own record url*.
+
+One is enough to make the point:
 
 ```
 https://bscscan.com/address/0x46a15b0b27311cedf172ab29e4f4766fbe7f4364
 ```
 
-**Filing bond**: leave at `0.01` GEN. It returns if the dispute is upheld, and
-also if the arbiter cannot decide - failing to reach a ruling is not the
-claimant's fault.
+Worth narrating: that URL comes back classified `independent`, while Bench's own
+action record comes back `marketplace`. **Bench's evidence is not counted as
+neutral, because Bench is not neutral** - it lists the agent, ranks it, and takes
+a cut of this hire.
 
-Submit. Filing goes through GenLayer consensus, so give it a minute or two. The
-panel then shows the dispute **Open**, the answer window, and the evidence tally
-split by who each source belongs to.
+### Field 5 - Filing bond
 
-Worth saying: **Bench files on the hirer's behalf** and the chain records both
-addresses - `claimant` is who posted the bond, `on_behalf_of` is the hire's
-client. The panel says so in words. Bench cannot influence the ruling either
-way; that runs on validators none of the three parties control.
+Leave it at **`0.01`** GEN. It is also the contract's minimum, so the form
+cannot offer an amount the chain would refuse.
+
+Then press **File it**.
+
+The button submits a payable transaction to GenLayer and waits for consensus, so
+it sits for a minute or two. That pause is the integration working, and it is
+worth saying so rather than cutting it: the page is waiting on validators, not
+on a spinner.
+
+When it returns, the panel shows the dispute **Open**, the answer window, and the
+evidence tally split by who each source belongs to.
+
+---
+
+## 3.1 Prove the front end really called GenLayer
+
+This is the part that settles the question, and it takes one command. Run it
+**before** you file and again **after**, on camera.
+
+```bash
+node contracts/genlayer/tools/verify_dispute.mjs 0xB608B27603965E8A61ab46cE59058d332FDa0566
+```
+
+Read-only: no key, no gas, nothing configured. Anyone watching can run the same
+command against the same address and get the same answer, which is the
+difference between demonstrating an integration and asserting one.
+
+Before filing it prints the dispute count. **The contract already holds one
+dispute**, filed during an end-to-end test on 14 September, so the count goes
+`1` to `2` and yours is dispute `1`. Worth knowing before you are live: an
+unexpected number on screen is the kind of thing that derails a take.
+
+After filing, the new dispute reads back like this - **with your own sentences
+in it**:
+
+```
+arbiter   0xB608B27603965E8A61ab46cE59058d332FDa0566
+chain     GenLayer Studio Next (61997)
+disputes  2
+
+--- dispute 1 ---
+state        OPEN
+ground       BREACH
+opened       2026-09-16T...
+answer ends  2026-09-17T...
+bond         0.01 GEN
+claimant     0xaA34e1...   (posted the bond)
+on behalf of 0x4886AD...   (the hire's client)
+
+engagement   Rebalance my BNB/USDT position toward 50/50, touching only the
+             pool I allowlisted. Recorded 16 September 2026.
+criteria
+  1. No funds left the contract I allowlisted.
+  2. The position was rebalanced to within 5% of 50/50.
+
+evidence, and who each source belongs to
+  [marketplace] https://bench-bnb.vercel.app/api/hires/.../actions
+  [independent] https://bscscan.com/address/0x46a15b...
+```
+
+**The text you typed into the form is now in contract storage on a chain Bench
+does not run.** A screenshot of a form proves nothing. The same sentence read
+out of GenLayer, by a command the viewer can run themselves, is hard to argue
+with.
+
+Three details worth pointing at while it is on screen:
+
+- **`claimant` and `on behalf of` are different addresses.** Bench filed on the
+  hirer's behalf, because the hire's client is a per-browser identity with no
+  key. The chain records both, so the widening is visible rather than implied.
+- **The evidence is attributed.** `marketplace` is our own record;
+  `independent` is neither party's.
+- **No verdict yet.** Nobody may rule until the answer window closes. A verdict
+  taken on one side's documents is one side's verdict.
+
+You can also open the address in the explorer:
+https://explorer-studio-dev.genlayer.com
 
 ## 4. Show a completed ruling
 
@@ -122,6 +212,8 @@ the mandate never allowlisted:
 ```bash
 node contracts/genlayer/tools/demo_cycle.mjs 0x<arbiter> 0x<funded-genlayer-key>
 ```
+
+Both tools build on the workspace, so run `npm run build` once first.
 
 It prints each step as it happens. A real run:
 
