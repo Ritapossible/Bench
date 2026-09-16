@@ -38,8 +38,8 @@ plausible verdict**.
 | | `BREACH` | `DELIVERY` |
 |---|---|---|
 | The claim | "it did something it was not allowed to do" | "it did not do the job" |
-| How it settles | replay the signed terms over the recorded actions | one model call over evidence both parties pinned |
-| Cost | **zero model calls** | one model call |
+| How it settles | replay the signed terms over the recorded actions | a model reading evidence both parties pinned |
+| Cost | **zero model calls** | one prompt per validator, not an agent loop |
 | Guarantee | arithmetic over a mandate the owner signed — nothing to argue with | a judgment, with a confidence attached and a floor under it |
 | Fails when | the action record is missing or contested | evidence is ambiguous or silent |
 
@@ -335,9 +335,11 @@ appearing there unnoticed is how an unintended write ships — and asserts that
 
 ## Deploying
 
-**Deployed at `0xB608B27603965E8A61ab46cE59058d332FDa0566`** on **Studio Next** — chain
-`61997`, RPC `https://studio-next.genlayer.com/api`, explorer
-`https://explorer-studio-dev.genlayer.com/`.
+**Deployed at [`0xB608B27603965E8A61ab46cE59058d332FDa0566`](https://explorer-studio-dev.genlayer.com/address/0xB608B27603965E8A61ab46cE59058d332FDa0566)** on **Studio Next** — chain `61997`, RPC
+`https://studio-next.genlayer.com/api`.
+
+Read it on the explorer, without cloning anything:
+<https://explorer-studio-dev.genlayer.com/address/0xB608B27603965E8A61ab46cE59058d332FDa0566>
 
 Verified live end to end from Bench's own adapter, along the path production
 actually takes: a hire registered under its namespaced key with a per-browser

@@ -8,6 +8,9 @@
 [agent advantage report](https://bench-bnb.vercel.app/advantage) ·
 [what the machinery is doing](https://bench-bnb.vercel.app/status)
 
+**Dispute arbiter on GenLayer:** [`0xB608B27603965E8A61ab46cE59058d332FDa0566`](https://explorer-studio-dev.genlayer.com/address/0xB608B27603965E8A61ab46cE59058d332FDa0566) ·
+Studio Next, chain `61997` · [read a dispute off the chain yourself](#when-it-goes-wrong-the-dispute-layer)
+
 Bench is an AI agent marketplace for BNB Smart Chain where agents *audition on your real position before you pay a cent*. It is being built for BNB Chain's [**The Smart Money Era: Build the Era**](https://www.bnbchain.org/en/hackathons/smart-money-era) hackathon (5 Aug – **9 Sep 2026**), whose main track pays $30,000 plus adoption as the official BNB Agent Studio marketplace.
 
 - **What it is:** [ARCHITECTURE.md](./ARCHITECTURE.md) — the problem, the mechanism, the system design.
@@ -118,12 +121,39 @@ So the ruling runs on a [GenLayer](https://genlayer.com) Intelligent Contract,
 where each validator fetches the evidence and runs the judgment itself, and they
 compare structured rulings rather than bytes. **[`contracts/genlayer/`](contracts/genlayer/README.md)**.
 
+**It is deployed, and you do not have to take our word for any of this.**
+
+| | |
+|---|---|
+| Arbiter | [`0xB608B27603965E8A61ab46cE59058d332FDa0566`](https://explorer-studio-dev.genlayer.com/address/0xB608B27603965E8A61ab46cE59058d332FDa0566) |
+| Explorer | <https://explorer-studio-dev.genlayer.com/address/0xB608B27603965E8A61ab46cE59058d332FDa0566> |
+| Chain | GenLayer Studio Next, `61997` |
+| RPC | `https://studio-next.genlayer.com/api` |
+| Source | [`contracts/genlayer/arbiter.py`](contracts/genlayer/arbiter.py) |
+
+Every dispute filed from the live app is readable at that address, in the
+claimant's own words, off a chain Bench does not run. There is a read-only
+script for it that needs no key, no gas and no configuration:
+
+```bash
+node contracts/genlayer/tools/verify_dispute.mjs 0xB608B27603965E8A61ab46cE59058d332FDa0566
+```
+
 | | `BREACH` | `DELIVERY` |
 |---|---|---|
 | The claim | "it did something it was not allowed to do" | "it did not do the job" |
-| Settles by | replaying the signed terms over the recorded actions | one model call over evidence **both** sides pinned |
-| Cost | **zero model calls** | one model call |
+| Settles by | replaying the signed terms over the recorded actions | a model reading evidence **both** sides pinned |
+| Cost | **zero model calls** | one prompt per validator, not an agent loop |
 | Guarantee | arithmetic over a mandate the owner signed | a judgment, with a confidence floor under any finding against the agent |
+
+**"One prompt" is not "one model deciding."** The prompt is a single reading
+rather than an agent loop that can talk itself into a conclusion, and it is
+re-run by every validator drawn for the dispute. Measured on Studio Next on
+2026-09-16: five validators per transaction out of a pool of sixteen, spanning
+six model families across two providers. The leader's answer settles nothing
+unless enough of them reach the same structured ruling on their own fetches,
+and a validator that cannot reach the evidence the leader cites refuses rather
+than ratifies.
 
 Four things about it worth more than the feature list:
 
