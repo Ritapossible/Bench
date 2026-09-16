@@ -51,7 +51,7 @@ const GROUND_COPY: Record<DisputeRecord['ground'], string> = {
   breach:
     'Replayed against the mandate this hire was signed under. No model runs; the ruling is arithmetic anyone can recompute.',
   delivery:
-    'Judged by one model call over evidence both sides pinned, with a confidence floor under any finding against the agent.',
+    'Judged by a model reading evidence both sides pinned. Every validator runs that judgment itself, on its own model, and the ruling is only what they independently agree on.',
 };
 
 /**
@@ -265,13 +265,30 @@ export function DisputePanel({
           <p className="tiny">
             <strong className="ink">Breach</strong> is replayed against the mandate this hire was
             signed under: no model runs, and the ruling is arithmetic anyone can recompute.{' '}
-            <strong className="ink">Delivery</strong> is judged by one model call over evidence both
+            <strong className="ink">Delivery</strong> is judged by a model reading evidence both
             sides pinned, with a confidence floor under any finding against the agent.
           </p>
           <p className="tiny">
             Bench files on the hirer&rsquo;s behalf and posts the bond, so a frivolous filing costs
             us rather than you, and the chain records both addresses. We still do not decide it: the
             ruling is reached by validators none of the three parties control.
+          </p>
+          {/*
+            Said because the old wording implied the opposite.
+
+            "One model call" described the shape of the prompt - a single
+            reading rather than an agent loop - and read as "one AI decides
+            this". The opposite is true: the call is re-run by every validator
+            drawn for the case, on a different model from a different vendor,
+            and the leader's answer counts for nothing unless enough of them
+            reach the same structured ruling on their own fetches.
+          */}
+          <p className="tiny">
+            A model call here is not one model deciding. Each validator drawn for the dispute
+            fetches the evidence and re-runs the judgment itself, on its own model, and the
+            leader&rsquo;s answer settles nothing unless enough of them independently reach the same
+            ruling. A validator that cannot reach the evidence the leader cites refuses rather than
+            ratifies.
           </p>
           <p className="tiny">
             Terms are pinned when the hire is created, before anyone knows there will be a dispute.
