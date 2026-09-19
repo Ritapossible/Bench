@@ -993,6 +993,76 @@ textarea.field {
   border-color: var(--ink-inverse);
 }
 
+/*
+  A footer that groups rather than lists.
+
+  The links used to be one flat wrapping row. At phone width it broke into
+  ragged lines with "GitHub" alone on the last one and its arrow wrapped
+  beneath, and nothing told a reader which links were pages of the app and
+  which left the site. Labelled columns cost one line of type each and answer
+  that before anyone has to click.
+*/
+.footer-top {
+  display: grid;
+  gap: 2rem 1.5rem;
+  grid-template-columns: 1.6fr repeat(3, 1fr);
+  align-items: start;
+}
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.footer-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.footer-head {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+.footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.footer-links a,
+.footer-links span {
+  font-size: 0.9rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+.footer-links a:hover {
+  text-decoration: underline;
+}
+
+/* The deployment facts: what is real here, scannable in one pass. */
+.footer-facts {
+  display: grid;
+  gap: 1rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+}
+.footer-facts .footer-head {
+  margin-bottom: 0.25rem;
+}
+.footer-fine {
+  color: var(--muted);
+}
+
+@media (max-width: 52rem) {
+  .footer-top {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .footer-brand {
+    grid-column: 1 / -1;
+  }
+}
+
 .footer {
   background: var(--surface);
   border-top: 1px solid var(--line);
